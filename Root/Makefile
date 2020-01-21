@@ -7,20 +7,21 @@ SRC=./src/
 
 UNAME := $(shell uname)
 
-CFLAGS += $(shell root-config --ldflags --cflags --glibs)
+CFLAGS += $(shell root-config --ldflags --cflags --glibs) -g -fPIC
+OPTFLAGS += -Ofast -mtune=native -march=native -w -funroll-loops -fopenmp -D_GLIBCXX_PARALLEL
 
 default: miniTRB_compress
 
 all: miniTRB_compress miniTRB_clusterize test
 
 miniTRB_compress: ./src/miniTRB_compress.cxx
-	$(CXX) -o$@ $< $(CFLAGS)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 miniTRB_clusterize: ./src/miniTRB_clusterize.cxx
-	$(CXX) -o$@ $< $(CFLAGS)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 test: ./src/test.cxx
-	$(CXX) -o$@ $< $(CFLAGS)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 clean:
 	rm -f ./miniTRB_compress

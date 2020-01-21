@@ -10,6 +10,10 @@
 #include "TFile.h"
 #include "TTree.h"
 #include "TChain.h"
+#include "TMath.h"
+#include "omp.h"
+
+#define verbose false
 
 typedef struct
 {
@@ -93,6 +97,97 @@ int GetVA(cluster clus)
     return seed / 64;
 }
 
+float GetCN(std::vector<float> *signal, int va, int type)
+{
+    float mean = 0;
+    float rms = 0;
+    float cn = 0;
+    int cnt = 0;
+
+    mean = TMath::Mean(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
+    rms = TMath::RMS(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
+
+    // std::cout << "Mean " << mean << std::endl;
+    // std::cout << "RMS " << rms << std::endl;
+
+    if (type == 0)
+    {
+        for (size_t i = (va * 64); i < (va + 1) * 64; i++)
+        {
+            if (signal->at(i) > mean - rms && signal->at(i) < mean + rms)
+            {
+                cn += signal->at(i);
+                cnt++;
+            }
+        }
+        if (cnt != 0)
+        {
+            return cn / cnt;
+        }
+        else
+        {
+            return -999;
+        }
+    }
+    else if (type == 1)
+    {
+        for (size_t i = (va * 64); i < (va + 1) * 64; i++)
+        {
+            if (signal->at(i) < 40)
+            {
+                cn += signal->at(i);
+                cnt++;
+            }
+        }
+        if (cnt != 0)
+        {
+            return cn / cnt;
+        }
+        else
+        {
+            return -999;
+        }
+    }
+    else
+    {
+        float hard_cm = 0;
+        int cnt2 = 0;
+        for (size_t i = (va * 64 + 8); i < (va * 64 + 23); i++)
+        {
+            if (signal->at(i) < 50)
+            {
+                hard_cm += signal->at(i);
+                cnt2++;
+            }
+        }
+        if (cnt2 != 0)
+        {
+            hard_cm = hard_cm / cnt2;
+        }
+        else
+        {
+            return -999;
+        }
+
+        for (size_t i = (va * 64 + 23); i < (va * 64 + 55); i++)
+        {
+            if (signal->at(i) > hard_cm - 10 && signal->at(i) < hard_cm + 10)
+            {
+                cn += signal->at(i);
+                cnt++;
+            }
+        }
+        if (cnt != 0)
+        {
+            return cn / cnt;
+        }
+        else
+        {
+            return -999;
+        }
+    }
+}
+
 int read_calib(char *calib_file, calib *cal)
 {
 
@@ -131,7 +226,7 @@ int read_calib(char *calib_file, calib *cal)
     return 0;
 }
 
-std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal, float highThresh, float lowThresh, bool symmetric, int symmetric_width, int cn_type = 0, int max_cn = 999, bool absoluteThresholds = false)
+std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal, float highThresh, float lowThresh, bool symmetric, int symmetric_width, bool absoluteThresholds = false)
 {
     std::vector<cluster> clusters;
     int maxClusters = 10;
@@ -173,19 +268,13 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal, float hi
 
         if (seeds.size() > maxClusters || seeds.size() == 0)
         {
-
-            std::cout << "Error: too many seeds, check thresholds value (or change maxClusters in code)" << std::endl;
-            //return 1;
+            throw "Error: too many seeds. ";
         }
     }
     else
     {
         //return 1;
     }
-
-    //if cn_type >= 0:
-    //      cn = common_noise_event(data, cnt, cn_type)
-    //      event = event - cn
 
     if (seeds.size() != 0)
     {
@@ -289,7 +378,7 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal, float hi
 int main(int argc, char *argv[])
 {
 
-    TH1F *h1 = new TH1F("h1", "h1 title", 1000, 0, 384);
+    TH1F *h1 = new TH1F("h1", "h1 title", 100, 0, 384);
 
     if (argc < 4)
     {
@@ -323,6 +412,7 @@ int main(int argc, char *argv[])
     read_calib(argv[1], &cal);
 
     int perc = 0;
+
     //Loop over events
     for (int index_event = 0; index_event < entries; index_event++)
     {
@@ -331,7 +421,7 @@ int main(int argc, char *argv[])
         Double_t pperc = 10.0 * ((index_event + 1.0) / entries);
         if (pperc >= perc)
         {
-            printf("Processed %d out of %lld: %d%%\n", (index_event + 1), entries, (int)(100.0 * (index_event + 1.0) / entries));
+            std::cout << "Processed " << (index_event + 1) << " out of " << entries << ":" << (int)(100.0 * (index_event + 1.0) / entries) << "%" << std::endl;
             perc++;
         }
 
@@ -341,7 +431,7 @@ int main(int argc, char *argv[])
         {
             if (cal.ped.size() >= raw_event->size())
             {
-                for (std::vector<unsigned short>::size_type i = 0; i != raw_event->size(); i++)
+                for (size_t i = 0; i != raw_event->size(); i++)
                 {
                     if (cal.status[i] == 0)
                     {
@@ -355,24 +445,43 @@ int main(int argc, char *argv[])
             }
             else
             {
-                std::cout << "Error: calibration file is not compatible" << std::endl;
-                return 1;
+                if (verbose)
+                {
+                    std::cout << "Error: calibration file is not compatible" << std::endl;
+                }
             }
         }
 
-        std::vector<cluster> result = clusterize(&cal, &signal, 10, 2, 0, 1, 0, 999, false);
-        for (int i = 0; i < result.size(); i++)
+        std::vector<float> signal2(signal.size());
+
+        #pragma omp parallel for
+        for (size_t i = 0; i < signal.size(); i++)
         {
-            h1->Fill(GetClusterCOG(result.at(i)));
+            if (GetCN(&signal, i / 64, 0))
+            {
+                signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, 0);
+            }
+            else
+            {
+                signal2.at(i) = 0;
+            }
         }
 
-        //std::cout << "Results size " << result.size() << std::endl;
-        // if (result.size() != 0)
-        // {
-        //     // std::cout << "Address " << GetClusterAddress(result.at(0)) << std::endl;
-        //     // std::cout << "Signal " << GetClusterSignal(result.at(0)) << std::endl;
-        //     // std::cout << "Seed " << GetSeed(result.at(0)) << std::endl;
-        // }
+        try
+        {
+            std::vector<cluster> result = clusterize(&cal, &signal, 10, 2, 0, 1, false);
+            for (int i = 0; i < result.size(); i++)
+            {
+                h1->Fill(GetClusterCOG(result.at(i)));
+            }
+        }
+        catch (const char *msg)
+        {   
+            if(verbose){
+            std::cerr << msg << "Skipping event " << index_event << std::endl;
+            }
+            continue;
+        }
     }
     h1->Write();
     foutput->Close();
