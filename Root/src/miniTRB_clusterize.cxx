@@ -1,401 +1,95 @@
 #include <iostream>
-#include <fstream>
-#include <cstring>
-#include <fstream>
-#include <string>
-#include <vector>
-#include <iterator>
-#include "TROOT.h"
-#include "TH1.h"
 #include "TFile.h"
 #include "TTree.h"
 #include "TChain.h"
-#include "TMath.h"
+#include "TH1.h"
+#include "TH2.h"
 #include "omp.h"
 
+#include "miniTRB.h"
+
 #define verbose false
-
-typedef struct
-{
-    unsigned short address;
-    int width;
-    std::vector<float> ADC;
-} cluster;
-
-typedef struct calib
-{
-    std::vector<float> ped;
-    std::vector<float> rsig;
-    std::vector<float> sig;
-    std::vector<int> status;
-} calib;
-
-int GetClusterAddress(cluster clus) { return clus.address; }
-int GetClusterWidth(cluster clus) { return clus.width; }
-std::vector<float> GetClusterADC(cluster clus) { return clus.ADC; }
-float GetClusterSignal(cluster clus)
-{
-    float signal;
-    std::vector<float> ADC = GetClusterADC(clus);
-
-    for (auto &n : ADC)
-    {
-        signal += n;
-    }
-    return signal;
-}
-
-float GetClusterCOG(cluster clus)
-{
-    float signal;
-    int address = GetClusterAddress(clus);
-    std::vector<float> ADC = GetClusterADC(clus);
-    float num = 0;
-    float den = 0;
-
-    for (int i = 0; i < ADC.size(); i++)
-    {
-        num += ADC.at(i) * (address + i);
-        den += ADC.at(i);
-    }
-    if (den != 0)
-    {
-        return num / den;
-    }
-    else
-    {
-        return -999;
-    }
-}
-
-int GetSeed(cluster clus)
-{
-    int seed;
-    std::vector<float> ADC = GetClusterADC(clus);
-    std::vector<float>::iterator max;
-
-    max = std::max_element(ADC.begin(), ADC.end());
-
-    return clus.address + std::distance(ADC.begin(), max);
-}
-
-float GetSeedADC(cluster clus)
-{
-    int seed;
-    std::vector<float> ADC = GetClusterADC(clus);
-    std::vector<float>::iterator max;
-
-    max = std::max_element(ADC.begin(), ADC.end());
-
-    return *max;
-}
-
-int GetVA(cluster clus)
-{
-    int seed = GetSeed(clus);
-
-    return seed / 64;
-}
-
-float GetCN(std::vector<float> *signal, int va, int type)
-{
-    float mean = 0;
-    float rms = 0;
-    float cn = 0;
-    int cnt = 0;
-
-    mean = TMath::Mean(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
-    rms = TMath::RMS(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
-
-    // std::cout << "Mean " << mean << std::endl;
-    // std::cout << "RMS " << rms << std::endl;
-
-    if (type == 0)
-    {
-        for (size_t i = (va * 64); i < (va + 1) * 64; i++)
-        {
-            if (signal->at(i) > mean - rms && signal->at(i) < mean + rms)
-            {
-                cn += signal->at(i);
-                cnt++;
-            }
-        }
-        if (cnt != 0)
-        {
-            return cn / cnt;
-        }
-        else
-        {
-            return -999;
-        }
-    }
-    else if (type == 1)
-    {
-        for (size_t i = (va * 64); i < (va + 1) * 64; i++)
-        {
-            if (signal->at(i) < 40)
-            {
-                cn += signal->at(i);
-                cnt++;
-            }
-        }
-        if (cnt != 0)
-        {
-            return cn / cnt;
-        }
-        else
-        {
-            return -999;
-        }
-    }
-    else
-    {
-        float hard_cm = 0;
-        int cnt2 = 0;
-        for (size_t i = (va * 64 + 8); i < (va * 64 + 23); i++)
-        {
-            if (signal->at(i) < 50)
-            {
-                hard_cm += signal->at(i);
-                cnt2++;
-            }
-        }
-        if (cnt2 != 0)
-        {
-            hard_cm = hard_cm / cnt2;
-        }
-        else
-        {
-            return -999;
-        }
-
-        for (size_t i = (va * 64 + 23); i < (va * 64 + 55); i++)
-        {
-            if (signal->at(i) > hard_cm - 10 && signal->at(i) < hard_cm + 10)
-            {
-                cn += signal->at(i);
-                cnt++;
-            }
-        }
-        if (cnt != 0)
-        {
-            return cn / cnt;
-        }
-        else
-        {
-            return -999;
-        }
-    }
-}
-
-int read_calib(char *calib_file, calib *cal)
-{
-
-    std::ifstream in;
-    in.open(calib_file);
-
-    char comma;
-
-    Float_t strip, va, vachannel, ped, rawsigma, sigma, status, boh;
-    Int_t nlines = 0;
-
-    std::string dummyLine;
-
-    for (int k = 0; k < 18; k++)
-    {
-        getline(in, dummyLine);
-    }
-
-    while (in.good())
-    {
-        in >> strip >> comma >> va >> comma >> vachannel >> comma >> ped >> comma >> rawsigma >> comma >> sigma >> comma >> status >> comma >> boh;
-
-        if (strip >= 0)
-        {
-            cal->ped.push_back(ped);
-            cal->rsig.push_back(rawsigma);
-            cal->sig.push_back(sigma);
-            cal->status.push_back(status);
-            nlines++;
-        }
-    }
-
-    //std::cout << "Read " << nlines-1 << " lines" << std::endl;
-
-    in.close();
-    return 0;
-}
-
-std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal, float highThresh, float lowThresh, bool symmetric, int symmetric_width, bool absoluteThresholds = false)
-{
-    std::vector<cluster> clusters;
-    int maxClusters = 10;
-    int nclust = 0;
-    cluster new_cluster;
-
-    std::vector<int> candidate_seeds;
-    std::vector<int> seeds;
-
-    for (size_t i = 0; i < signal->size(); i++)
-    {
-        if (absoluteThresholds)
-        {
-            if (signal->at(i) > highThresh)
-            {
-                candidate_seeds.push_back(i);
-            }
-        }
-        else
-        {
-            if (signal->at(i) / cal->sig.at(i) > highThresh)
-            {
-                candidate_seeds.push_back(i);
-            }
-        }
-    }
-
-    if (candidate_seeds.size() != 0)
-    {
-        seeds.push_back(candidate_seeds.at(0));
-
-        for (size_t i = 1; i < candidate_seeds.size(); i++)
-        {
-            if (std::abs(candidate_seeds.at(i) - candidate_seeds.at(i - 1)) != 1)
-            {
-                seeds.push_back(candidate_seeds.at(i));
-            }
-        }
-
-        if (seeds.size() > maxClusters || seeds.size() == 0)
-        {
-            throw "Error: too many seeds. ";
-        }
-    }
-    else
-    {
-        //return 1;
-    }
-
-    if (seeds.size() != 0)
-    {
-        nclust = seeds.size();
-
-        for (size_t seed = 0; seed < seeds.size(); seed++)
-        {
-            bool overThreshL, overThreshR = true;
-            int L = 0;
-            int R = 0;
-            int width = 0;
-            std::vector<float> clusterADC;
-
-            if (symmetric)
-            {
-                if (seeds.at(seed) - symmetric_width > 0 && seeds.at(seed) + symmetric_width < signal->size())
-                {
-                    std::copy(signal->begin() + (seeds.at(seed) - symmetric_width), signal->begin() + (seeds.at(seed) + symmetric_width) + 1, back_inserter(clusterADC));
-
-                    new_cluster.address = seeds.at(seed) - symmetric_width;
-                    new_cluster.width = 2 * symmetric_width + 1;
-                    new_cluster.ADC = clusterADC;
-                    clusters.push_back(new_cluster);
-                }
-                else
-                {
-                    continue;
-                }
-            }
-            else
-            {
-                while (overThreshL)
-                {
-                    if ((seeds.at(seed) - L - 1) > 0)
-                    {
-                        float value = 0;
-                        if (absoluteThresholds)
-                        {
-                            value = signal->at(seeds.at(seed) - L - 1);
-                        }
-                        else
-                        {
-                            value = signal->at(seeds.at(seed) - L - 1) / cal->sig.at(seeds.at(seed) - L - 1);
-                        }
-
-                        if (value > lowThresh)
-                        {
-                            L++;
-                        }
-                        else
-                        {
-                            overThreshL = false;
-                        }
-                    }
-                    else
-                    {
-                        overThreshL = false;
-                    }
-                }
-
-                while (overThreshR)
-                {
-                    if ((seeds.at(seed) + R + 1) < signal->size())
-                    {
-                        float value = 0;
-                        if (absoluteThresholds)
-                        {
-                            value = signal->at(seeds.at(seed) + R + 1);
-                        }
-                        else
-                        {
-                            value = signal->at(seeds.at(seed) + R + 1) / cal->sig.at(seeds.at(seed) + R + 1);
-                        }
-
-                        if (value > lowThresh)
-                        {
-                            R++;
-                        }
-                        else
-                        {
-                            overThreshR = false;
-                        }
-                    }
-                    else
-                    {
-                        overThreshR = false;
-                    }
-                }
-                std::copy(signal->begin() + (seeds.at(seed) - L), signal->begin() + (seeds.at(seed) + R) + 1, back_inserter(clusterADC));
-
-                new_cluster.address = seeds.at(seed) - L;
-                new_cluster.width = (R - L) + 1;
-                new_cluster.ADC = clusterADC;
-                clusters.push_back(new_cluster);
-            }
-        }
-    }
-    return clusters;
-}
+#define NChannels 384 
 
 int main(int argc, char *argv[])
 {
 
-    TH1F *h1 = new TH1F("h1", "h1 title", 100, 0, 384);
+    //////////////////Histos
+    TH1D *hEnergyCluster = new TH1D("hEnergyCluster", "hEnergyCluster", 1000, 0, 500);
+    hEnergyCluster->GetXaxis()->SetTitle("ADC");
 
-    if (argc < 4)
+    TH1D *hEnergyClusterSeed = new TH1D("hEnergyClusterSeeed", "hEnergyClusterSeed", 1000, 0, 500);
+    hEnergyClusterSeed->GetXaxis()->SetTitle("ADC");
+
+    TH1D *hPercentageSeed = new TH1D("hPercentageSeeed", "hPercentageSeed", 200, 20, 100);
+    hPercentageSeed->GetXaxis()->SetTitle("percentage");
+
+    TH1D *hPercSeedintegral = new TH1D("hPercSeeedintegral", "hPercSeedintegral", 200, 20, 100);
+    hPercSeedintegral->GetXaxis()->SetTitle("percentage");
+
+    TH1D *hClusterCharge = new TH1D("hClusterCharge", "hClusterCharge", 1000, -0.5, 5.5);
+    hClusterCharge->GetXaxis()->SetTitle("Charge");
+
+    TH1D *hSeedCharge = new TH1D("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5);
+    hSeedCharge->GetXaxis()->SetTitle("Charge");
+
+    TH1D *hClusterSN = new TH1D("hClusterSN", "hClusterSN", 200, 0, 100);
+    hClusterSN->GetXaxis()->SetTitle("S/N");
+
+    TH1D *hSeedSN = new TH1D("hSeedSN", "hSeedSN", 200, 0, 100);
+    hSeedSN->GetXaxis()->SetTitle("S/N");
+
+    TH1D *hClusterCog = new TH1D("hClusterCog", "hClusterCog", 150, 0, NChannels);
+    hClusterCog->GetXaxis()->SetTitle("cog");
+
+    TH1D *hSeedPos = new TH1D("hSeedPos", "hSeedPos", 150, 0, NChannels);
+    hSeedPos->GetXaxis()->SetTitle("strip");
+
+    TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5);
+    hNclus->GetXaxis()->SetTitle("n clusters");
+
+    TH1F *hNstrip = new TH1F("hNstrip", "hNstrip", 10, -0.5, 9.5);
+    hNstrip->GetXaxis()->SetTitle("n strips");
+
+    TH1F *hEta = new TH1F("hEta", "hEta", 100, -1, 1);
+    hEta->GetXaxis()->SetTitle("Eta");
+
+    TH2F *hADCvsWidth = new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 500);
+    hADCvsWidth->GetXaxis()->SetTitle("# of strips");
+    hADCvsWidth->GetYaxis()->SetTitle("ADC");
+
+    TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", NChannels, 0, NChannels, 1000, 0, 500);
+    hADCvsPos->GetXaxis()->SetTitle("cog");
+    hADCvsPos->GetYaxis()->SetTitle("ADC");
+
+    TH2F *hADCvsEta = new TH2F("hADCvsEta", "hADCvsEta", 200, -1, 1, 1000, 0, 500);
+    hADCvsEta->GetXaxis()->SetTitle("eta");
+    hADCvsEta->GetYaxis()->SetTitle("ADC");
+
+    TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 500, 0, 50, 1000, 0, 500);
+    hADCvsSN->GetXaxis()->SetTitle("S/N");
+    hADCvsSN->GetYaxis()->SetTitle("ADC");
+
+    TH2F *hNStripvsSN = new TH2F("hNstripvsSN", "hNstripvsSN", 1000, 0, 50, 5, -0.5, 4.5);
+    hNStripvsSN->GetXaxis()->SetTitle("S/N");
+    hNStripvsSN->GetYaxis()->SetTitle("# of strips");
+
+    if (argc < 10)
     {
-        std::cout << "Usage: ./miniTRB_clusterize <calibration file> <output_rootfile>  <first input root-filename> [second input root-filename] ..." << std::endl;
+        std::cout << "Usage:\n ./miniTRB_clusterize <output_rootfile> <calibration file> <high threshold> <low threshold> <symmetric clusters> <symmetric clusters width> <use absolute thresholds> <common noise type> <first input root-filename> [second input root-filename] ..." << std::endl;
         return 1;
     }
 
     //Join ROOTfiles in a single chain
     TChain *chain = new TChain("raw_events");
-    for (int ii = 3; ii < argc; ii++)
+    for (int ii = 9; ii < argc; ii++)
     {
         std::cout << "Adding file " << argv[ii] << " to the chain..." << std::endl;
         chain->Add(argv[ii]);
     }
 
     Long64_t entries = chain->GetEntries();
-    //int entries = 1;
+    //int entries = 2;
     printf("This run has %lld entries\n", entries);
 
     //Read raw event from input chain TTree
@@ -404,12 +98,12 @@ int main(int argc, char *argv[])
     chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
 
     //Create output ROOTfile
-    TString output_filename = argv[2];
+    TString output_filename = argv[1];
     TFile *foutput = new TFile(output_filename.Data(), "RECREATE");
     foutput->cd();
 
     calib cal;
-    read_calib(argv[1], &cal);
+    read_calib(argv[2], &cal);
 
     int perc = 0;
 
@@ -454,12 +148,12 @@ int main(int argc, char *argv[])
 
         std::vector<float> signal2(signal.size());
 
-        #pragma omp parallel for
+#pragma omp parallel for
         for (size_t i = 0; i < signal.size(); i++)
         {
-            if (GetCN(&signal, i / 64, 0))
+            if (GetCN(&signal, i / 64, atoi(argv[8])))
             {
-                signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, 0);
+                signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, atoi(argv[8]));
             }
             else
             {
@@ -469,21 +163,66 @@ int main(int argc, char *argv[])
 
         try
         {
-            std::vector<cluster> result = clusterize(&cal, &signal, 10, 2, 0, 1, false);
+            std::vector<cluster> result = clusterize(&cal, &signal2, atof(argv[3]), atof(argv[4]), atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
             for (int i = 0; i < result.size(); i++)
             {
-                h1->Fill(GetClusterCOG(result.at(i)));
+                if (i == 0)
+                {
+                    hNclus->Fill(result.size());
+                }
+                hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
+                hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i)));
+                hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
+                hSeedCharge->Fill(GetSeedMIPCharge(result.at(i)));
+                hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i)) / GetClusterSignal(result.at(i)));
+                hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
+                hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
+                hClusterCog->Fill(GetClusterCOG(result.at(i)));
+                hSeedPos->Fill(GetClusterSeed(result.at(i)));
+                hNstrip->Fill(GetClusterWidth(result.at(i)));
+                hEta->Fill(GetClusterEta(result.at(i)));
+                hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
+                hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
+                hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+                hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
+                hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
             }
         }
         catch (const char *msg)
-        {   
-            if(verbose){
-            std::cerr << msg << "Skipping event " << index_event << std::endl;
+        {
+            if (verbose)
+            {
+                std::cerr << msg << "Skipping event " << index_event << std::endl;
             }
             continue;
         }
     }
-    h1->Write();
+
+    hNclus->Write();
+    hEnergyCluster->Write();
+    hEnergyClusterSeed->Write();
+    hClusterCharge->Write();
+    hSeedCharge->Write();
+    hClusterSN->Write();
+    hSeedSN->Write();
+    hClusterCog->Write();
+    hSeedPos->Write();
+    hNstrip->Write();
+    hEta->Write();
+    hEtaRaw->Write();
+    hADCvsWidth->Write();
+    hADCvsPos->Write();
+    hADCvsEta->Write();
+    hADCvsSN->Write();
+    hNStripvsSN->Write();
+
+    Float_t sum = 0;
+    for (Int_t i = 1; i <= 200; i++)
+    {
+        sum += hPercentageSeed->GetBinContent(i);
+        hPercSeedintegral->SetBinContent(i, sum);
+    }
+
     foutput->Close();
     return 0;
 }
