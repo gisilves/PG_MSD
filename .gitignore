@@ -5,4 +5,4 @@ Root/miniTRB_compress
 Root/miniTRB_analysis
 Root/batch_compress.sh
 Root/batch_clusterize.sh
-Root/.vscode/c_cpp_properties.json
+Root/.vscode
