@@ -11,7 +11,8 @@
 #define verbose false
 #define NChannels 384
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
 
   //////////////////Histos
   TH1D *hEnergyCluster =
@@ -100,7 +101,8 @@ int main(int argc, char *argv[]) {
   hNStripvsSN->GetXaxis()->SetTitle("S/N");
   hNStripvsSN->GetYaxis()->SetTitle("# of strips");
 
-  if (argc < 10) {
+  if (argc < 10)
+  {
     std::cout
         << "Usage:\n ./miniTRB_clusterize <output_rootfile> <calibration file> "
            "<high threshold> <low threshold> <symmetric clusters> <symmetric "
@@ -112,7 +114,8 @@ int main(int argc, char *argv[]) {
 
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain("raw_events");
-  for (int ii = 9; ii < argc; ii++) {
+  for (int ii = 9; ii < argc; ii++)
+  {
     std::cout << "Adding file " << argv[ii] << " to the chain..." << std::endl;
     chain->Add(argv[ii]);
   }
@@ -137,11 +140,13 @@ int main(int argc, char *argv[]) {
   int perc = 0;
 
   // Loop over events
-  for (int index_event = 0; index_event < entries; index_event++) {
+  for (int index_event = 0; index_event < entries; index_event++)
+  {
     chain->GetEntry(index_event);
 
     Double_t pperc = 10.0 * ((index_event + 1.0) / entries);
-    if (pperc >= perc) {
+    if (pperc >= perc)
+    {
       std::cout << "Processed " << (index_event + 1) << " out of " << entries
                 << ":" << (int)(100.0 * (index_event + 1.0) / entries) << "%"
                 << std::endl;
@@ -150,17 +155,26 @@ int main(int argc, char *argv[]) {
 
     std::vector<float> signal;
 
-    if (raw_event->size() == 384 || raw_event->size() == 640) {
-      if (cal.ped.size() >= raw_event->size()) {
-        for (size_t i = 0; i != raw_event->size(); i++) {
-          if (cal.status[i] == 0) {
+    if (raw_event->size() == 384 || raw_event->size() == 640)
+    {
+      if (cal.ped.size() >= raw_event->size())
+      {
+        for (size_t i = 0; i != raw_event->size(); i++)
+        {
+          if (cal.status[i] == 0)
+          {
             signal.push_back(raw_event->at(i) - cal.ped[i]);
-          } else {
+          }
+          else
+          {
             signal.push_back(0);
           }
         }
-      } else {
-        if (verbose) {
+      }
+      else
+      {
+        if (verbose)
+        {
           std::cout << "Error: calibration file is not compatible" << std::endl;
         }
       }
@@ -169,61 +183,71 @@ int main(int argc, char *argv[]) {
     std::vector<float> signal2(signal.size());
 
 #pragma omp parallel for
-    for (size_t i = 0; i < signal.size(); i++) {
-      if (GetCN(&signal, i / 64, atoi(argv[8]))) {
+    for (size_t i = 0; i < signal.size(); i++)
+    {
+      if (GetCN(&signal, i / 64, atoi(argv[8])))
+      {
         signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, atoi(argv[8]));
-      } else {
+      }
+      else
+      {
         signal2.at(i) = 0;
       }
     }
 
-    try {
+    try
+    {
       std::vector<cluster> result =
           clusterize(&cal, &signal2, atof(argv[3]), atof(argv[4]),
                      atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
-      for (int i = 0; i < result.size(); i++) {
+      for (int i = 0; i < result.size(); i++)
+      {
 
-        if (i == 0) {
+        if (i == 0)
+        {
           hNclus->Fill(result.size());
         }
         hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
-        if (result.at(i).width == 1) {
+        if (result.at(i).width == 1)
+        {
           hEnergyCluster1Strip->Fill(GetClusterSignal(result.at(i)));
-        } else if (result.at(i).width == 2) {
+        }
+        else if (result.at(i).width == 2)
+        {
           hEnergyCluster2Strip->Fill(GetClusterSignal(result.at(i)));
-
-        } else {
+        }
+        else
+        {
           hEnergyClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
         }
 
         hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i)));
         hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
         hSeedCharge->Fill(GetSeedMIPCharge(result.at(i)));
-        hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i)) /
-                              GetClusterSignal(result.at(i)));
+        hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i)) / GetClusterSignal(result.at(i)));
         hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
         hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
         hClusterCog->Fill(GetClusterCOG(result.at(i)));
         hSeedPos->Fill(GetClusterSeed(result.at(i)));
         hNstrip->Fill(GetClusterWidth(result.at(i)));
         hEta->Fill(GetClusterEta(result.at(i)));
-        hADCvsWidth->Fill(GetClusterWidth(result.at(i)),
-                          GetClusterSignal(result.at(i)));
-        hADCvsPos->Fill(GetClusterCOG(result.at(i)),
-                        GetClusterSignal(result.at(i)));
-        hADCvsEta->Fill(GetClusterEta(result.at(i)),
-                        GetClusterSignal(result.at(i)));
-        hADCvsSN->Fill(GetClusterSN(result.at(i), &cal),
-                       GetClusterSignal(result.at(i)));
-        hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal),
-                          GetClusterWidth(result.at(i)));
+        hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
+        hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
+        hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+        hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
+        hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
         hNstripSeed->Fill(result.at(i).over);
-        if (result.at(i).width == 2) {
+
+        if (result.at(i).width == 2)
+        {
           hDifference->Fill(result.at(i).ADC.at(0) - result.at(i).ADC.at(1));
         }
       }
-    } catch (const char *msg) {
-      if (verbose) {
+    }
+    catch (const char *msg)
+    {
+      if (verbose)
+      {
         std::cerr << msg << "Skipping event " << index_event << std::endl;
       }
       continue;
