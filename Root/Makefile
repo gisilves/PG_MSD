@@ -16,15 +16,19 @@ endif
 
 default: miniTRB_compress
 
-all: miniTRB_compress miniTRB_clusterize
+all: miniTRB_compress miniTRB_clusterize miniTRB_threshold_scan
 
 miniTRB_compress: ./src/miniTRB_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 miniTRB_clusterize: ./src/miniTRB_clusterize.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+	
+miniTRB_threshold_scan: ./src/miniTRB_threshold_scan.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 
 clean:
 	rm -f ./miniTRB_compress
 	rm -f ./miniTRB_clusterize
+	rm -f ./miniTRB_threshold_scan
