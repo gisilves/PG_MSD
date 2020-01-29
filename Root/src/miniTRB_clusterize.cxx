@@ -10,6 +10,7 @@
 
 #define verbose false
 #define NChannels 384
+#define NVas 6
 #define minStrip 128
 #define maxStrip 255
 
@@ -131,7 +132,7 @@ int main(int argc, char *argv[])
     chain->Add(argv[ii]);
   }
 
-  int entries = chain->GetEntries();
+  int entries = chain->GetEntries() - 1; //TODO:Last event is sometimes corrupted
   std::cout << "This run has " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
@@ -163,9 +164,8 @@ int main(int argc, char *argv[])
       perc++;
     }
 
-    std::vector<float> signal;                 //Vector of pedestal subtracted signal
-    std::vector<float> signal2(signal.size()); //Vector for signal after CN subtraction
-    std::vector<cluster> result;               //Vector of resulting clusters
+    std::vector<float> signal;   //Vector of pedestal subtracted signal
+    std::vector<cluster> result; //Vector of resulting clusters
 
     if (raw_event->size() == 384 || raw_event->size() == 640)
     {
@@ -173,7 +173,8 @@ int main(int argc, char *argv[])
       {
         for (size_t i = 0; i != raw_event->size(); i++)
         {
-          if (cal.status[i] == 0)
+          //if (cal.status[i] == 0)
+          if (raw_event->size() > 0)
           {
             signal.push_back(raw_event->at(i) - cal.ped[i]);
           }
@@ -192,26 +193,27 @@ int main(int argc, char *argv[])
       }
     }
 
-    if (atoi(argv[8]) > 0)
-    {
-#pragma omp parallel for                              //Multithread for loop
-      for (size_t i = 0; i < signal.size() / 64; i++) //Loop on VA
-      {
-        float cn = GetCN(&signal, i, atoi(argv[8]));
+    std::vector<float> signal2(signal.size()); //Vector for signal after CN subtraction
 
+    if (atoi(argv[8]) >= 0)
+    {
+      //#pragma omp parallel for                              //Multithread for loop
+      for (int va = 0; va < NVas; va++) //Loop on VA
+      {
+        float cn = GetCN(&signal, va, atoi(argv[8]));
         if (cn != -999 && abs(cn) < maxCN)
         {
           hCommonNoise->Fill(cn);
-          hCommonNoiseVsVA->Fill(cn, i);
+          hCommonNoiseVsVA->Fill(cn, va);
 
-          for (size_t ch = i * 64; ch < (i + 1) * 64; ch++) //Loop on VA channels
+          for (int ch = va * 64; ch < (va + 1) * 64; ch++) //Loop on VA channels
           {
             signal2.at(ch) = signal.at(ch) - cn;
           }
         }
         else
         {
-          for (size_t ch = i * 64; ch < (i + 1) * 64; ch++)
+          for (int ch = va * 64; ch < (va + 1) * 64; ch++)
           {
             signal2.at(ch) = 0; //Invalid Common Noise Value, artificially setting VA channel to 0 signal
           }
@@ -221,7 +223,7 @@ int main(int argc, char *argv[])
 
     try
     {
-      if (atoi(argv[8]) > 0)
+      if (atoi(argv[8]) >= 0)
       {
         result =
             clusterize(&cal, &signal2, atof(argv[3]), atof(argv[4]),
@@ -235,7 +237,11 @@ int main(int argc, char *argv[])
       }
 
       for (int i = 0; i < result.size(); i++)
-      {
+      { 
+        int seed = GetClusterSeed(result.at(i));
+
+        if(cal.status.at(seed) != 0) continue;
+        
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width) < maxStrip)
         {
           if (i == 0)

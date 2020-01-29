@@ -385,7 +385,7 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
         while (overThreshL) //Will move to the left of the seed
         {
           int stripL = seeds.at(seed) - L - 1;
-          if (stripL > 0)
+          if (stripL > 0 && !(cal->status.at(stripL)))
           {
             float value = signal->at(seeds.at(seed) - L - 1);
             if (!absoluteThresholds)
