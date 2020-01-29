@@ -9,19 +9,20 @@
 #include "miniTRB.h"
 
 #define verbose false
-#define steps 10
 
 int main(int argc, char *argv[])
 {
-  if (argc < 9)
+  if (argc < 11)
   {
     std::cout
         << "Usage:\n ./miniTRB_threshold_scan <output_rootfile> <calibration file> "
-           "<min low> <max low> <min high> <max high> <use absolute thresholds> <common noise type>"
-           "<first input root-filename> [second input root-filename] ..."
+           "<min low> <max low> <min high> <max high> <use absolute thresholds> <common noise type> "
+           "<steps> <first input root-filename> [second input root-filename] ..."
         << std::endl;
     return 1;
   }
+
+  int steps = atoi(argv[9]);
 
   //////////////////Histos
   TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5);
@@ -40,7 +41,7 @@ int main(int argc, char *argv[])
 
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain("raw_events");
-  for (int ii = 9; ii < argc; ii++)
+  for (int ii = 10; ii < argc; ii++)
   {
     std::cout << "Adding file " << argv[ii] << " to the chain..." << std::endl;
     chain->Add(argv[ii]);
@@ -71,10 +72,14 @@ int main(int argc, char *argv[])
   float step_low = ((low_max - low_min) + 1) / steps;
   float step_high = ((high_max - high_min) + 1) / steps;
 
+  int binHigh = 1;
+
   while (high_min <= high_max)
   {
     low_min = atoi(argv[3]);
-    while (low_min <= low_max)
+    int binLow = 1;
+
+    while (low_min <= low_max && low_min <= high_min)
     {
       int perc = 0;
       // Loop over events
@@ -160,15 +165,17 @@ int main(int argc, char *argv[])
       float mean_nclus = hNclus->GetMean();
       float mean_width = hNstrip->GetMean();
 
-      hLowVsHigh_nclus->SetBinContent(low_min, high_min, mean_nclus);
-      hLowVsHigh_width->SetBinContent(low_min, high_min, mean_width);
+      hLowVsHigh_nclus->SetBinContent(binLow, binHigh, mean_nclus);
+      hLowVsHigh_width->SetBinContent(binLow, binHigh, mean_width);
 
       hNclus->Reset();
       hNstrip->Reset();
 
       low_min += step_low;
+      binLow++;
     }
     high_min += step_high;
+    binHigh++;
   }
 
   hLowVsHigh_nclus->Write();

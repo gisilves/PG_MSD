@@ -10,56 +10,58 @@
 
 #define verbose false
 #define NChannels 384
+#define minStrip 128
+#define maxStrip 255
 
 int main(int argc, char *argv[])
 {
 
   //////////////////Histos
-  TH1D *hEnergyCluster =
-      new TH1D("hEnergyCluster", "hEnergyCluster", 2000, 0, 1000);
+  TH1F *hEnergyCluster =
+      new TH1F("hEnergyCluster", "hEnergyCluster", 2000, 0, 1000);
   hEnergyCluster->GetXaxis()->SetTitle("ADC");
 
-  TH1D *hEnergyCluster1Strip =
-      new TH1D("hEnergyCluster1Strip", "hEnergyCluster1Strip", 2000, 0, 1000);
+  TH1F *hEnergyCluster1Strip =
+      new TH1F("hEnergyCluster1Strip", "hEnergyCluster1Strip", 2000, 0, 1000);
   hEnergyCluster1Strip->GetXaxis()->SetTitle("ADC");
 
-  TH1D *hEnergyCluster2Strip =
-      new TH1D("hEnergyCluster2Strip", "hEnergyCluster2Strip", 2000, 0, 1000);
+  TH1F *hEnergyCluster2Strip =
+      new TH1F("hEnergyCluster2Strip", "hEnergyCluster2Strip", 2000, 0, 1000);
   hEnergyCluster2Strip->GetXaxis()->SetTitle("ADC");
 
-  TH1D *hEnergyClusterManyStrip = new TH1D(
+  TH1F *hEnergyClusterManyStrip = new TH1F(
       "hEnergyClusterManyStrip", "hEnergyClusterManyStrip", 2000, 0, 1000);
   hEnergyClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
-  TH1D *hEnergyClusterSeed =
-      new TH1D("hEnergyClusterSeed", "hEnergyClusterSeed", 2000, 0, 1000);
+  TH1F *hEnergyClusterSeed =
+      new TH1F("hEnergyClusterSeed", "hEnergyClusterSeed", 2000, 0, 1000);
   hEnergyClusterSeed->GetXaxis()->SetTitle("ADC");
 
-  TH1D *hPercentageSeed =
-      new TH1D("hPercentageSeed", "hPercentageSeed", 200, 20, 100);
+  TH1F *hPercentageSeed =
+      new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 100);
   hPercentageSeed->GetXaxis()->SetTitle("percentage");
 
-  TH1D *hPercSeedintegral =
-      new TH1D("hPercSeedintegral", "hPercSeedintegral", 200, 20, 100);
+  TH1F *hPercSeedintegral =
+      new TH1F("hPercSeedintegral", "hPercSeedintegral", 200, 20, 100);
   hPercSeedintegral->GetXaxis()->SetTitle("percentage");
 
-  TH1D *hClusterCharge =
-      new TH1D("hClusterCharge", "hClusterCharge", 1000, -0.5, 5.5);
+  TH1F *hClusterCharge =
+      new TH1F("hClusterCharge", "hClusterCharge", 1000, -0.5, 5.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1D *hSeedCharge = new TH1D("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5);
+  TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5);
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1D *hClusterSN = new TH1D("hClusterSN", "hClusterSN", 1000, 0, 500);
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 1000, 0, 500);
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1D *hSeedSN = new TH1D("hSeedSN", "hSeedSN", 1000, 0, 500);
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 500);
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
-  TH1D *hClusterCog = new TH1D("hClusterCog", "hClusterCog", 150, 0, NChannels);
+  TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
   hClusterCog->GetXaxis()->SetTitle("cog");
 
-  TH1D *hSeedPos = new TH1D("hSeedPos", "hSeedPos", 150, 0, NChannels);
+  TH1F *hSeedPos = new TH1F("hSeedPos", "hSeedPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
   hSeedPos->GetXaxis()->SetTitle("strip");
 
   TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5);
@@ -82,7 +84,7 @@ int main(int argc, char *argv[])
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", NChannels, 0, NChannels,
+  TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5,
                              2000, 0, 1000);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
@@ -101,6 +103,13 @@ int main(int argc, char *argv[])
   hNStripvsSN->GetXaxis()->SetTitle("S/N");
   hNStripvsSN->GetYaxis()->SetTitle("# of strips");
 
+  TH1F *hCommonNoise = new TH1F("hCommonNoise", "hCommonNoise", 100, -20, 20);
+  hCommonNoise->GetXaxis()->SetTitle("CN");
+
+  TH2F *hCommonNoiseVsVA = new TH2F("hCommonNoiseVsVA", "hCommonNoiseVsVA", 100, -20, 20, 10, -0.5, 9.5);
+  hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
+  hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
+
   if (argc < 10)
   {
     std::cout
@@ -112,17 +121,18 @@ int main(int argc, char *argv[])
     return 1;
   }
 
+  int maxCN = 999;
+
   // Join ROOTfiles in a single chain
-  TChain *chain = new TChain("raw_events");
+  TChain *chain = new TChain("raw_events"); //Chain input rootfiles
   for (int ii = 9; ii < argc; ii++)
   {
     std::cout << "Adding file " << argv[ii] << " to the chain..." << std::endl;
     chain->Add(argv[ii]);
   }
 
-  Long64_t entries = chain->GetEntries();
-  // int entries = 2;
-  printf("This run has %lld entries\n", entries);
+  int entries = chain->GetEntries();
+  std::cout << "This run has " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
   std::vector<unsigned short> *raw_event = 0;
@@ -134,12 +144,12 @@ int main(int argc, char *argv[])
   TFile *foutput = new TFile(output_filename.Data(), "RECREATE");
   foutput->cd();
 
+  //Read Calibration file
   calib cal;
   read_calib(argv[2], &cal);
 
-  int perc = 0;
-
   // Loop over events
+  int perc = 0;
   for (int index_event = 0; index_event < entries; index_event++)
   {
     chain->GetEntry(index_event);
@@ -153,7 +163,9 @@ int main(int argc, char *argv[])
       perc++;
     }
 
-    std::vector<float> signal;
+    std::vector<float> signal;                 //Vector of pedestal subtracted signal
+    std::vector<float> signal2(signal.size()); //Vector for signal after CN subtraction
+    std::vector<cluster> result;               //Vector of resulting clusters
 
     if (raw_event->size() == 384 || raw_event->size() == 640)
     {
@@ -167,7 +179,7 @@ int main(int argc, char *argv[])
           }
           else
           {
-            signal.push_back(0);
+            signal.push_back(0); //Strip is "bad", artificially setting signal to 0
           }
         }
       }
@@ -180,67 +192,91 @@ int main(int argc, char *argv[])
       }
     }
 
-    std::vector<float> signal2(signal.size());
-
-#pragma omp parallel for
-    for (size_t i = 0; i < signal.size(); i++)
+    if (atoi(argv[8]) > 0)
     {
-      if (GetCN(&signal, i / 64, atoi(argv[8])))
+#pragma omp parallel for                              //Multithread for loop
+      for (size_t i = 0; i < signal.size() / 64; i++) //Loop on VA
       {
-        signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, atoi(argv[8]));
-      }
-      else
-      {
-        signal2.at(i) = 0;
+        float cn = GetCN(&signal, i, atoi(argv[8]));
+
+        if (cn != -999 && abs(cn) < maxCN)
+        {
+          hCommonNoise->Fill(cn);
+          hCommonNoiseVsVA->Fill(cn, i);
+
+          for (size_t ch = i * 64; ch < (i + 1) * 64; ch++) //Loop on VA channels
+          {
+            signal2.at(ch) = signal.at(ch) - cn;
+          }
+        }
+        else
+        {
+          for (size_t ch = i * 64; ch < (i + 1) * 64; ch++)
+          {
+            signal2.at(ch) = 0; //Invalid Common Noise Value, artificially setting VA channel to 0 signal
+          }
+        }
       }
     }
 
     try
     {
-      std::vector<cluster> result =
-          clusterize(&cal, &signal2, atof(argv[3]), atof(argv[4]),
-                     atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
+      if (atoi(argv[8]) > 0)
+      {
+        result =
+            clusterize(&cal, &signal2, atof(argv[3]), atof(argv[4]),
+                       atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
+      }
+      else
+      {
+        result =
+            clusterize(&cal, &signal, atof(argv[3]), atof(argv[4]),
+                       atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
+      }
+
       for (int i = 0; i < result.size(); i++)
       {
+        if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width) < maxStrip)
+        {
+          if (i == 0)
+          {
+            hNclus->Fill(result.size());
+          }
+          hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
+          if (result.at(i).width == 1)
+          {
+            hEnergyCluster1Strip->Fill(GetClusterSignal(result.at(i)));
+          }
+          else if (result.at(i).width == 2)
+          {
+            hEnergyCluster2Strip->Fill(GetClusterSignal(result.at(i)));
+          }
+          else
+          {
+            hEnergyClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
+          }
 
-        if (i == 0)
-        {
-          hNclus->Fill(result.size());
-        }
-        hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
-        if (result.at(i).width == 1)
-        {
-          hEnergyCluster1Strip->Fill(GetClusterSignal(result.at(i)));
-        }
-        else if (result.at(i).width == 2)
-        {
-          hEnergyCluster2Strip->Fill(GetClusterSignal(result.at(i)));
-        }
-        else
-        {
-          hEnergyClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
-        }
+          hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i)));
+          hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
+          hSeedCharge->Fill(GetSeedMIPCharge(result.at(i)));
+          hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i)) / GetClusterSignal(result.at(i)));
+          hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
+          hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
+          hClusterCog->Fill(GetClusterCOG(result.at(i)));
+          hSeedPos->Fill(GetClusterSeed(result.at(i)));
+          hNstrip->Fill(GetClusterWidth(result.at(i)));
+          hEta->Fill(GetClusterEta(result.at(i)));
+          hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
+          hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
+          hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+          hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
+          hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
+          hNstripSeed->Fill(result.at(i).over);
 
-        hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i)));
-        hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
-        hSeedCharge->Fill(GetSeedMIPCharge(result.at(i)));
-        hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i)) / GetClusterSignal(result.at(i)));
-        hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
-        hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
-        hClusterCog->Fill(GetClusterCOG(result.at(i)));
-        hSeedPos->Fill(GetClusterSeed(result.at(i)));
-        hNstrip->Fill(GetClusterWidth(result.at(i)));
-        hEta->Fill(GetClusterEta(result.at(i)));
-        hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
-        hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
-        hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
-        hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
-        hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
-        hNstripSeed->Fill(result.at(i).over);
-
-        if (result.at(i).width == 2)
-        {
-          hDifference->Fill(result.at(i).ADC.at(0) - result.at(i).ADC.at(1));
+          if (result.at(i).width == 2)
+          {
+            hDifference->Fill(result.at(i).ADC.at(0) - result.at(i).ADC.at(1));
+          }
         }
       }
     }
@@ -275,14 +311,8 @@ int main(int argc, char *argv[])
   hADCvsSN->Write();
   hNStripvsSN->Write();
   hDifference->Write();
-  //   Float_t sum = 0;
-  //   for (Int_t i = 1; i <= 200; i++) {
-  //     sum += hPercentageSeed->GetBinContent(i);
-  //     hPercSeedintegral->SetBinContent(i, sum);
-  //   }
-
-  //   hPercentageSeed->Write();
-  //   hPercSeedintegral->Write();
+  hCommonNoise->Write();
+  hCommonNoiseVsVA->Write();
 
   foutput->Close();
   return 0;

@@ -6,3 +6,7 @@ Root/miniTRB_analysis
 Root/batch_compress.sh
 Root/batch_clusterize.sh
 Root/.vscode
+Root/miniTRB_clusterize
+Root/miniTRB_threshold_scan
+Root/provathreshold.root
+Root/src/plotCalib.C
