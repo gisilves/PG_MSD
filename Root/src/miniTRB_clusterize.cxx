@@ -11,8 +11,8 @@
 #define verbose false
 #define NChannels 384
 #define NVas 6
-#define minStrip 128
-#define maxStrip 255
+#define minStrip 0
+#define maxStrip 383
 
 int main(int argc, char *argv[])
 {
@@ -95,12 +95,12 @@ int main(int argc, char *argv[])
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 500, 0, 50, 2000, 0, 1000);
+  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 1000, 0, 500, 2000, 0, 1000);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
   TH2F *hNStripvsSN =
-      new TH2F("hNstripvsSN", "hNstripvsSN", 1000, 0, 50, 5, -0.5, 4.5);
+      new TH2F("hNstripvsSN", "hNstripvsSN", 1000, 0, 500, 5, -0.5, 4.5);
   hNStripvsSN->GetXaxis()->SetTitle("S/N");
   hNStripvsSN->GetYaxis()->SetTitle("# of strips");
 
@@ -132,7 +132,8 @@ int main(int argc, char *argv[])
     chain->Add(argv[ii]);
   }
 
-  int entries = chain->GetEntries() - 1; //TODO:Last event is sometimes corrupted
+  int entries = chain->GetEntries();
+
   std::cout << "This run has " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
@@ -155,6 +156,11 @@ int main(int argc, char *argv[])
   {
     chain->GetEntry(index_event);
 
+    if (verbose)
+    {
+      std::cout << "EVENT: " << index_event << std::endl;
+    }
+
     Double_t pperc = 10.0 * ((index_event + 1.0) / entries);
     if (pperc >= perc)
     {
@@ -164,8 +170,8 @@ int main(int argc, char *argv[])
       perc++;
     }
 
-    std::vector<float> signal;   //Vector of pedestal subtracted signal
-    std::vector<cluster> result; //Vector of resulting clusters
+    std::vector<float> signal(raw_event->size()); //Vector of pedestal subtracted signal
+    std::vector<cluster> result;                  //Vector of resulting clusters
 
     if (raw_event->size() == 384 || raw_event->size() == 640)
     {
@@ -173,15 +179,7 @@ int main(int argc, char *argv[])
       {
         for (size_t i = 0; i != raw_event->size(); i++)
         {
-          //if (cal.status[i] == 0)
-          if (raw_event->size() > 0)
-          {
-            signal.push_back(raw_event->at(i) - cal.ped[i]);
-          }
-          else
-          {
-            signal.push_back(0); //Strip is "bad", artificially setting signal to 0
-          }
+          signal.at(i) = (raw_event->at(i) - cal.ped[i]);
         }
       }
       else
@@ -192,12 +190,18 @@ int main(int argc, char *argv[])
         }
       }
     }
-
-    std::vector<float> signal2(signal.size()); //Vector for signal after CN subtraction
+    else
+    {
+      if (verbose)
+      {
+        std::cout << "Error: event is not complete" << std::endl;
+      }
+      continue;
+    }
 
     if (atoi(argv[8]) >= 0)
     {
-      //#pragma omp parallel for                              //Multithread for loop
+#pragma omp parallel for                //Multithread for loop
       for (int va = 0; va < NVas; va++) //Loop on VA
       {
         float cn = GetCN(&signal, va, atoi(argv[8]));
@@ -208,14 +212,14 @@ int main(int argc, char *argv[])
 
           for (int ch = va * 64; ch < (va + 1) * 64; ch++) //Loop on VA channels
           {
-            signal2.at(ch) = signal.at(ch) - cn;
+            signal.at(ch) = signal.at(ch) - cn;
           }
         }
         else
         {
           for (int ch = va * 64; ch < (va + 1) * 64; ch++)
           {
-            signal2.at(ch) = 0; //Invalid Common Noise Value, artificially setting VA channel to 0 signal
+            signal.at(ch) = 0; //Invalid Common Noise Value, artificially setting VA channel to 0 signal
           }
         }
       }
@@ -223,31 +227,22 @@ int main(int argc, char *argv[])
 
     try
     {
-      if (atoi(argv[8]) >= 0)
-      {
-        result =
-            clusterize(&cal, &signal2, atof(argv[3]), atof(argv[4]),
-                       atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
-      }
-      else
-      {
-        result =
-            clusterize(&cal, &signal, atof(argv[3]), atof(argv[4]),
-                       atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
-      }
+
+      result = clusterize(&cal, &signal, atof(argv[3]), atof(argv[4]),
+                          atoi(argv[5]), atoi(argv[6]), atoi(argv[7]));
 
       for (int i = 0; i < result.size(); i++)
-      { 
-        int seed = GetClusterSeed(result.at(i));
+      {
+        if (!GoodCluster(result.at(i), &cal))
+          continue;
 
-        if(cal.status.at(seed) != 0) continue;
-        
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width) < maxStrip)
         {
           if (i == 0)
           {
             hNclus->Fill(result.size());
           }
+
           hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
           if (result.at(i).width == 1)
           {
@@ -262,14 +257,20 @@ int main(int argc, char *argv[])
             hEnergyClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
           }
 
-          hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i)));
+          hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
           hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
-          hSeedCharge->Fill(GetSeedMIPCharge(result.at(i)));
-          hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i)) / GetClusterSignal(result.at(i)));
+          hSeedCharge->Fill(GetSeedMIPCharge(result.at(i), &cal));
+          hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i), &cal) / GetClusterSignal(result.at(i)));
           hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
           hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
+
+          if (verbose)
+          {
+            std::cout << "EVENT: " << index_event << " COG: " << GetClusterCOG(result.at(i)) << std::endl;
+          }
           hClusterCog->Fill(GetClusterCOG(result.at(i)));
-          hSeedPos->Fill(GetClusterSeed(result.at(i)));
+
+          hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
           hNstrip->Fill(GetClusterWidth(result.at(i)));
           hEta->Fill(GetClusterEta(result.at(i)));
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
@@ -292,6 +293,7 @@ int main(int argc, char *argv[])
       {
         std::cerr << msg << "Skipping event " << index_event << std::endl;
       }
+      hNclus->Fill(0);
       continue;
     }
   }

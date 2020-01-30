@@ -4,10 +4,10 @@
 #include <iterator>
 #include <vector>
 
+#define verbose false
 #define SENSOR_PITCH 242
 #define MIP_ADC 60
 #define maxClusters 10
-
 typedef struct
 {
   unsigned short address; //first strip of the cluster
@@ -42,11 +42,12 @@ float GetClusterSignal(cluster clus) //ADC of whole cluster
 
 float GetClusterCOG(cluster clus) //Center Of Gravity of cluster
 {
-  float signal;
   int address = GetClusterAddress(clus);
   std::vector<float> ADC = GetClusterADC(clus);
   float num = 0;
   float den = 0;
+  float cog = -999;
+
   for (int i = 0; i < ADC.size(); i++)
   {
     num += ADC.at(i) * (address + i);
@@ -54,50 +55,58 @@ float GetClusterCOG(cluster clus) //Center Of Gravity of cluster
   }
   if (den != 0)
   {
-    return num / den;
+    cog = num / den;
   }
-  else
+
+  return cog;
+}
+
+int GetClusterSeed(cluster clus, calib *cal) //Strip corresponding to the seed
+{
+  int seed = -999;
+  std::vector<float> ADC = GetClusterADC(clus);
+
+  float sn_max = 0; //seed is defined as the strip with highest S/N value
+
+  for (size_t i = 0; i < ADC.size(); i++)
   {
-    return -999;
+    if (ADC.at(i) / cal->sig.at(clus.address + i) > sn_max)
+    {
+      sn_max = ADC.at(i) / cal->sig.at(clus.address + i);
+      seed = clus.address + i;
+    }
   }
+  return seed;
 }
 
-int GetClusterSeed(cluster clus) //Strip corresponding to the seed
+int GetClusterSeedIndex(cluster clus, calib *cal) //Position of the seed in the cluster
 {
-  int seed;
+  int seed_idx = -999;
   std::vector<float> ADC = GetClusterADC(clus);
-  std::vector<float>::iterator max;
 
-  max = std::max_element(ADC.begin(), ADC.end()); //seed is defined as the strip with highest ADC value
+  float sn_max = 0; //seed is defined as the strip with highest ADC value
 
-  return clus.address + std::distance(ADC.begin(), max);
+  for (size_t i = 0; i < ADC.size(); i++)
+  {
+    if (ADC.at(i) / cal->sig.at(clus.address + i) > sn_max)
+    {
+      sn_max = ADC.at(i) / cal->sig.at(clus.address + i);
+      seed_idx = i;
+    }
+  }
+  return seed_idx;
 }
 
-int GetClusterSeedIndex(cluster clus) //Position of the seed in the cluster
+float GetClusterSeedADC(cluster clus, calib *cal)
 {
-  int seed;
-  std::vector<float> ADC = GetClusterADC(clus);
-  std::vector<float>::iterator max;
+  int seed_idx = GetClusterSeedIndex(clus, cal);
 
-  max = std::max_element(ADC.begin(), ADC.end());
-
-  return std::distance(ADC.begin(), max);
+  return clus.ADC.at(seed_idx);
 }
 
-float GetClusterSeedADC(cluster clus)
+int GetClusterVA(cluster clus, calib *cal)
 {
-  int seed;
-  std::vector<float> ADC = GetClusterADC(clus);
-  std::vector<float>::iterator max;
-
-  max = std::max_element(ADC.begin(), ADC.end());
-
-  return *max;
-}
-
-int GetClusterVA(cluster clus)
-{
-  int seed = GetClusterSeed(clus);
+  int seed = GetClusterSeed(clus, cal);
 
   return seed / 64;
 }
@@ -211,8 +220,8 @@ float GetClusterSN(cluster clus, calib *cal) //TODO: noise as sum of squares?
 
 float GetSeedSN(cluster clus, calib *cal)
 {
-  float signal = GetClusterSeedADC(clus);
-  float noise = cal->sig.at(GetClusterSeed(clus));
+  float signal = GetClusterSeedADC(clus, cal);
+  float noise = cal->sig.at(GetClusterSeed(clus, cal));
 
   if (noise)
   {
@@ -251,9 +260,28 @@ float GetClusterMIPCharge(cluster clus)
   return sqrt(GetClusterSignal(clus) / MIP_ADC);
 }
 
-float GetSeedMIPCharge(cluster clus)
+float GetSeedMIPCharge(cluster clus, calib *cal)
 {
-  return sqrt(GetClusterSeedADC(clus) / MIP_ADC);
+  return sqrt(GetClusterSeedADC(clus, cal) / MIP_ADC);
+}
+
+bool GoodCluster(cluster clus, calib *cal)
+{
+  bool good = true;
+  int pos = 0;
+
+  while (good && pos < clus.width)
+  {
+    if (cal->status.at(clus.address + pos) == 0)
+    {
+      pos++;
+    }
+    else
+    {
+      good = false;
+    }
+  }
+  return good;
 }
 
 int read_calib(char *calib_file, calib *cal)
@@ -306,7 +334,10 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
   if (highThresh < lowThresh)
   {
-    std::cout << "Warning: Low Threshold is bigger than High Threshold, assuming they are swapped" << std::endl;
+    if (verbose)
+    {
+      std::cout << "Warning: Low Threshold is bigger than High Threshold, assuming they are swapped" << std::endl;
+    }
     float temp = lowThresh;
     lowThresh = highThresh;
     highThresh = temp;
@@ -316,14 +347,14 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
   {
     if (absoluteThresholds) //Thresholds are in units of ADC
     {
-      if (signal->at(i) > highThresh)
+      if (signal->at(i) > highThresh && cal->status.at(i) == 0)
       {
         candidate_seeds.push_back(i); //Potential cluster seeds
       }
     }
     else //Thresholds are in units of S/N
     {
-      if (signal->at(i) / cal->sig.at(i) > highThresh)
+      if (signal->at(i) / cal->sig.at(i) > highThresh && cal->status.at(i) == 0)
       {
         candidate_seeds.push_back(i);
       }
@@ -334,18 +365,26 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
   {
     seeds.push_back(candidate_seeds.at(0));
 
-    for (size_t i = 1; i < candidate_seeds.size(); i++)
+    if (candidate_seeds.size() > 1)
     {
-      if (std::abs(candidate_seeds.at(i) - candidate_seeds.at(i - 1)) != 1) //Removing adjacent candidate seeds: keeping only the first
+      for (size_t i = 1; i < candidate_seeds.size(); i++)
       {
-        seeds.push_back(candidate_seeds.at(i));
+        if (std::abs(candidate_seeds.at(i) - candidate_seeds.at(i - 1)) != 1) //Removing adjacent candidate seeds: keeping only the first
+        {
+          seeds.push_back(candidate_seeds.at(i));
+        }
       }
     }
-
     if (seeds.size() > maxClusters || seeds.size() == 0)
     {
       throw "Error: too many or no seeds. ";
     }
+  }
+
+  if (verbose)
+  {
+    std::cout << "Candidate seeds " << candidate_seeds.size() << std::endl;
+    std::cout << "Real seeds " << seeds.size() << std::endl;
   }
 
   if (seeds.size() != 0)
@@ -354,7 +393,8 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
     for (size_t seed = 0; seed < seeds.size(); seed++)
     {
-      bool overThreshL, overThreshR = true;
+      bool overThreshL = true;
+      bool overThreshR = true;
       int overSEED = 1;
       int L = 0;
       int R = 0;
@@ -385,17 +425,32 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
         while (overThreshL) //Will move to the left of the seed
         {
           int stripL = seeds.at(seed) - L - 1;
-          if (stripL > 0 && !(cal->status.at(stripL)))
+          if (stripL < 0)
           {
-            float value = signal->at(seeds.at(seed) - L - 1);
+            overThreshL = false;
+            continue;
+          }
+
+          if (verbose)
+          {
+            std::cout << "Seed " << seeds.at(seed) << " stripL " << stripL << " status " << cal->status.at(stripL) << std::endl;
+          }
+
+          if (cal->status.at(stripL) == 0)
+          {
+            float value = signal->at(stripL);
             if (!absoluteThresholds)
             {
-              value = value / cal->sig.at(seeds.at(seed) - L - 1);
+              value = value / cal->sig.at(stripL);
             }
 
             if (value > lowThresh)
             {
               L++;
+              if (verbose)
+              {
+                std::cout << "Strip is over Lthresh" << std::endl;
+              }
               if (value > highThresh)
               {
                 overSEED++;
@@ -415,18 +470,33 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
         while (overThreshR) //Will move to the right of the seed
         {
           int stripR = seeds.at(seed) + R + 1;
-
-          if (stripR < signal->size() && !(cal->status.at(stripR)))
+          if (stripR >= signal->size())
           {
-            float value = signal->at(seeds.at(seed) + R + 1);
+            overThreshR = false;
+            continue;
+          }
+
+          if (verbose)
+          {
+            std::cout << "Seed " << seeds.at(seed) << " stripR " << stripR << " status " << cal->status.at(stripR) << std::endl;
+          }
+
+          if (cal->status.at(stripR) == 0)
+          {
+            float value = signal->at(stripR);
+
             if (!absoluteThresholds)
             {
-              value = value / cal->sig.at(seeds.at(seed) + R + 1);
+              value = value / cal->sig.at(stripR);
             }
 
             if (value > lowThresh)
             {
               R++;
+              if (verbose)
+              {
+                std::cout << "Strip is over Lthresh" << std::endl;
+              }
               if (value > highThresh)
               {
                 overSEED++;
@@ -448,10 +518,19 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
                   back_inserter(clusterADC));
 
         new_cluster.address = seeds.at(seed) - L;
-        new_cluster.width = (R - L) + 1;
+        new_cluster.width = (R + L) + 1;
         new_cluster.ADC = clusterADC;
         new_cluster.over = overSEED;
         clusters.push_back(new_cluster);
+
+        if (verbose)
+        {
+          std::cout << "Add: " << seeds.at(seed) - L << " Width: " << (R + L) + 1 << std::endl;
+          std::cout << std::endl;
+        }
+        std::fill(signal->begin() + (seeds.at(seed) - L),
+                  signal->begin() + (seeds.at(seed) + R) + 1,
+                  0);
       }
     }
   }
@@ -474,13 +553,19 @@ int seek_endianess(std::fstream &file)
 
     if (val == 0xbbaa)
     {
-      std::cout << "WARNING: file is BIG Endian, part of the software expects LITTLE Endian" << std::endl;
+      if (verbose)
+      {
+        std::cout << "WARNING: file is BIG Endian, part of the software expects LITTLE Endian" << std::endl;
+      }
       little_endianess = false;
       found = true;
     }
     else if (val == 0xaabb)
     {
-      std::cout << "File is LITTLE Endian" << std::endl;
+      if (verbose)
+      {
+        std::cout << "File is LITTLE Endian" << std::endl;
+      }
       little_endianess = true;
       found = true;
     }
