@@ -133,7 +133,6 @@ int main(int argc, char *argv[])
   }
 
   int entries = chain->GetEntries();
-
   std::cout << "This run has " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
@@ -158,6 +157,7 @@ int main(int argc, char *argv[])
 
     if (verbose)
     {
+      std::cout << std::endl;
       std::cout << "EVENT: " << index_event << std::endl;
     }
 
@@ -194,7 +194,7 @@ int main(int argc, char *argv[])
     {
       if (verbose)
       {
-        std::cout << "Error: event is not complete" << std::endl;
+        std::cout << "Error: event " << index_event << " is not complete, skipping it" << std::endl;
       }
       continue;
     }
@@ -233,10 +233,15 @@ int main(int argc, char *argv[])
 
       for (int i = 0; i < result.size(); i++)
       {
+        if (verbose)
+        {
+          PrintCluster(result.at(i));
+        }
+
         if (!GoodCluster(result.at(i), &cal))
           continue;
 
-        if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width) < maxStrip)
+        if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip)
         {
           if (i == 0)
           {
@@ -244,6 +249,7 @@ int main(int argc, char *argv[])
           }
 
           hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
+
           if (result.at(i).width == 1)
           {
             hEnergyCluster1Strip->Fill(GetClusterSignal(result.at(i)));
@@ -266,10 +272,10 @@ int main(int argc, char *argv[])
 
           if (verbose)
           {
-            std::cout << "EVENT: " << index_event << " COG: " << GetClusterCOG(result.at(i)) << std::endl;
+            std::cout << "Adding cluster with COG: " << GetClusterCOG(result.at(i)) << std::endl;
           }
-          hClusterCog->Fill(GetClusterCOG(result.at(i)));
 
+          hClusterCog->Fill(GetClusterCOG(result.at(i)));
           hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
           hNstrip->Fill(GetClusterWidth(result.at(i)));
           hEta->Fill(GetClusterEta(result.at(i)));

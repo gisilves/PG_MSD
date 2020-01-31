@@ -24,6 +24,23 @@ typedef struct calib
   std::vector<int> status;
 } calib; //calibration structure
 
+int PrintCluster(cluster clus)
+{
+  std::cout << "######## Cluster Info ########" << std::endl;
+
+  std::cout << "Address: " << clus.address << std::endl;
+  std::cout << "Width: " << clus.width << std::endl;
+  std::cout << "Strips over seed threshold: " << clus.over << std::endl;
+  std::cout << "ADC content: " << std::endl;
+  for (size_t idx = 0; idx < clus.width; idx++)
+  {
+    std::cout << "\t" << idx << ": " << clus.ADC.at(idx) << std::endl;
+  }
+  std::cout << "##############################" << std::endl;
+
+  return 0;
+}
+
 int GetClusterAddress(cluster clus) { return clus.address; }
 int GetClusterWidth(cluster clus) { return clus.width; }
 std::vector<float> GetClusterADC(cluster clus) { return clus.ADC; }
@@ -389,8 +406,6 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
   if (seeds.size() != 0)
   {
-    nclust = seeds.size();
-
     for (size_t seed = 0; seed < seeds.size(); seed++)
     {
       bool overThreshL = true;
@@ -400,6 +415,14 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
       int R = 0;
       int width = 0;
       std::vector<float> clusterADC;
+
+      float seed_check = signal->at(seeds.at(seed));
+      if (!absoluteThresholds)
+      {
+        seed_check = seed_check / cal->sig.at(seeds.at(seed));
+      }
+      if (seed_check == 0)
+        continue;
 
       if (symmetric) //Cluster is defined as a fixed number of strips neighboring the seed
       {
@@ -522,6 +545,8 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
         new_cluster.ADC = clusterADC;
         new_cluster.over = overSEED;
         clusters.push_back(new_cluster);
+
+        nclust++;
 
         if (verbose)
         {

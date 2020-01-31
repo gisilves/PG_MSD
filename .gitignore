@@ -10,3 +10,4 @@ Root/miniTRB_clusterize
 Root/miniTRB_threshold_scan
 Root/provathreshold.root
 Root/src/plotCalib.C
+Root/test.cal
