@@ -6,7 +6,7 @@
 
 #define verbose false
 #define SENSOR_PITCH 242
-#define MIP_ADC 60
+#define MIP_ADC 50
 #define maxClusters 10
 typedef struct
 {
@@ -216,18 +216,19 @@ float GetCN(std::vector<float> *signal, int va, int type)
   }
 }
 
-float GetClusterSN(cluster clus, calib *cal) //TODO: noise as sum of squares?
+
+float GetClusterSN(cluster clus, calib *cal)
 {
-  float signal = GetClusterSignal(clus);
-  float noise = 0;
+  float sn = 0;
 
   for (size_t i = 0; i < GetClusterWidth(clus); i++)
   {
-    noise += cal->sig.at(i + GetClusterAddress(clus));
+    sn += pow(clus.ADC.at(i) / cal->sig.at(i + GetClusterAddress(clus)),2);
   }
-  if (noise > 0)
+
+  if (sn > 0)
   {
-    return signal / noise;
+    return sqrt(sn);
   }
   else
   {
@@ -268,7 +269,7 @@ float GetClusterEta(cluster clus) //Only for clusters with 2 strips
 
 float GetPosition(cluster clus)
 {
-  float position_mm = GetClusterCOG(clus) / 242.0 * 1000;
+  float position_mm = GetClusterCOG(clus) * 0.242;
   return position_mm;
 }
 

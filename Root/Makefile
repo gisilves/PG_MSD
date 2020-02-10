@@ -4,6 +4,8 @@ MARCH := `root-config --arch`
 LD:=$(CXX)
 SRC=./src/
 
+ANYOPTION=$(SRC)/anyoption.cpp
+
 UNAME := $(shell uname)
 
 CFLAGS += $(shell root-config --ldflags --cflags --glibs) -g -fPIC
@@ -22,7 +24,7 @@ miniTRB_compress: ./src/miniTRB_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 miniTRB_clusterize: ./src/miniTRB_clusterize.cxx
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 	
 miniTRB_threshold_scan: ./src/miniTRB_threshold_scan.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
