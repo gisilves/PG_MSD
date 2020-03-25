@@ -216,14 +216,13 @@ float GetCN(std::vector<float> *signal, int va, int type)
   }
 }
 
-
 float GetClusterSN(cluster clus, calib *cal)
 {
   float sn = 0;
 
   for (size_t i = 0; i < GetClusterWidth(clus); i++)
   {
-    sn += pow(clus.ADC.at(i) / cal->sig.at(i + GetClusterAddress(clus)),2);
+    sn += pow(clus.ADC.at(i) / cal->sig.at(i + GetClusterAddress(clus)), 2);
   }
 
   if (sn > 0)
@@ -259,13 +258,37 @@ float GetClusterEta(cluster clus) //Only for clusters with 2 strips
 
   if (ADC.size() == 2)
   {
-    strip1 = ADC.at(0);
-    strip2 = ADC.at(1);
+    if (ADC.at(0) > ADC.at(1))
+    {
+      strip1 = ADC.at(0);
+      strip2 = ADC.at(1);
+    }
+    else
+    {
+      strip1 = ADC.at(1);
+      strip2 = ADC.at(0);
+    }
 
     eta = (strip1 - strip2) / (strip1 + strip2);
   }
   return eta;
 }
+
+// float GetClusterEta(cluster clus) //Only for clusters with 2 strips
+// {
+//   float eta = -999;
+//   std::vector<float> ADC = GetClusterADC(clus);
+//   float strip1, strip2;
+
+//   if (ADC.size() == 2)
+//   {
+//     strip1 = ADC.at(0);
+//     strip2 = ADC.at(1);
+
+//     eta = (strip1 - strip2) / (strip1 + strip2);
+//   }
+//   return eta;
+// }
 
 float GetPosition(cluster clus)
 {

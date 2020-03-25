@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   int maxStrip = 383;
 
   opt = new AnyOption();
-  opt->addUsage("Usage: ./miniTRB_clusterize [options] [arguments]");
+  opt->addUsage("Usage: ./miniTRB_clusterize [options] [arguments] rootfile1 rootfile2 ...");
   opt->addUsage("");
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
   opt->setFlag("help", 'h');
   opt->setFlag("symmetric", 's');
   opt->setFlag("absolute", 'a');
-  opt->setFlag("verbose,'v");
+  opt->setFlag("verbose",'v');
 
   opt->setOption("version");
   opt->setOption("output");
@@ -134,23 +134,23 @@ int main(int argc, char *argv[])
 
   //////////////////Histos//////////////////
   TH1F *hEnergyCluster =
-      new TH1F("hEnergyCluster", "hEnergyCluster", 10000, 0, 5000);
+      new TH1F("hEnergyCluster", "hEnergyCluster", 1000, 0, 5000);
   hEnergyCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyCluster1Strip =
-      new TH1F("hEnergyCluster1Strip", "hEnergyCluster1Strip", 10000, 0, 5000);
+      new TH1F("hEnergyCluster1Strip", "hEnergyCluster1Strip", 1000, 0, 5000);
   hEnergyCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyCluster2Strip =
-      new TH1F("hEnergyCluster2Strip", "hEnergyCluster2Strip", 10000, 0, 5000);
+      new TH1F("hEnergyCluster2Strip", "hEnergyCluster2Strip", 1000, 0, 5000);
   hEnergyCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyClusterManyStrip = new TH1F(
-      "hEnergyClusterManyStrip", "hEnergyClusterManyStrip", 10000, 0, 5000);
+      "hEnergyClusterManyStrip", "hEnergyClusterManyStrip", 1000, 0, 5000);
   hEnergyClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyClusterSeed =
-      new TH1F("hEnergyClusterSeed", "hEnergyClusterSeed", 10000, 0, 5000);
+      new TH1F("hEnergyClusterSeed", "hEnergyClusterSeed", 1000, 0, 5000);
   hEnergyClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed =
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
   TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 5000, 0, 2500);
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 10000, 0, 5000);
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 5000);
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
@@ -192,19 +192,25 @@ int main(int argc, char *argv[])
   TH1F *hNstripSeed = new TH1F("hNstripSeed", "hNstripSeed", 10, -0.5, 9.5);
   hNstripSeed->GetXaxis()->SetTitle("n strips over seed threshold");
 
-  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 10000, 0, 5000,
-                              10000, 0, 5000);
+  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 2000, 0, 1000,
+                              2000, 0, 1000);
   hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
   hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
 
-  TH1F *hEta = new TH1F("hEta", "hEta", 100, -1, 1);
+  TH1F *hEta = new TH1F("hEta", "hEta", 100, 0, 1);
   hEta->GetXaxis()->SetTitle("Eta");
+  
+  TH1F *hEta1 = new TH1F("hEta1", "hEta1", 100, 0, 1);
+  hEta1->GetXaxis()->SetTitle("Eta (one seed)");
+
+  TH1F *hEta2 = new TH1F("hEta2", "hEta2", 100, 0, 1);
+  hEta2->GetXaxis()->SetTitle("Eta (two seed)");
 
   TH1F *hDifference = new TH1F("hDifference", "hDifference", 200, -50, 50);
   hDifference->GetXaxis()->SetTitle("Difference");
 
   TH2F *hADCvsWidth =
-      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 10000, 0, 5000);
+      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 5000);
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
@@ -214,11 +220,11 @@ int main(int argc, char *argv[])
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta =
-      new TH2F("hADCvsEta", "hADCvsEta", 200, -1, 1, 10000, 0, 5000);
+      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 1000, 0, 5000);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 5000, 0, 2500, 10000, 0, 5000);
+  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 5000, 0, 2500, 1000, 0, 5000);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
@@ -446,9 +452,17 @@ int main(int argc, char *argv[])
           hBeamProfile->Fill(GetPosition(result.at(i)));
           hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
           hNstrip->Fill(GetClusterWidth(result.at(i)));
-          if (result.at(i).over == 1)
+          if (result.at(i).width == 2)
           {
-            hEta->Fill(GetClusterEta(result.at(i)));
+	    hEta->Fill(GetClusterEta(result.at(i)));
+            if (result.at(i).over == 1)
+            {
+              hEta1->Fill(GetClusterEta(result.at(i)));
+            }
+            else
+            {
+              hEta2->Fill(GetClusterEta(result.at(i)));
+            }
             hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
           }
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
@@ -478,10 +492,25 @@ int main(int argc, char *argv[])
   }
 
   hNclus->Write();
+
+  Double_t norm = hEnergyCluster->GetEntries();
+  hEnergyCluster->Scale(1/norm);
   hEnergyCluster->Write();
+  
+  
+  Double_t norm1 = hEnergyCluster1Strip->GetEntries();
+  hEnergyCluster1Strip->Scale(1/norm1);
   hEnergyCluster1Strip->Write();
+  
+  
+  Double_t norm2 = hEnergyCluster2Strip->GetEntries();
+  hEnergyCluster2Strip->Scale(1/norm2);
   hEnergyCluster2Strip->Write();
+  
+  Double_t norm3 = hEnergyClusterManyStrip->GetEntries();
+  hEnergyClusterManyStrip->Scale(1/norm3);
   hEnergyClusterManyStrip->Write();
+  
   hEnergyClusterSeed->Write();
   hClusterCharge->Write();
   hSeedCharge->Write();
@@ -491,11 +520,12 @@ int main(int argc, char *argv[])
   hBeamProfile->Write();
   hSeedPos->Write();
 
-  hNstrip->Scale(1 / (hNstrip->Integral()));
   hNstrip->Write();
 
   hNstripSeed->Write();
   hEta->Write();
+  hEta1->Write();
+  hEta2->Write();
   hADCvsWidth->Write();
   hADCvsPos->Write();
   hADCvsSeed->Write();
