@@ -1,22 +1,24 @@
 # FOOT_MSD
 Software for FOOT MSD data analysis
 
-Python:
-Plot Calibration.ipynb: export miniTRB calibrations to pictures
+###### Python:
 
-miniTRB read binary.ipynb: read (and convert) miniTRB raw data binary files acquired with Firefly
+**Plot Calibration.ipynb:** export miniTRB calibrations to pictures
 
-Clustering.ipynb: calculate double threshold and symmetric clusters
+**miniTRB read binary.ipynb:** read (and convert) miniTRB raw data binary files acquired with Firefly
 
-Root:
-miniTRB_compress: to compress binary raw data into rootfiles
+**Clustering.ipynb:** calculate double threshold and symmetric clusters
 
-miniTRB_clusterize: to find clusters from compressed data
+###### Root:
 
-miniTRB_clusterize: to compress binary raw calibration data
+**miniTRB_compress:** to compress binary raw data into rootfiles
 
-miniTRB_cn: to perform a CN study
+**miniTRB_clusterize:** to find clusters from compressed data
 
-miniTRB_threshold_scan: to perform a scan on threshold values for cluster reconstruction
+**miniTRB_clusterize:** to compress binary raw calibration data
 
-miniTRB_viewer: to open the GUI viewer for raw data
+**miniTRB_cn:** to perform a CN study
+
+**miniTRB_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
+
+**miniTRB_viewer:** to open the GUI viewer for raw data
