@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include <unistd.h>
+#include <iostream>
 
 #define verbose false
 #define SENSOR_PITCH 242
@@ -723,6 +725,7 @@ int seek_version(std::fstream &file)
       version = val;
       found = true;
     }
+    
   }
 
   if (!found)

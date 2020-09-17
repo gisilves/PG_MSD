@@ -18,7 +18,7 @@ endif
 
 default: miniTRB_compress
 
-all: miniTRB_compress miniTRB_clusterize miniTRB_threshold_scan
+all: miniTRB_compress miniTRB_clusterize miniTRB_threshold_scan miniTRB_cn miniTRB_viewer
 
 miniTRB_compress: ./src/miniTRB_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
@@ -29,8 +29,16 @@ miniTRB_clusterize: ./src/miniTRB_clusterize.cxx
 miniTRB_threshold_scan: ./src/miniTRB_threshold_scan.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
+miniTRB_cn: ./src/miniTRB_cn.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+miniTRB_viewer: 
+	$(ROOTCLING) -f guiDict.cxx ./src/viewerGUI.hh ./src/guiLinkDef.h
+	$(CXX) ./src/viewerGUI.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 clean:
 	rm -f ./miniTRB_compress
 	rm -f ./miniTRB_clusterize
+	rm -f ./miniTRB_cn
 	rm -f ./miniTRB_threshold_scan
+	rm -f ./viewer
