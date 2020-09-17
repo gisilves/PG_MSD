@@ -15,8 +15,6 @@ Software for FOOT MSD data analysis
 
 **miniTRB_clusterize:** to find clusters from compressed data
 
-**miniTRB_clusterize:** to compress binary raw calibration data
-
 **miniTRB_cn:** to perform a CN study
 
 **miniTRB_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
