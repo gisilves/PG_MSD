@@ -69,7 +69,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fNumber->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
 
   fPed = new TGCheckButton(fHor4, "Pedestal subtraction");
-  fPed->SetOn();
+  //fPed->SetOn();
   fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
   fileLabel = new TGLabel(fHor3, "No rootfile opened");
@@ -141,14 +141,7 @@ void MyMainFrame::viewer(int evt, char filename[200], char calibfile[200])
   gr_event->SetMarkerStyle(23);
   gr_event->GetXaxis()->SetNdivisions(raw_event->size() / 64, false);
 
-  if (raw_event->size() / 64 == 6)
-  {
-    fStatusBar->AddLine("Opened DaMPE raw file from miniTRB");
-  }
-  else
-  {
-    fStatusBar->AddLine("Opened FOOT raw file from miniTRB");
-  }
+fStatusBar->AddLine("Opened DaMPE/FOOT raw file from miniTRB");
 
   int maxadc = -999;
   int minadc = 0;

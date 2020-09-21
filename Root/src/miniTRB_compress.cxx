@@ -16,7 +16,6 @@ int main(int argc, char *argv[])
 
     //Open binary data file
     std::fstream file(argv[1], std::ios::in | std::ios::out | std::ios::binary);
-    file.seekg(0, std::ios::end);
 
     int version;
     int bitsize = -999;
@@ -38,6 +37,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    file.seekg(0, std::ios::end);
     int fileSize = file.tellg() / bitsize; //Estimate number of events from filesize
     file.seekg(0);
 

@@ -41,4 +41,4 @@ clean:
 	rm -f ./miniTRB_clusterize
 	rm -f ./miniTRB_cn
 	rm -f ./miniTRB_threshold_scan
-	rm -f ./viewer
+	rm -f ./miniTRB_viewer
