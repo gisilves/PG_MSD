@@ -7,7 +7,7 @@
 #include <iostream>
 
 #define verbose false
-#define SENSOR_PITCH 242
+#define SENSOR_PITCH 242 //242um: DAMPE       150um:FOOT
 #define MIP_ADC 50
 #define maxClusters 10
 typedef struct
@@ -742,7 +742,19 @@ int seek_version(std::fstream &file)
 std::vector<unsigned short> read_event(std::fstream &file, int offset,
                                        int version, int evt)
 {
-  file.seekg(offset + 4 + evt * 1024);
+  int bitsize = -999;
+
+  if(version == 0x1212)
+  {
+    bitsize = 1024;
+  }
+  else
+  {
+    bitsize = 2048;
+  }
+  
+
+  file.seekg(offset + 4 + evt * bitsize);
 
   int event_size;
 

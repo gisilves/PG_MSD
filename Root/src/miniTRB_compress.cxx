@@ -17,7 +17,28 @@ int main(int argc, char *argv[])
     //Open binary data file
     std::fstream file(argv[1], std::ios::in | std::ios::out | std::ios::binary);
     file.seekg(0, std::ios::end);
-    int fileSize = file.tellg() / 1024; //Estimate number of events from filesize
+
+    int version;
+    int bitsize = -999;
+
+    //Find miniTRB version
+    version = seek_version(file);
+    if (version == 0x1212)
+    {
+        std::cout << "File from 6VA miniTRB" << std::endl;
+        bitsize = 1024;
+    }
+    else if (version == 0x1313)
+    {
+        std::cout << "File from 10VA miniTRB" << std::endl;
+        bitsize = 2048;
+    }
+    else
+    {
+        return 1;
+    }
+
+    int fileSize = file.tellg() / bitsize; //Estimate number of events from filesize
     file.seekg(0);
 
     //Create output ROOT file
@@ -33,22 +54,6 @@ int main(int argc, char *argv[])
     bool little_endian;
     int offset;
     bool is_raw;
-    int version;
-
-    //Find miniTRB version
-    version = seek_version(file);
-    if (version == 0x1212)
-    {
-        std::cout << "File from 6VA miniTRB" << std::endl;
-    }
-    else if (version == 0x1313)
-    {
-        std::cout << "File from 10VA miniTRB" << std::endl;
-    }
-    else
-    {
-        return 1;
-    }
 
     //Find file endianess. TODO: implement Big Endian bytes swapping
     little_endian = seek_endianess(file);

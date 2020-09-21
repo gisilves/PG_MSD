@@ -3,7 +3,6 @@
 #include "TH1.h"
 #include "TH2.h"
 #include "TTree.h"
-#include "omp.h"
 #include <iostream>
 #include <iomanip>
 

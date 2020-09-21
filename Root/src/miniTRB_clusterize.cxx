@@ -3,11 +3,15 @@
 #include "TH1.h"
 #include "TH2.h"
 #include "TTree.h"
-#include "omp.h"
 #include <iostream>
+#include "environment.h"
 
 #include "anyoption.h"
 #include "miniTRB.h"
+
+#if OMP_ == 1
+  #include "omp.h"
+#endif
 
 AnyOption *opt; //Handle the option input
 
