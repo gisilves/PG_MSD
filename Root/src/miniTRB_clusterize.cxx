@@ -10,7 +10,7 @@
 #include "miniTRB.h"
 
 #if OMP_ == 1
-  #include "omp.h"
+#include "omp.h"
 #endif
 
 AnyOption *opt; //Handle the option input
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
   opt->setFlag("help", 'h');
   opt->setFlag("symmetric", 's');
   opt->setFlag("absolute", 'a');
-  opt->setFlag("verbose",'v');
+  opt->setFlag("verbose", 'v');
 
   opt->setOption("version");
   opt->setOption("output");
@@ -85,17 +85,17 @@ int main(int argc, char *argv[])
 
   if (atoi(opt->getValue("version")) == 1212)
   {
-    int NChannels = 384;
-    int NVas = 6;
-    int minStrip = 0;
-    int maxStrip = 383;
+    NChannels = 384;
+    NVas = 6;
+    minStrip = 0;
+    maxStrip = 383;
   }
   else if (atoi(opt->getValue("version")) == 1313)
   {
-    int NChannels = 640;
-    int NVas = 10;
-    int minStrip = 0;
-    int maxStrip = 639;
+    NChannels = 640;
+    NVas = 10;
+    minStrip = 0;
+    maxStrip = 639;
   }
   else
   {
@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
 
   TH1F *hEta = new TH1F("hEta", "hEta", 100, 0, 1);
   hEta->GetXaxis()->SetTitle("Eta");
-  
+
   TH1F *hEta1 = new TH1F("hEta1", "hEta1", 100, 0, 1);
   hEta1->GetXaxis()->SetTitle("Eta (one seed)");
 
@@ -458,7 +458,7 @@ int main(int argc, char *argv[])
           hNstrip->Fill(GetClusterWidth(result.at(i)));
           if (result.at(i).width == 2)
           {
-	    hEta->Fill(GetClusterEta(result.at(i)));
+            hEta->Fill(GetClusterEta(result.at(i)));
             if (result.at(i).over == 1)
             {
               hEta1->Fill(GetClusterEta(result.at(i)));
@@ -498,23 +498,21 @@ int main(int argc, char *argv[])
   hNclus->Write();
 
   Double_t norm = hEnergyCluster->GetEntries();
-  hEnergyCluster->Scale(1/norm);
+  hEnergyCluster->Scale(1 / norm);
   hEnergyCluster->Write();
-  
-  
+
   Double_t norm1 = hEnergyCluster1Strip->GetEntries();
-  hEnergyCluster1Strip->Scale(1/norm1);
+  hEnergyCluster1Strip->Scale(1 / norm1);
   hEnergyCluster1Strip->Write();
-  
-  
+
   Double_t norm2 = hEnergyCluster2Strip->GetEntries();
-  hEnergyCluster2Strip->Scale(1/norm2);
+  hEnergyCluster2Strip->Scale(1 / norm2);
   hEnergyCluster2Strip->Write();
-  
+
   Double_t norm3 = hEnergyClusterManyStrip->GetEntries();
-  hEnergyClusterManyStrip->Scale(1/norm3);
+  hEnergyClusterManyStrip->Scale(1 / norm3);
   hEnergyClusterManyStrip->Write();
-  
+
   hEnergyClusterSeed->Write();
   hClusterCharge->Write();
   hSeedCharge->Write();
