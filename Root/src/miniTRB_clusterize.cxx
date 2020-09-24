@@ -138,25 +138,25 @@ int main(int argc, char *argv[])
     maxStrip = atoi(opt->getValue("maxstrip"));
 
   //////////////////Histos//////////////////
-  TH1F *hEnergyCluster =
-      new TH1F("hEnergyCluster", "hEnergyCluster", 1000, 0, 1000);
-  hEnergyCluster->GetXaxis()->SetTitle("ADC");
+  TH1F *hADCCluster =
+      new TH1F("hADCCluster", "hADCCluster", 1000, 0, 1000);
+  hADCCluster->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hEnergyCluster1Strip =
-      new TH1F("hEnergyCluster1Strip", "hEnergyCluster1Strip", 1000, 0, 1000);
-  hEnergyCluster1Strip->GetXaxis()->SetTitle("ADC");
+  TH1F *hADCCluster1Strip =
+      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 1000, 0, 1000);
+  hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hEnergyCluster2Strip =
-      new TH1F("hEnergyCluster2Strip", "hEnergyCluster2Strip", 1000, 0, 2000);
-  hEnergyCluster2Strip->GetXaxis()->SetTitle("ADC");
+  TH1F *hADCCluster2Strip =
+      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 1000, 0, 2000);
+  hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hEnergyClusterManyStrip = new TH1F(
-      "hEnergyClusterManyStrip", "hEnergyClusterManyStrip", 1000, 0, 2000);
-  hEnergyClusterManyStrip->GetXaxis()->SetTitle("ADC");
+  TH1F *hADCClusterManyStrip = new TH1F(
+      "hADCClusterManyStrip", "hADCClusterManyStrip", 1000, 0, 2000);
+  hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hEnergyClusterSeed =
-      new TH1F("hEnergyClusterSeed", "hEnergyClusterSeed", 1000, 0, 2000);
-  hEnergyClusterSeed->GetXaxis()->SetTitle("ADC");
+  TH1F *hADCClusterSeed =
+      new TH1F("hADCClusterSeed", "hADCClusterSeed", 1000, 0, 2000);
+  hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed =
       new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 100);
@@ -440,22 +440,22 @@ int main(int argc, char *argv[])
             hNclus->Fill(result.size());
           }
 
-          hEnergyCluster->Fill(GetClusterSignal(result.at(i)));
+          hADCCluster->Fill(GetClusterSignal(result.at(i)));
 
           if (result.at(i).width == 1)
           {
-            hEnergyCluster1Strip->Fill(GetClusterSignal(result.at(i)));
+            hADCCluster1Strip->Fill(GetClusterSignal(result.at(i)));
           }
           else if (result.at(i).width == 2)
           {
-            hEnergyCluster2Strip->Fill(GetClusterSignal(result.at(i)));
+            hADCCluster2Strip->Fill(GetClusterSignal(result.at(i)));
           }
           else
           {
-            hEnergyClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
+            hADCClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
           }
 
-          hEnergyClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
+          hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
           hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
           hSeedCharge->Fill(GetSeedMIPCharge(result.at(i), &cal));
           hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i), &cal) / GetClusterSignal(result.at(i)));
@@ -518,23 +518,23 @@ int main(int argc, char *argv[])
   }
   hNclus->Write();
 
-  Double_t norm = hEnergyCluster->GetEntries();
-  //hEnergyCluster->Scale(1 / norm);
-  hEnergyCluster->Write();
+  Double_t norm = hADCCluster->GetEntries();
+  //hADCCluster->Scale(1 / norm);
+  hADCCluster->Write();
 
-  Double_t norm1 = hEnergyCluster1Strip->GetEntries();
-  //hEnergyCluster1Strip->Scale(1 / norm1);
-  hEnergyCluster1Strip->Write();
+  Double_t norm1 = hADCCluster1Strip->GetEntries();
+  //hADCCluster1Strip->Scale(1 / norm1);
+  hADCCluster1Strip->Write();
 
-  Double_t norm2 = hEnergyCluster2Strip->GetEntries();
-  //hEnergyCluster2Strip->Scale(1 / norm2);
-  hEnergyCluster2Strip->Write();
+  Double_t norm2 = hADCCluster2Strip->GetEntries();
+  //hADCCluster2Strip->Scale(1 / norm2);
+  hADCCluster2Strip->Write();
 
-  Double_t norm3 = hEnergyClusterManyStrip->GetEntries();
-  //hEnergyClusterManyStrip->Scale(1 / norm3);
-  hEnergyClusterManyStrip->Write();
+  Double_t norm3 = hADCClusterManyStrip->GetEntries();
+  //hADCClusterManyStrip->Scale(1 / norm3);
+  hADCClusterManyStrip->Write();
 
-  hEnergyClusterSeed->Write();
+  hADCClusterSeed->Write();
   hClusterCharge->Write();
   hSeedCharge->Write();
   hClusterSN->Write();

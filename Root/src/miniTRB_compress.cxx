@@ -16,7 +16,11 @@ int main(int argc, char *argv[])
 
     //Open binary data file
     std::fstream file(argv[1], std::ios::in | std::ios::out | std::ios::binary);
-
+    if (file.fail())
+    {
+        std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
+        return 2;
+    }
     int version;
     int bitsize = -999;
 

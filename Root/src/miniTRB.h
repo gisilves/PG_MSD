@@ -7,8 +7,8 @@
 #include <iostream>
 
 #define verbose false
-#define SENSOR_PITCH 242 //242um: DAMPE       150um:FOOT
-#define MIP_ADC 50
+#define SENSOR_PITCH 150 //242um: DAMPE       150um:FOOT
+#define MIP_ADC 50 //50ADC: DAMPE ??ADC:FOOT
 #define maxClusters 10
 typedef struct
 {
