@@ -8,7 +8,7 @@
 
 #define verbose false
 #define SENSOR_PITCH 150 //242um: DAMPE       150um:FOOT
-#define MIP_ADC 50 //50ADC: DAMPE ??ADC:FOOT
+#define MIP_ADC 50       //50ADC: DAMPE ??ADC:FOOT
 #define maxClusters 10
 typedef struct
 {
@@ -163,7 +163,7 @@ float GetCN(std::vector<float> *signal, int va, int type)
   {
     for (size_t i = (va * 64); i < (va + 1) * 64; i++)
     {
-      if (signal->at(i) < 40)
+      if (signal->at(i) < MIP_ADC / 2)
       {
         cn += signal->at(i);
         cnt++;
@@ -725,7 +725,6 @@ int seek_version(std::fstream &file)
       version = val;
       found = true;
     }
-    
   }
 
   if (!found)
@@ -744,7 +743,7 @@ std::vector<unsigned short> read_event(std::fstream &file, int offset,
 {
   int bitsize = -999;
 
-  if(version == 0x1212)
+  if (version == 0x1212)
   {
     bitsize = 1024;
   }
@@ -752,7 +751,6 @@ std::vector<unsigned short> read_event(std::fstream &file, int offset,
   {
     bitsize = 2048;
   }
-  
 
   file.seekg(offset + 4 + evt * bitsize);
 

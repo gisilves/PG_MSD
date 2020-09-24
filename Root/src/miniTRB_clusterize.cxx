@@ -353,7 +353,7 @@ int main(int argc, char *argv[])
     for (int va = 0; va < NVas; va++) //Loop on VA
     {
       float cn = GetCN(&signal, va, 0);
-      if (cn != -999)
+      if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise0->Fill(cn);
         //hCommonNoiseVsVA->Fill(cn, va);
@@ -363,7 +363,7 @@ int main(int argc, char *argv[])
     for (int va = 0; va < NVas; va++) //Loop on VA
     {
       float cn = GetCN(&signal, va, 1);
-      if (cn != -999)
+      if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise1->Fill(cn);
         //hCommonNoiseVsVA->Fill(cn, va);
@@ -373,12 +373,14 @@ int main(int argc, char *argv[])
     for (int va = 0; va < NVas; va++) //Loop on VA
     {
       float cn = GetCN(&signal, va, 2);
-      if (cn != -999)
+      if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise2->Fill(cn);
         //hCommonNoiseVsVA->Fill(cn, va);
       }
     }
+
+    bool goodCN = true;
 
     if (cntype >= 0)
     {
@@ -388,7 +390,6 @@ int main(int argc, char *argv[])
         float cn = GetCN(&signal, va, cntype);
         if (cn != -999 && abs(cn) < maxCN)
         {
-          //hCommonNoise->Fill(cn);
           hCommonNoiseVsVA->Fill(cn, va);
 
           for (int ch = va * 64; ch < (va + 1) * 64; ch++) //Loop on VA channels
@@ -401,6 +402,7 @@ int main(int argc, char *argv[])
           for (int ch = va * 64; ch < (va + 1) * 64; ch++)
           {
             signal.at(ch) = 0; //Invalid Common Noise Value, artificially setting VA channel to 0 signal
+            goodCN = false;
           }
         }
       }
@@ -408,6 +410,8 @@ int main(int argc, char *argv[])
 
     try
     {
+      if (!goodCN)
+        continue;
 
       if (*max_element(signal.begin(), signal.end()) > 4096) //4096 is the maximum ADC value possible, any more than that means the event is corrupted
         continue;
