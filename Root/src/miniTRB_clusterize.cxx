@@ -5,6 +5,7 @@
 #include "TTree.h"
 #include <iostream>
 #include "environment.h"
+#include <algorithm>
 
 #include "anyoption.h"
 #include "miniTRB.h"
@@ -138,23 +139,23 @@ int main(int argc, char *argv[])
 
   //////////////////Histos//////////////////
   TH1F *hEnergyCluster =
-      new TH1F("hEnergyCluster", "hEnergyCluster", 1000, 0, 5000);
+      new TH1F("hEnergyCluster", "hEnergyCluster", 1000, 0, 1000);
   hEnergyCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyCluster1Strip =
-      new TH1F("hEnergyCluster1Strip", "hEnergyCluster1Strip", 1000, 0, 5000);
+      new TH1F("hEnergyCluster1Strip", "hEnergyCluster1Strip", 1000, 0, 1000);
   hEnergyCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyCluster2Strip =
-      new TH1F("hEnergyCluster2Strip", "hEnergyCluster2Strip", 1000, 0, 5000);
+      new TH1F("hEnergyCluster2Strip", "hEnergyCluster2Strip", 1000, 0, 2000);
   hEnergyCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyClusterManyStrip = new TH1F(
-      "hEnergyClusterManyStrip", "hEnergyClusterManyStrip", 1000, 0, 5000);
+      "hEnergyClusterManyStrip", "hEnergyClusterManyStrip", 1000, 0, 2000);
   hEnergyClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hEnergyClusterSeed =
-      new TH1F("hEnergyClusterSeed", "hEnergyClusterSeed", 1000, 0, 5000);
+      new TH1F("hEnergyClusterSeed", "hEnergyClusterSeed", 1000, 0, 2000);
   hEnergyClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed =
@@ -172,10 +173,10 @@ int main(int argc, char *argv[])
   TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5);
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 5000, 0, 2500);
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 2000, 0, 2500);
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 5000);
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 2000);
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
@@ -214,21 +215,21 @@ int main(int argc, char *argv[])
   hDifference->GetXaxis()->SetTitle("Difference");
 
   TH2F *hADCvsWidth =
-      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 5000);
+      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 2000);
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5,
-                             10000, 0, 5000);
+                             10000, 0, 2000);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta =
-      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 1000, 0, 5000);
+      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 1000, 0, 2000);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 5000, 0, 2500, 1000, 0, 5000);
+  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 2000, 0, 2500, 1000, 0, 2000);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
@@ -297,6 +298,9 @@ int main(int argc, char *argv[])
 
   // Loop over events
   int perc = 0;
+  int maxADC = 0;
+  int maxEVT = 0;
+  int maxPOS = 0;
 
   for (int index_event = 0; index_event < entries; index_event++)
   {
@@ -405,6 +409,17 @@ int main(int argc, char *argv[])
     try
     {
 
+      if (*max_element(signal.begin(), signal.end()) > 4096) //4096 is the maximum ADC value possible, any more than that means the event is corrupted
+        continue;
+
+      if (*max_element(signal.begin(), signal.end()) > maxADC)
+      {
+        maxADC = *max_element(signal.begin(), signal.end());
+        maxEVT = index_event;
+        std::vector<float>::iterator it = std::find(signal.begin(), signal.end(), maxADC);
+        maxPOS = std::distance(signal.begin(), it);
+      }
+
       result = clusterize(&cal, &signal, highthreshold, lowthreshold,
                           symmetric, symmetricwidth, absolute);
 
@@ -495,22 +510,28 @@ int main(int argc, char *argv[])
     }
   }
 
+  if (verb)
+  {
+    std::cout << "Maximum ADC value found is " << maxADC
+              << " in event number " << maxEVT
+              << " at strip " << maxPOS << std::endl;
+  }
   hNclus->Write();
 
   Double_t norm = hEnergyCluster->GetEntries();
-  hEnergyCluster->Scale(1 / norm);
+  //hEnergyCluster->Scale(1 / norm);
   hEnergyCluster->Write();
 
   Double_t norm1 = hEnergyCluster1Strip->GetEntries();
-  hEnergyCluster1Strip->Scale(1 / norm1);
+  //hEnergyCluster1Strip->Scale(1 / norm1);
   hEnergyCluster1Strip->Write();
 
   Double_t norm2 = hEnergyCluster2Strip->GetEntries();
-  hEnergyCluster2Strip->Scale(1 / norm2);
+  //hEnergyCluster2Strip->Scale(1 / norm2);
   hEnergyCluster2Strip->Write();
 
   Double_t norm3 = hEnergyClusterManyStrip->GetEntries();
-  hEnergyClusterManyStrip->Scale(1 / norm3);
+  //hEnergyClusterManyStrip->Scale(1 / norm3);
   hEnergyClusterManyStrip->Write();
 
   hEnergyClusterSeed->Write();
