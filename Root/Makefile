@@ -18,17 +18,14 @@ endif
 
 default: miniTRB_compress
 
-all: miniTRB_compress miniTRB_clusterize miniTRB_calibration miniTRB_threshold_scan miniTRB_cn miniTRB_viewer
+all: miniTRB_compress miniTRB_clusterize miniTRB_threshold_scan miniTRB_cn miniTRB_viewer
 
 .PHONY: all
 
 miniTRB_compress: ./src/miniTRB_compress.cxx
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 miniTRB_clusterize: ./src/miniTRB_clusterize.cxx
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
-	
-miniTRB_calibration: ./src/miniTRB_calibration.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 miniTRB_threshold_scan: ./src/miniTRB_threshold_scan.cxx
@@ -44,7 +41,6 @@ miniTRB_viewer:
 clean:
 	rm -f ./miniTRB_compress
 	rm -f ./miniTRB_clusterize
-	rm -f ./miniTRB_calibration
 	rm -f ./miniTRB_cn
 	rm -f ./miniTRB_threshold_scan
 	rm -f ./miniTRB_viewer
