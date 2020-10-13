@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
   int NVas = 6;
   int minStrip = 0;
   int maxStrip = 383;
+  float sensor_pitch = 0.150;
 
   opt = new AnyOption();
   opt->addUsage("Usage: ./miniTRB_clusterize [options] [arguments] rootfile1 rootfile2 ...");
@@ -39,6 +40,7 @@ int main(int argc, char *argv[])
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
+  opt->addUsage("  --nevents    ................................. Number of events to process ");
   opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB ");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
@@ -58,6 +60,7 @@ int main(int argc, char *argv[])
   opt->setFlag("verbose", 'v');
 
   opt->setOption("version");
+  opt->setOption("nevents");
   opt->setOption("output");
   opt->setOption("calibration");
   opt->setOption("highthreshold");
@@ -90,6 +93,7 @@ int main(int argc, char *argv[])
     NVas = 6;
     minStrip = 0;
     maxStrip = 383;
+    sensor_pitch = 0.242;
   }
   else if (atoi(opt->getValue("version")) == 1313)
   {
@@ -97,6 +101,7 @@ int main(int argc, char *argv[])
     NVas = 10;
     minStrip = 0;
     maxStrip = 639;
+    sensor_pitch = 0.150;
   }
   else
   {
@@ -139,23 +144,23 @@ int main(int argc, char *argv[])
 
   //////////////////Histos//////////////////
   TH1F *hADCCluster =
-      new TH1F("hADCCluster", "hADCCluster", 1000, 0, 1000);
+      new TH1F("hADCCluster", "hADCCluster", 100, 0, 100);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster1Strip =
-      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 1000, 0, 1000);
+      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 100, 0, 100);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster2Strip =
-      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 1000, 0, 2000);
+      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 100, 0, 200);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterManyStrip = new TH1F(
-      "hADCClusterManyStrip", "hADCClusterManyStrip", 1000, 0, 2000);
+      "hADCClusterManyStrip", "hADCClusterManyStrip", 100, 0, 200);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterSeed =
-      new TH1F("hADCClusterSeed", "hADCClusterSeed", 1000, 0, 2000);
+      new TH1F("hADCClusterSeed", "hADCClusterSeed", 100, 0, 200);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed =
@@ -173,7 +178,7 @@ int main(int argc, char *argv[])
   TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5);
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 2000, 0, 2500);
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 200, 0, 250);
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 2000);
@@ -197,8 +202,8 @@ int main(int argc, char *argv[])
   TH1F *hNstripSeed = new TH1F("hNstripSeed", "hNstripSeed", 10, -0.5, 9.5);
   hNstripSeed->GetXaxis()->SetTitle("n strips over seed threshold");
 
-  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 2000, 0, 1000,
-                              2000, 0, 1000);
+  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 200, 0, 100,
+                              200, 0, 100);
   hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
   hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
 
@@ -211,11 +216,11 @@ int main(int argc, char *argv[])
   TH1F *hEta2 = new TH1F("hEta2", "hEta2", 100, 0, 1);
   hEta2->GetXaxis()->SetTitle("Eta (two seed)");
 
-  TH1F *hDifference = new TH1F("hDifference", "hDifference", 200, -50, 50);
-  hDifference->GetXaxis()->SetTitle("Difference");
+  TH1F *hDifference = new TH1F("hDifference", "hDifference", 200, -5, 5);
+  hDifference->GetXaxis()->SetTitle("(ADC_0-ADC_1)/(ADC_0+ADC_1)");
 
   TH2F *hADCvsWidth =
-      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 2000);
+      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 100, 0, 200);
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
@@ -225,11 +230,11 @@ int main(int argc, char *argv[])
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta =
-      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 1000, 0, 2000);
+      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 100, 0, 200);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 2000, 0, 2500, 1000, 0, 2000);
+  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 200, 0, 250, 100, 0, 200);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
@@ -251,7 +256,7 @@ int main(int argc, char *argv[])
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
 
-  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 1000, 0, 500, 1000, 0, 500);
+  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 100, 0, 50, 100, 0, 50);
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
@@ -265,6 +270,16 @@ int main(int argc, char *argv[])
 
   int entries = chain->GetEntries();
   std::cout << "This run has " << entries << " entries" << std::endl;
+
+  if (opt->getValue("nevents"))
+  {
+    unsigned int temp_entries = atoi(opt->getValue("nevents"));
+    if (temp_entries < entries)
+    {
+      entries = temp_entries;
+    }
+  }
+  std::cout << "Processing " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
   std::vector<unsigned short> *raw_event = 0;
@@ -330,7 +345,14 @@ int main(int argc, char *argv[])
       {
         for (size_t i = 0; i != raw_event->size(); i++)
         {
-          signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+          if (cal.status[i] != 0)
+          {
+            signal.at(i) = 0;
+          }
+          else
+          {
+            signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+          }
         }
       }
       else
@@ -437,6 +459,9 @@ int main(int argc, char *argv[])
         if (!GoodCluster(result.at(i), &cal))
           continue;
 
+        //if (!(GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207)) continue;
+        //  PrintCluster(result.at(i));
+
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip)
         {
           if (i == 0)
@@ -472,7 +497,7 @@ int main(int argc, char *argv[])
           }
 
           hClusterCog->Fill(GetClusterCOG(result.at(i)));
-          hBeamProfile->Fill(GetPosition(result.at(i)));
+          hBeamProfile->Fill(GetPosition(result.at(i), sensor_pitch));
           hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
           hNstrip->Fill(GetClusterWidth(result.at(i)));
           if (result.at(i).width == 2)
@@ -497,7 +522,7 @@ int main(int argc, char *argv[])
 
           if (result.at(i).width == 2)
           {
-            hDifference->Fill(result.at(i).ADC.at(0) - result.at(i).ADC.at(1));
+            hDifference->Fill((result.at(i).ADC.at(0) - result.at(i).ADC.at(1)) / (result.at(i).ADC.at(0) + result.at(i).ADC.at(1)));
             hADC0vsADC1->Fill(result.at(i).ADC.at(0), result.at(i).ADC.at(1));
           }
         }

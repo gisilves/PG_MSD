@@ -7,7 +7,6 @@
 #include <iostream>
 
 #define verbose false
-#define SENSOR_PITCH 150 //242um: DAMPE       150um:FOOT
 #define MIP_ADC 50       //50ADC: DAMPE ??ADC:FOOT
 #define maxClusters 10
 typedef struct
@@ -39,7 +38,8 @@ int PrintCluster(cluster clus)
     std::cout << "\t" << idx << ": " << clus.ADC.at(idx) << std::endl;
   }
   std::cout << "##############################" << std::endl;
-
+  std::cout << "Press enter to continue ..." << std::endl;
+  std::getchar();
   return 0;
 }
 
@@ -292,9 +292,9 @@ float GetClusterEta(cluster clus) //Only for clusters with 2 strips
 //   return eta;
 // }
 
-float GetPosition(cluster clus)
+float GetPosition(cluster clus, float sensor_pitch)
 {
-  float position_mm = GetClusterCOG(clus) * 0.242;
+  float position_mm = GetClusterCOG(clus) * sensor_pitch;
   return position_mm;
 }
 
