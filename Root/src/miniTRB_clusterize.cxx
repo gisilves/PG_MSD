@@ -2,6 +2,7 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TH2.h"
+#include "TGraph.h"
 #include "TTree.h"
 #include <iostream>
 #include "environment.h"
@@ -260,6 +261,8 @@ int main(int argc, char *argv[])
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
+  TGraph *nclus_event = new TGraph();
+
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain("raw_events"); //Chain input rootfiles
   for (int ii = 0; ii < opt->getArgc(); ii++)
@@ -448,6 +451,7 @@ int main(int argc, char *argv[])
 
       result = clusterize(&cal, &signal, highthreshold, lowthreshold,
                           symmetric, symmetricwidth, absolute);
+      nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
 
       for (int i = 0; i < result.size(); i++)
       {
@@ -459,7 +463,7 @@ int main(int argc, char *argv[])
         if (!GoodCluster(result.at(i), &cal))
           continue;
 
-        //if (!(GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207)) continue;
+        if ((GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207)) continue;
         //  PrintCluster(result.at(i));
 
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip)
@@ -590,6 +594,15 @@ int main(int argc, char *argv[])
   hCommonNoise1->Write();
   hCommonNoise2->Write();
   hCommonNoiseVsVA->Write();
+
+  nclus_event->SetTitle("nClus vs nEvent");
+  nclus_event->GetXaxis()->SetTitle("# event");
+  nclus_event->GetYaxis()->SetTitle("# clusters");
+  nclus_event->SetMarkerColor(kRed + 1);
+  nclus_event->SetLineColor(kRed + 1);
+  nclus_event->SetMarkerSize(0.5);
+  nclus_event->Draw("*lSAME");
+  nclus_event->Write();
 
   foutput->Close();
   return 0;

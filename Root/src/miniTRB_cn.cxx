@@ -88,6 +88,9 @@ int main(int argc, char *argv[])
     verb = true;
 
   //////////////////Histos//////////////////
+  TH1F *hPedestals = new TH1F("hPedestals", "hPedestals", 1000, 0, 500);
+  hPedestals->GetXaxis()->SetTitle("Pedestals");
+
   TH1F *hCommonNoise0 = new TH1F("hCommonNoise0", "hCommonNoise0", 1000, -200, 200);
   hCommonNoise0->GetXaxis()->SetTitle("CN");
 
@@ -142,6 +145,11 @@ int main(int argc, char *argv[])
   calib cal;
   read_calib(opt->getValue("calibration"), &cal);
 
+  for(int chan = 0; chan < cal.ped.size(); chan++)
+    {
+      hPedestals->Fill(cal.ped[chan]);
+    }
+  
   // Loop over events
   int perc = 0;
 
@@ -268,6 +276,7 @@ int main(int argc, char *argv[])
   hCommonNoise0->Write();
   hCommonNoise1->Write();
   hCommonNoise2->Write();
+  hPedestals->Write();
   common_noise_0->Write();
   common_noise_1->Write();
   common_noise_2->Write();

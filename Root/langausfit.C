@@ -287,5 +287,5 @@ void langaus(const char filename[200], const char histo[200], float min, float m
 
    histotofit->GetXaxis()->SetRange(0, 200);
    histotofit->Draw();
-   fitsnr->Draw("lsame");
+   fitsnr->Draw("lsame,hist");
 }
