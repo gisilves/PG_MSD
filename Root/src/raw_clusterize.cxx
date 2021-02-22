@@ -9,7 +9,7 @@
 #include <algorithm>
 
 #include "anyoption.h"
-#include "miniTRB.h"
+#include "event.h"
 
 #if OMP_ == 1
 #include "omp.h"
@@ -35,14 +35,17 @@ int main(int argc, char *argv[])
   int maxStrip = 383;
   float sensor_pitch = 0.150;
 
+  bool newDAQ = false;
+  int side = 0;
+
   opt = new AnyOption();
-  opt->addUsage("Usage: ./miniTRB_clusterize [options] [arguments] rootfile1 rootfile2 ...");
+  opt->addUsage("Usage: ./raw_clusterize [options] [arguments] rootfile1 rootfile2 ...");
   opt->addUsage("");
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  --nevents    ................................. Number of events to process ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB ");
+  opt->addUsage("  --nevents        ................................. Number of events to process ");
+  opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB or DE10 for FOOT DAQ");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
   opt->addUsage("  --highthreshold  ................................. High threshold used in the clusterization ");
@@ -54,6 +57,7 @@ int main(int argc, char *argv[])
   opt->addUsage("  --maxcn          ................................. Max CN for a good event");
   opt->addUsage("  --minstrip       ................................. Minimun strip number to analyze");
   opt->addUsage("  --maxstrip       ................................. Maximum strip number to analyze");
+  opt->addUsage("  --side           ................................. Sensor side for new FOOT DAQ (0,1)");
 
   opt->setFlag("help", 'h');
   opt->setFlag("symmetric", 's');
@@ -71,6 +75,7 @@ int main(int argc, char *argv[])
   opt->setOption("maxcn");
   opt->setOption("minstrip");
   opt->setOption("maxstrip");
+  opt->setOption("side");
 
   opt->processFile("./options.txt");
   opt->processCommandArgs(argc, argv);
@@ -103,6 +108,15 @@ int main(int argc, char *argv[])
     minStrip = 0;
     maxStrip = 639;
     sensor_pitch = 0.150;
+  }
+  else if (opt->getValue("version") == "DE10")
+  {
+    NChannels = 640;
+    NVas = 10;
+    minStrip = 0;
+    maxStrip = 639;
+    sensor_pitch = 0.150;
+    newDAQ = true;
   }
   else
   {
@@ -142,6 +156,9 @@ int main(int argc, char *argv[])
 
   if (opt->getValue("maxstrip"))
     maxStrip = atoi(opt->getValue("maxstrip"));
+
+  if (opt->getValue("side"))
+    side = atoi(opt->getValue("side"));
 
   //////////////////Histos//////////////////
   TH1F *hADCCluster =
@@ -271,6 +288,16 @@ int main(int argc, char *argv[])
     chain->Add(opt->getArgv(ii));
   }
 
+  if (newDAQ)
+  {
+    TChain *chain2 = new TChain("raw_events_B");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
+
   int entries = chain->GetEntries();
   std::cout << "This run has " << entries << " entries" << std::endl;
 
@@ -285,9 +312,14 @@ int main(int argc, char *argv[])
   std::cout << "Processing " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
-  std::vector<unsigned short> *raw_event = 0;
+  std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
   chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+
+  if (side == 1 && newDAQ)
+  {
+    chain->SetBranchAddress("RAW Event B", &raw_event, &RAW);
+  }
 
   // Create output ROOTfile
   TString output_filename;
@@ -463,7 +495,8 @@ int main(int argc, char *argv[])
         if (!GoodCluster(result.at(i), &cal))
           continue;
 
-        if ((GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207)) continue;
+        if ((GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207))
+          continue;
         //  PrintCluster(result.at(i));
 
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip)

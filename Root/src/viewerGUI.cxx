@@ -20,13 +20,14 @@
 #include "TH1.h"
 
 #include "viewerGUI.hh"
-#include "miniTRB.h"
+#include "event.h"
 
 #include <iostream>
 #include <fstream>
 
 MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 {
+  newDAQ = false;
   // Create a main frame
   fMain = new TGMainFrame(p, w, h);
 
@@ -43,7 +44,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fStatusBar = new TGTextView(fVer1, 500, 150);
   fStatusBar->LoadBuffer("Event viewer for DAMPE/FOOT raw data .root files.");
   fStatusBar->AddLine("");
-  fStatusBar->AddLine("Root files must have been processed by miniTRB_compress utility");
+  fStatusBar->AddLine("Root files must have been processed by miniTRB_compress or FOOT_compress utilities");
   fStatusBar->AddLine("");
   fStatusBar->AddLine("Files must have been acquired in raw (non compressed) mode.");
   fStatusBar->AddLine("");
@@ -67,6 +68,13 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fHor1->AddFrame(evtLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fNumber = new TGNumberEntry(fHor1, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELNoLimits, 0, 1);
   fNumber->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
+  fHor1->AddFrame(fNumber, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+
+  sideLabel = new TGLabel(fHor1, "Sensor number:");
+  fHor1->AddFrame(sideLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber1 = new TGNumberEntry(fHor1, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
+  fNumber1->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
+  fHor1->AddFrame(fNumber1, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   fPed = new TGCheckButton(fHor4, "Pedestal subtraction");
   //fPed->SetOn();
@@ -78,7 +86,6 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fHor3->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fHor3->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
-  fHor1->AddFrame(fNumber, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
   fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   fHor0->AddFrame(fOpen, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
@@ -115,15 +122,21 @@ const char *filetypesCalib[] = {
     "All files", "*",
     0, 0};
 
-void MyMainFrame::viewer(int evt, char filename[200], char calibfile[200])
+void MyMainFrame::viewer(int evt, int side, char filename[200], char calibfile[200])
 {
-
   TChain *chain = new TChain("raw_events");
   chain->Add(filename);
+  if (newDAQ)
+  {
+    TChain *chain2 = new TChain("raw_events_B");
+    chain2->Add(filename);
+    chain->AddFriend(chain2);
+  }
+
   Long64_t entries = chain->GetEntries();
 
   fStatusBar->AddLine("");
-  fStatusBar->AddLine("Event: " + TGString(evt) + " of: " + TGString(entries));
+  fStatusBar->AddLine("Event: " + TGString(evt) + " of: " + TGString(entries) + " for side: " + TGString(side));
   fStatusBar->ShowBottom();
 
   //Read Calibration file
@@ -131,9 +144,15 @@ void MyMainFrame::viewer(int evt, char filename[200], char calibfile[200])
   read_calib(calibfile, &cal);
 
   // Read raw event from input chain TTree
-  std::vector<unsigned short> *raw_event = 0;
+  std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
+
   chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+
+  if (side == 1)
+  {
+    chain->SetBranchAddress("RAW Event B", &raw_event, &RAW);
+  }
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
@@ -141,7 +160,14 @@ void MyMainFrame::viewer(int evt, char filename[200], char calibfile[200])
   gr_event->SetMarkerStyle(23);
   gr_event->GetXaxis()->SetNdivisions(raw_event->size() / 64, false);
 
-fStatusBar->AddLine("Opened DaMPE/FOOT raw file from miniTRB");
+  if (newDAQ)
+  {
+    fStatusBar->AddLine("Opened FOOT raw file from DE10nano");
+  }
+  else
+  {
+    fStatusBar->AddLine("Opened DaMPE/FOOT raw file from miniTRB");
+  }
 
   int maxadc = -999;
   int minadc = 0;
@@ -174,7 +200,7 @@ fStatusBar->AddLine("Opened DaMPE/FOOT raw file from miniTRB");
 
   TH1F *frame = gPad->DrawFrame(0, minadc - 20, raw_event->size(), maxadc + 20);
 
-  frame->SetTitle("Event number " + TString::Format("%0d", (int)evt));
+  frame->SetTitle("Event number " + TString::Format("%0d", (int)evt) + " Side: " + TString::Format("%0d", (int)side));
   frame->GetXaxis()->SetNdivisions(-16);
   frame->GetXaxis()->SetTitle("Strip number");
   frame->GetYaxis()->SetTitle("ADC");
@@ -205,7 +231,7 @@ void MyMainFrame::DoDraw()
   if (gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()) &&
       gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()))
   {
-    viewer(fNumber->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString());
+    viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString());
   }
 }
 
@@ -215,14 +241,21 @@ void MyMainFrame::DoOpen()
   TGFileInfo fi;
   fi.fFileTypes = filetypesROOT;
   fi.fIniDir = StrDup(dir);
-  printf("fIniDir = %s\n", fi.fIniDir);
   new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-  printf("Open file: %s (dir: %s)\n", fi.fFilename, fi.fIniDir);
+  fNumber1->SetState(false);
 
   if (fi.fFilename)
   {
     TFile *f = TFile::Open(fi.fFilename);
     bool IStree = f->GetListOfKeys()->Contains("raw_events");
+
+    bool ISfoot = f->GetListOfKeys()->Contains("raw_events_B");
+    if (ISfoot)
+    {
+      fNumber1->SetState(true);
+      newDAQ = true;
+    }
+
     if (IStree)
     {
       TTree *t = (TTree *)f->Get("raw_events");

@@ -9,7 +9,7 @@
 #include <iostream>
 
 #include "anyoption.h"
-#include "miniTRB.h"
+#include "event.h"
 
 #if OMP_ == 1
   #include "omp.h"
@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
   int NVas = 6;
 
   opt = new AnyOption();
-  opt->addUsage("Usage: ./miniTRB_cn [options] [arguments] rootfile1 rootfile2 ...");
+  opt->addUsage("Usage: ./raw_cn [options] [arguments] rootfile1 rootfile2 ...");
   opt->addUsage("");
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");

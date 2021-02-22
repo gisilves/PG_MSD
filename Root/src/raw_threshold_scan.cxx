@@ -6,7 +6,7 @@
 #include <iostream>
 #include <iomanip>
 
-#include "miniTRB.h"
+#include "event.h"
 
 #define verbose false
 
@@ -15,7 +15,7 @@ int main(int argc, char *argv[])
   if (argc < 11)
   {
     std::cout
-        << "Usage:\n ./miniTRB_threshold_scan <output_rootfile> <calibration file> "
+        << "Usage:\n ./raw_threshold_scan <output_rootfile> <calibration file> "
            "<min low> <max low> <min high> <max high> <use absolute thresholds> <common noise type> "
            "<steps> <first input root-filename> [second input root-filename] ..."
         << std::endl;

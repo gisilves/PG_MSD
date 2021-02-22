@@ -16,31 +16,40 @@ OPTFLAGS += -fopenmp
 endif
 
 
-default: miniTRB_compress
+default: miniTRB_compress FOOT_compress
 
-all: miniTRB_compress miniTRB_clusterize miniTRB_threshold_scan miniTRB_cn miniTRB_viewer
+all: miniTRB_compress FOOT_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration
 
 .PHONY: all
 
 miniTRB_compress: ./src/miniTRB_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-miniTRB_clusterize: ./src/miniTRB_clusterize.cxx
+FOOT_compress: ./src/FOOT_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-miniTRB_threshold_scan: ./src/miniTRB_threshold_scan.cxx
+raw_clusterize: ./src/raw_clusterize.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+raw_threshold_scan: ./src/raw_threshold_scan.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
-miniTRB_cn: ./src/miniTRB_cn.cxx
+raw_cn: ./src/raw_cn.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-miniTRB_viewer: 
+calibration: ./src/calibration.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+raw_viewer: 
 	$(ROOTCLING) -f guiDict.cxx ./src/viewerGUI.hh ./src/guiLinkDef.h
 	$(CXX) ./src/viewerGUI.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 clean:
 	rm -f ./miniTRB_compress
-	rm -f ./miniTRB_clusterize
-	rm -f ./miniTRB_cn
-	rm -f ./miniTRB_threshold_scan
-	rm -f ./miniTRB_viewer
+	rm -f ./FOOT_compress
+	rm -f ./raw_clusterize
+	rm -f ./raw_cn
+	rm -f ./raw_threshold_scan
+	rm -f ./raw_viewer
+	rm -f ./calibration
+
