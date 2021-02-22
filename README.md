@@ -7,16 +7,20 @@ Software for FOOT MSD data analysis
 
 **miniTRB read binary.ipynb:** read (and convert) miniTRB raw data binary files acquired with Firefly
 
+**FOOT read binary.ipynb:** read FOOT raw data binary files acquired with DE10nano
+
 **Clustering.ipynb:** calculate double threshold and symmetric clusters
 
 ###### Root:
 
-**miniTRB_compress:** to compress binary raw data into rootfiles
+**miniTRB_compress and FOOT_compress:** to compress binary raw data into rootfiles
 
-**miniTRB_clusterize:** to find clusters from compressed data
+**raw_clusterize:** to find clusters from compressed data
 
-**miniTRB_cn:** to perform a CN study
+**raw_cn:** to perform a CN study
 
-**miniTRB_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
+**raw_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
 
-**miniTRB_viewer:** to open the GUI viewer for raw data
+**raw_viewer:** to open the GUI viewer for raw data
+
+**calibration:** to compute calibrations from raw data
