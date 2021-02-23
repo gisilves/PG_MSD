@@ -87,7 +87,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   calfile << "leak_curr= " << leak << "uA\n";
   calfile << "6v_curr= " << curr6v << "mA\n";
   calfile << "3v_curr= " << curr3v << "mA\n";
-  calfile << "starting_time= " << std::asctime(std::localtime(&result)) << result << "\n";
+  calfile << "starting_time= " << std::asctime(std::localtime(&result)) << "\n";
   calfile << "temp_right= NC\n";
   calfile << "temp_left= NC\n";
   calfile << "hold_delay= " << delay << "\n";

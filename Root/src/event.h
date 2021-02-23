@@ -328,7 +328,7 @@ bool GoodCluster(cluster clus, calib *cal)
   return good;
 }
 
-int read_calib(char *calib_file, calib *cal)
+int read_calib(const char *calib_file, calib *cal)
 {
 
   std::ifstream in;
