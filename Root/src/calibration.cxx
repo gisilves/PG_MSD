@@ -19,24 +19,24 @@
 
 AnyOption *opt; //Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side)
+int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side, bool pdf_only)
 {
-  TString root_filename = output_filename + "_" + side + ".root";
-  TFile *foutput;
-  foutput = new TFile(root_filename.Data(), "RECREATE");
-  foutput->cd();
-
+  // TString root_filename = output_filename + "_" + side + ".root";
+  // TFile *foutput;
+  // foutput = new TFile(root_filename.Data(), "RECREATE");
+  // foutput->cd();
+  
   //histo
   TH1D *hADC[NChannels];
   TH1D *hSignal[NChannels];
   TH1D *hCN[NChannels];
   for (int ch = 0; ch < NChannels; ch++)
   {
-    hADC[ch] = new TH1D(Form("pedestal_channel_%d_side_%d", ch, side), Form("Pedestal %d", ch), 100, 0, -1);
+    hADC[ch] = new TH1D(Form("pedestal_channel_%d_side_%d", ch, side), Form("Pedestal %d", ch), 50, 0, -1);
     hADC[ch]->GetXaxis()->SetTitle("ADC");
-    hSignal[ch] = new TH1D(Form("signal_channel_%d_side_%d", ch, side), Form("Signal %d", ch), 100, 0, -1);
+    hSignal[ch] = new TH1D(Form("signal_channel_%d_side_%d", ch, side), Form("Signal %d", ch), 50, 0, -1);
     hSignal[ch]->GetXaxis()->SetTitle("ADC");
-    hCN[ch] = new TH1D(Form("cn_channel_%d_side_%d", ch, side), Form("CN %d", ch), 100, 0, -1);
+    hCN[ch] = new TH1D(Form("cn_channel_%d_side_%d", ch, side), Form("CN %d", ch), 50, 0, -1);
     hCN[ch]->GetXaxis()->SetTitle("ADC");
   }
 
@@ -69,6 +69,8 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   char curr3v[100];
   char delay[100];
 
+  ofstream calfile;
+  if(!pdf_only){
   std::cout << "\n CALIBRATION FILE FOR SIDE " << side << "\n";
   std::cout << "\n Sensor Name: ";
   std::cin >> name;
@@ -88,7 +90,6 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
 
   std::time_t result = std::time(nullptr);
 
-  ofstream calfile;
   calfile.open(output_filename + "_" + Form("%d", side) + ".cal");
   calfile << "temp_SN= NC\n";
   calfile << "temp_SN= NC\n";
@@ -108,9 +109,14 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   calfile << "sigma_noise_cut= NC\n";
   calfile << "sigma_k= NC\n";
   calfile << "occupancy_k= NC\n";
+  }
 
   int entries = chain.GetEntries();
   std::cout << "This run has " << entries << " entries" << std::endl;
+  if(entries > 5000){
+    entries = 5000;
+    std::cout << "The first " << entries << " entries will be used for calibration" << std::endl;
+  }
 
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
@@ -123,10 +129,6 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   {
     chain.SetBranchAddress("RAW Event B", &raw_event, &RAW);
   }
-  //if (side == 1 && newDAQ)
-  //{
-  //  chain->SetBranchAddress("RAW Event B", &raw_event, &RAW);
-  //}
 
   //First half of events are used to compute pedestals and raw_sigmas
   for (int index_event = 1; index_event < entries / 2; index_event++)
@@ -217,9 +219,9 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   for (int ch = 0; ch < NChannels; ch++)
   {
     bool badchan = false;
-    hADC[ch]->Write();
-    hSignal[ch]->Write();
-    hCN[ch]->Write();
+    // hADC[ch]->Write();
+    // hSignal[ch]->Write();
+    // hCN[ch]->Write();
     if (hCN[ch]->GetEntries())
     {
       hCN[ch]->Fit("gaus", "Q");
@@ -241,6 +243,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
       badchan = true;
     }
 
+    if(!pdf_only){
     //Writing info in .cal file (should be backwards-compatible with miniTRB tools)
     calfile << ch << ", " << ch / 64 << ", "
             << va_chan
@@ -256,6 +259,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     {
       va_chan = 0;
     }
+    }
   }
 
   TAxis *axis3 = gr3->GetXaxis();
@@ -265,14 +269,17 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   TString out_pdf_close = output_filename + "_" + Form("%d", side) + ".pdf)";
   c1->Print(out_pdf_close, "pdf");
 
+  if(!pdf_only){
   calfile.close();
-  foutput->Close();
+  }
+  //foutput->Close();
   return 0;
 }
 
 int main(int argc, char *argv[])
 {
   bool verb = false;
+  bool pdf_only = false;
 
   float sigmaraw_cut = 5;
   float sigma_cut = 3;
@@ -293,9 +300,11 @@ int main(int argc, char *argv[])
   opt->addUsage("  --version        ................................. 1212 for 6VA miniTRB or 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
   opt->addUsage("  --output         ................................. Output .cal file ");
   opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
+  opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
 
   opt->setFlag("help", 'h');
   opt->setFlag("verbose", 'v');
+  opt->setFlag("pdf");
 
   opt->setOption("version");
   opt->setOption("output");
@@ -348,6 +357,9 @@ int main(int argc, char *argv[])
   if (opt->getValue("cn"))
     cntype = atoi(opt->getValue("cn"));
 
+  if (opt->getValue("pdf"))
+    pdf_only = true;
+
   // Create output .cal file
   TString output_filename;
   if (opt->getValue("output"))
@@ -368,7 +380,7 @@ int main(int argc, char *argv[])
     chain->Add(opt->getArgv(ii));
   }
 
-  compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0);
+  compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, pdf_only);
 
   if (newDAQ)
   {
@@ -378,7 +390,7 @@ int main(int argc, char *argv[])
       chain2->Add(opt->getArgv(ii));
     }
 
-    compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 1);
+    compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 1, pdf_only);
   }
 
   return 0;
