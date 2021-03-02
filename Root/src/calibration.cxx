@@ -21,12 +21,23 @@ AnyOption *opt; //Handle the option input
 
 int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side)
 {
+  TString root_filename = output_filename + "_" + side + ".root";
+  TFile *foutput;
+  foutput = new TFile(root_filename.Data(), "RECREATE");
+  foutput->cd();
+
   //histo
   TH1D *hADC[NChannels];
+  TH1D *hSignal[NChannels];
+  TH1D *hCN[NChannels];
   for (int ch = 0; ch < NChannels; ch++)
   {
-    hADC[ch] = new TH1D(Form("pedestal_channel_%d_side_%d", ch, side), Form("Pedestal %d", ch), 1000, 0, -1);
+    hADC[ch] = new TH1D(Form("pedestal_channel_%d_side_%d", ch, side), Form("Pedestal %d", ch), 100, 0, -1);
     hADC[ch]->GetXaxis()->SetTitle("ADC");
+    hSignal[ch] = new TH1D(Form("signal_channel_%d_side_%d", ch, side), Form("Signal %d", ch), 100, 0, -1);
+    hSignal[ch]->GetXaxis()->SetTitle("ADC");
+    hCN[ch] = new TH1D(Form("cn_channel_%d_side_%d", ch, side), Form("CN %d", ch), 100, 0, -1);
+    hCN[ch]->GetXaxis()->SetTitle("ADC");
   }
 
   TF1 *g;
@@ -87,7 +98,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   calfile << "leak_curr= " << leak << "uA\n";
   calfile << "6v_curr= " << curr6v << "mA\n";
   calfile << "3v_curr= " << curr3v << "mA\n";
-  calfile << "starting_time= " << std::asctime(std::localtime(&result)) << "\n";
+  calfile << "starting_time= " << std::asctime(std::localtime(&result));
   calfile << "temp_right= NC\n";
   calfile << "temp_left= NC\n";
   calfile << "hold_delay= " << delay << "\n";
@@ -118,7 +129,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   //}
 
   //First half of events are used to compute pedestals and raw_sigmas
-  for (int index_event = 0; index_event < entries / 2; index_event++)
+  for (int index_event = 1; index_event < entries / 2; index_event++)
   {
     chain.GetEntry(index_event);
     if (raw_event->size() == NChannels)
@@ -167,12 +178,6 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   TString out_pdf = output_filename + "_" + Form("%d", side) + ".pdf";
   c1->Print(out_pdf, "pdf");
 
-  //Reset histograms to compute CN corrected noise
-  for (int k = 0; k < NChannels; k++)
-  {
-    hADC[k]->Reset();
-  }
-
   //Like before, but this time we correct for common noise
   for (int index_event = entries / 2; index_event < entries; index_event++)
   {
@@ -194,10 +199,11 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
         {
           for (int va_chan = 0; va_chan < 64; va_chan++)
           {
-            if (raw_event->size() == NChannels)
+            if (signal.size() == NChannels)
             {
               {
-                hADC[64 * va + va_chan]->Fill(raw_event->at(64 * va + va_chan) - cn);
+                hSignal[64 * va + va_chan]->Fill(signal.at(64 * va + va_chan));
+                hCN[64 * va + va_chan]->Fill(signal.at(64 * va + va_chan) - cn);
               }
             }
           }
@@ -211,10 +217,13 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   for (int ch = 0; ch < NChannels; ch++)
   {
     bool badchan = false;
-    if (hADC[ch]->GetEntries())
+    hADC[ch]->Write();
+    hSignal[ch]->Write();
+    hCN[ch]->Write();
+    if (hCN[ch]->GetEntries())
     {
-      hADC[ch]->Fit("gaus", "Q");
-      g = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
+      hCN[ch]->Fit("gaus", "Q");
+      g = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
       gr3->SetPoint(ch, ch, g->GetParameter(2));
 
       //Flag for channels that are too noisy or dead
@@ -257,7 +266,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   c1->Print(out_pdf_close, "pdf");
 
   calfile.close();
-
+  foutput->Close();
   return 0;
 }
 
