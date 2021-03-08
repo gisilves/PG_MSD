@@ -125,14 +125,14 @@ const char *filetypesCalib[] = {
 void MyMainFrame::viewer(int evt, int side, char filename[200], char calibfile[200])
 {
   TChain *chain = new TChain("raw_events");
+  TChain *chain2 = new TChain("raw_events_B");
+  
   chain->Add(filename);
   if (newDAQ)
   {
-    TChain *chain2 = new TChain("raw_events_B");
     chain2->Add(filename);
     chain->AddFriend(chain2);
   }
-
   Long64_t entries = chain->GetEntries();
 
   fStatusBar->AddLine("");
@@ -200,36 +200,27 @@ void MyMainFrame::viewer(int evt, int side, char filename[200], char calibfile[2
 
   TH1F *frame = gPad->DrawFrame(0, minadc - 20, raw_event->size(), maxadc + 20);
 
+  int nVAs = raw_event->size() / 64;
+
   frame->SetTitle("Event number " + TString::Format("%0d", (int)evt) + " Side: " + TString::Format("%0d", (int)side));
-  frame->GetXaxis()->SetNdivisions(-16);
+  frame->GetXaxis()->SetNdivisions(-nVAs);
   frame->GetXaxis()->SetTitle("Strip number");
   frame->GetYaxis()->SetTitle("ADC");
 
   gr_event->SetMarkerSize(0.5);
   gr_event->Draw("*lSAME");
-
-  for (int iline = 0; iline < 15; iline++)
-  {
-    line[iline] = new TGraph(2);
-    line[iline]->SetPoint(0, (iline + 1) * 64, minadc - 20);
-    line[iline]->SetPoint(1, (iline + 1) * 64, maxadc + 20);
-    line[iline]->SetLineColor(kGray + 2);
-    line[iline]->Draw();
-  }
-
   gr_event->Draw();
-
   TCanvas *fCanvas = fEcanvas->GetCanvas();
+  fCanvas->SetGrid();
   fCanvas->cd();
   fCanvas->Update();
-
   delete chain;
+  delete chain2;
 }
 
 void MyMainFrame::DoDraw()
 {
-  if (gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()) &&
-      gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()))
+  if (gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()))
   {
     viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString());
   }

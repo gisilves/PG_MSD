@@ -30,9 +30,8 @@ private:
   TGTextView *fStatusBar;
   TGCheckButton *fPed;
   TGraph *gr_event = new TGraph();
-  TGraph *line[14];
   bool newDAQ = false;
-  
+
 public:
   MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h);
   virtual ~MyMainFrame();
