@@ -37,7 +37,9 @@ public:
   virtual ~MyMainFrame();
   void DoDraw();
   void DoOpen();
+  void DoClose();
   void DoOpenCalib();
+  void PrintCode(Int_t code);
   void viewer(int evt, int side, char filename[200], char calibfile[200]);
   ClassDef(MyMainFrame, 0)
 };

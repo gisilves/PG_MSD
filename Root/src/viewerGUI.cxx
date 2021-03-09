@@ -18,6 +18,7 @@
 #include <TGFileDialog.h>
 #include <TGClient.h>
 #include "TH1.h"
+#include <TGMsgBox.h>
 
 #include "viewerGUI.hh"
 #include "event.h"
@@ -30,6 +31,8 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   newDAQ = false;
   // Create a main frame
   fMain = new TGMainFrame(p, w, h);
+  fMain->Connect("CloseWindow()", "MyMainFrame", this, "DoClose()");
+  fMain->DontCallClose();
 
   // Create canvas widget
   fEcanvas = new TRootEmbeddedCanvas("Ecanvas", fMain, 1024, 500);
@@ -62,7 +65,10 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fDraw = new TGTextButton(fHor0, "&Draw");
   fDraw->Connect("Clicked()", "MyMainFrame", this, "DoDraw()");
 
-  fExit = new TGTextButton(fHor0, "&Exit", "gApplication->Terminate(0)");
+  //fExit = new TGTextButton(fHor0, "&Exit", "gApplication->Terminate(0)");
+  fExit = new TGTextButton(fHor0, "&Exit");
+  fExit->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
+
 
   evtLabel = new TGLabel(fHor1, "Event Number:");
   fHor1->AddFrame(evtLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
@@ -273,9 +279,7 @@ void MyMainFrame::DoOpenCalib()
   TGFileInfo fi;
   fi.fFileTypes = filetypesCalib;
   fi.fIniDir = StrDup(dir);
-  printf("fIniDir = %s\n", fi.fIniDir);
   new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-  printf("Open file: %s (dir: %s)\n", fi.fFilename, fi.fIniDir);
 
   if (fi.fFilename)
   {
@@ -294,6 +298,21 @@ void MyMainFrame::DoOpenCalib()
 
   dir = fi.fIniDir;
 }
+
+void MyMainFrame::DoClose()
+{
+   //
+   Int_t buttons = kMBYes + kMBNo;
+   Int_t retval;
+
+   new TGMsgBox(gClient->GetRoot(), fMain,
+                "Exit", "Are you sure you want to exit?",
+                kMBIconQuestion, buttons, &retval);
+  if(retval == kMBYes){    
+      gApplication->Terminate(0);              
+  }               
+}
+
 
 MyMainFrame::~MyMainFrame()
 {
