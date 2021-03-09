@@ -5,6 +5,7 @@
 #include "TROOT.h"
 #include <TApplication.h>
 #include <TCanvas.h>
+#include <TColor.h>
 #include <TString.h>
 #include <TGCanvas.h>
 #include <TGWindow.h>
@@ -59,9 +60,6 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fOpen = new TGTextButton(fHor0, "&Open");
   fOpen->Connect("Clicked()", "MyMainFrame", this, "DoOpen()");
 
-  fOpenCal = new TGTextButton(fHor0, "&OpenCal");
-  fOpenCal->Connect("Clicked()", "MyMainFrame", this, "DoOpenCalib()");
-
   fDraw = new TGTextButton(fHor0, "&Draw");
   fDraw->Connect("Clicked()", "MyMainFrame", this, "DoDraw()");
 
@@ -86,16 +84,23 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   //fPed->SetOn();
   fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
-  fileLabel = new TGLabel(fHor3, "No rootfile opened");
-  calibLabel = new TGLabel(fHor3, "No calibfile opened");
 
-  fHor3->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  calibLabel = new TGLabel(fHor3, "No calibfile opened");
+  fileLabel = new TGLabel(fHor3, "No rootfile opened");
+  calibLabel2 = new TGLabel(fHor3, "No calibfile opened");
+  
+  TColor *color = gROOT->GetColor(26);
+  color->SetRGB(0.91, 0.91, 0.91);
+  calibLabel->SetTextColor(color);
+  calibLabel2->SetTextColor(color);
+
   fHor3->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fHor3->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fHor3->AddFrame(calibLabel2, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
   fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   fHor0->AddFrame(fOpen, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  fHor0->AddFrame(fOpenCal, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
   fHor0->AddFrame(fDraw, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
   fHor0->AddFrame(fExit, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
@@ -228,7 +233,14 @@ void MyMainFrame::DoDraw()
 {
   if (gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()))
   {
+    if(fNumber1->GetNumberEntry()->GetIntNumber() == 0)
+    {
     viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString());
+    }
+    else
+    {
+    viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel2->GetText())->GetString());
+    }
   }
 }
 
@@ -261,7 +273,7 @@ void MyMainFrame::DoOpen()
       fStatusBar->Clear();
       fileLabel->SetText(fi.fFilename);
       fNumber->SetText("0");
-      DoOpenCalib();
+      DoOpenCalib(newDAQ);
     }
     else
     {
@@ -273,7 +285,7 @@ void MyMainFrame::DoOpen()
   dir = fi.fIniDir;
 }
 
-void MyMainFrame::DoOpenCalib()
+void MyMainFrame::DoOpenCalib(bool newDAQ)
 {
   static TString dir(".");
   TGFileInfo fi;
@@ -297,6 +309,22 @@ void MyMainFrame::DoOpenCalib()
   }
 
   dir = fi.fIniDir;
+
+  if(newDAQ)
+  {
+    new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
+    if (fi.fFilename)
+    {
+      calibLabel2->SetText(fi.fFilename);
+      fStatusBar->AddLine("Calibration 2: " + TGString(calibLabel2->GetText()->GetString()));
+    }
+    else
+    {
+      fStatusBar->Clear();
+      fStatusBar->AddLine("ERROR: calibration file 2 is empty");
+      return;
+    }
+  }
 }
 
 void MyMainFrame::DoClose()
@@ -324,7 +352,7 @@ MyMainFrame::~MyMainFrame()
 void viewerGUI()
 {
   // Popup the GUI...
-  new MyMainFrame(gClient->GetRoot(), 500, 500);
+  new MyMainFrame(gClient->GetRoot(), 1000, 1000);
 }
 
 int main(int argc, char **argv)

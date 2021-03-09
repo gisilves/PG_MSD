@@ -25,8 +25,8 @@ private:
   TGNumberEntry *fNumber, *fNumber1;
   TGHorizontalFrame *fHor0, *fHor0b, *fHor1, *fHor3, *fHor4;
   TGVerticalFrame *fVer0, *fVer1;
-  TGTextButton *fExit, *fDraw, *fOpen, *fOpenCal, *fSave;
-  TGLabel *evtLabel, *calibLabel, *fileLabel, *pedLabel, *sideLabel;
+  TGTextButton *fExit, *fDraw, *fOpen, *fSave;
+  TGLabel *evtLabel, *calibLabel, *calibLabel2, *fileLabel, *pedLabel, *sideLabel;
   TGTextView *fStatusBar;
   TGCheckButton *fPed;
   TGraph *gr_event = new TGraph();
@@ -38,7 +38,7 @@ public:
   void DoDraw();
   void DoOpen();
   void DoClose();
-  void DoOpenCalib();
+  void DoOpenCalib(bool newDAQ);
   void PrintCode(Int_t code);
   void viewer(int evt, int side, char filename[200], char calibfile[200]);
   ClassDef(MyMainFrame, 0)
