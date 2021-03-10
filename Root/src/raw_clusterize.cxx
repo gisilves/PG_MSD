@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
   opt->addUsage("  --nevents        ................................. Number of events to process ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB or DE10 for FOOT DAQ");
+  opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
   opt->addUsage("  --highthreshold  ................................. High threshold used in the clusterization ");
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
     maxStrip = 639;
     sensor_pitch = 0.150;
   }
-  else if (opt->getValue("version") == "DE10")
+  else if (atoi(opt->getValue("version")) == 2020)
   {
     NChannels = 640;
     NVas = 10;
@@ -299,6 +299,11 @@ int main(int argc, char *argv[])
   }
 
   int entries = chain->GetEntries();
+  if (entries == 0)
+  {
+    std::cout << "Error: no file or empty file" << std::endl;
+    return 2;
+  }
   std::cout << "This run has " << entries << " entries" << std::endl;
 
   if (opt->getValue("nevents"))
@@ -319,6 +324,11 @@ int main(int argc, char *argv[])
   if (side == 1 && newDAQ)
   {
     chain->SetBranchAddress("RAW Event B", &raw_event, &RAW);
+  }
+  else if (side)
+  {
+    std::cout << "Error: version selected soed not contain side " << side << std::endl;
+    return 2;
   }
 
   // Create output ROOTfile
