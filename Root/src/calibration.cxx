@@ -257,9 +257,6 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   for (int ch = 0; ch < NChannels; ch++)
   {
     bool badchan = false;
-    hADC[ch]->Write();
-    hSignal[ch]->Write();
-    hCN[ch]->Write();
     if (hCN[ch]->GetEntries())
     {
       hCN[ch]->Fit("gaus", "Q");
@@ -326,6 +323,9 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   {
     calfile.close();
   }
+  gr->Write();
+  gr2->Write();
+  gr3->Write();
   foutput->Close();
   return 0;
 }
