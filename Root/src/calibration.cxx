@@ -22,10 +22,10 @@ AnyOption *opt; //Handle the option input
 
 int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side, bool pdf_only)
 {
-  // TString root_filename = output_filename + "_" + side + ".root";
-  // TFile *foutput;
-  // foutput = new TFile(root_filename.Data(), "RECREATE");
-  // foutput->cd();
+  TString root_filename = output_filename + "_" + side + ".root";
+  TFile *foutput;
+  foutput = new TFile(root_filename.Data(), "RECREATE");
+  foutput->cd();
 
   //histo
   TH1D *hADC[NChannels];
@@ -47,15 +47,15 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   c1->SetGrid();
 
   TGraph *gr = new TGraph(NChannels);
-  gr->SetTitle("Pedestals for file " + output_filename);
+  gr->SetTitle("Pedestals for file " + output_filename + "_" + Form("%d", side));
 
   TGraph *gr2 = new TGraph(NChannels);
-  gr2->SetTitle("Raw Sigma for file" + output_filename);
+  gr2->SetTitle("Raw Sigma for file " + output_filename + "_" + Form("%d", side));
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
-  gr3->SetTitle("Sigma for file" + output_filename);
+  gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d", side));
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
 
@@ -257,9 +257,9 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   for (int ch = 0; ch < NChannels; ch++)
   {
     bool badchan = false;
-    // hADC[ch]->Write();
-    // hSignal[ch]->Write();
-    // hCN[ch]->Write();
+    hADC[ch]->Write();
+    hSignal[ch]->Write();
+    hCN[ch]->Write();
     if (hCN[ch]->GetEntries())
     {
       hCN[ch]->Fit("gaus", "Q");
@@ -326,7 +326,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   {
     calfile.close();
   }
-  //foutput->Close();
+  foutput->Close();
   return 0;
 }
 
