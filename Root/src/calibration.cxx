@@ -5,10 +5,11 @@
 #include "TGraph.h"
 #include "TAxis.h"
 #include "TCanvas.h"
+#include "TLatex.h"
 #include <iostream>
 #include "environment.h"
 #include <algorithm>
-#include <ctime>
+#include <numeric>
 
 #include "anyoption.h"
 #include "event.h"
@@ -25,7 +26,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   // TFile *foutput;
   // foutput = new TFile(root_filename.Data(), "RECREATE");
   // foutput->cd();
-  
+
   //histo
   TH1D *hADC[NChannels];
   TH1D *hSignal[NChannels];
@@ -46,20 +47,27 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   c1->SetGrid();
 
   TGraph *gr = new TGraph(NChannels);
-  gr->SetTitle("Pedestals");
+  gr->SetTitle("Pedestals for file " + output_filename);
 
   TGraph *gr2 = new TGraph(NChannels);
-  gr2->SetTitle("Raw Sigma");
+  gr2->SetTitle("Raw Sigma for file" + output_filename);
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
-  gr3->SetTitle("Sigma");
+  gr3->SetTitle("Sigma for file" + output_filename);
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
 
   std::vector<float> pedestals[NChannels];
+  float mean_pedestal = 0;
+  float rms_pedestal = 0;
+  std::vector<float> rsigma[NChannels];
+  float mean_rsigma = 0;
+  float rms_rsigma = 0;
   std::vector<float> sigma[NChannels];
+  float mean_sigma = 0;
+  float rms_sigma = 0;
 
   char name[100];
   char location[100];
@@ -70,50 +78,52 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   char delay[100];
 
   ofstream calfile;
-  if(!pdf_only){
-  std::cout << "\n CALIBRATION FILE FOR SIDE " << side << "\n";
-  std::cout << "\n Sensor Name: ";
-  std::cin >> name;
-  std::cout << "\n Location: ";
-  std::cin >> location;
-  std::cout << "\n Bias (V): ";
-  std::cin >> bias;
-  std::cout << "\n Leakage current (uA): ";
-  std::cin >> leak;
-  std::cout << "\n 6V current (mA): ";
-  std::cin >> curr6v;
-  std::cout << "\n 3V current (mA): ";
-  std::cin >> curr3v;
-  std::cout << "\n Hold Delay: ";
-  std::cin >> delay;
-  std::cout << "\n";
+  if (!pdf_only)
+  {
+    std::cout << "\n CALIBRATION FILE FOR SIDE " << side << "\n";
+    std::cout << "\n Sensor Name: ";
+    std::cin >> name;
+    std::cout << "\n Location: ";
+    std::cin >> location;
+    std::cout << "\n Bias (V): ";
+    std::cin >> bias;
+    std::cout << "\n Leakage current (uA): ";
+    std::cin >> leak;
+    std::cout << "\n 6V current (mA): ";
+    std::cin >> curr6v;
+    std::cout << "\n 3V current (mA): ";
+    std::cin >> curr3v;
+    std::cout << "\n Hold Delay: ";
+    std::cin >> delay;
+    std::cout << "\n";
 
-  std::time_t result = std::time(nullptr);
+    std::time_t result = std::time(nullptr);
 
-  calfile.open(output_filename + "_" + Form("%d", side) + ".cal");
-  calfile << "temp_SN= NC\n";
-  calfile << "temp_SN= NC\n";
-  calfile << "name= " << name << "\n";
-  calfile << "location= " << location << "\n";
-  calfile << "bias_volt= " << bias << "V\n";
-  calfile << "leak_curr= " << leak << "uA\n";
-  calfile << "6v_curr= " << curr6v << "mA\n";
-  calfile << "3v_curr= " << curr3v << "mA\n";
-  calfile << "starting_time= " << std::asctime(std::localtime(&result));
-  calfile << "temp_right= NC\n";
-  calfile << "temp_left= NC\n";
-  calfile << "hold_delay= " << delay << "\n";
-  calfile << "sigmaraw_cut= " << sigmaraw_cut << "\n";
-  calfile << "sigmaraw_noise_cut= NC\n";
-  calfile << "sigma_cut= " << sigma_cut << "\n";
-  calfile << "sigma_noise_cut= NC\n";
-  calfile << "sigma_k= NC\n";
-  calfile << "occupancy_k= NC\n";
+    calfile.open(output_filename + "_" + Form("%d", side) + ".cal");
+    calfile << "temp_SN= NC\n";
+    calfile << "temp_SN= NC\n";
+    calfile << "name= " << name << "\n";
+    calfile << "location= " << location << "\n";
+    calfile << "bias_volt= " << bias << "V\n";
+    calfile << "leak_curr= " << leak << "uA\n";
+    calfile << "6v_curr= " << curr6v << "mA\n";
+    calfile << "3v_curr= " << curr3v << "mA\n";
+    calfile << "starting_time= " << std::asctime(std::localtime(&result));
+    calfile << "temp_right= NC\n";
+    calfile << "temp_left= NC\n";
+    calfile << "hold_delay= " << delay << "\n";
+    calfile << "sigmaraw_cut= " << sigmaraw_cut << "\n";
+    calfile << "sigmaraw_noise_cut= NC\n";
+    calfile << "sigma_cut= " << sigma_cut << "\n";
+    calfile << "sigma_noise_cut= NC\n";
+    calfile << "sigma_k= NC\n";
+    calfile << "occupancy_k= NC\n";
   }
 
   int entries = chain.GetEntries();
   std::cout << "This run has " << entries << " entries" << std::endl;
-  if(entries > 5000){
+  if (entries > 5000)
+  {
     entries = 5000;
     std::cout << "The first " << entries << " entries will be used for calibration" << std::endl;
   }
@@ -152,31 +162,59 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
       hADC[ch]->Fit("gaus", "Q");
       g = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
       pedestals->push_back(g->GetParameter(1));
-      sigma->push_back(g->GetParameter(2));
+      rsigma->push_back(g->GetParameter(2));
       gr->SetPoint(ch, ch, g->GetParameter(1));
       gr2->SetPoint(ch, ch, g->GetParameter(2));
     }
     else
     {
       pedestals->push_back(0);
-      sigma->push_back(0);
+      rsigma->push_back(0);
       gr->SetPoint(ch, ch, 0);
       gr2->SetPoint(ch, ch, 0);
     }
   }
+
+  mean_pedestal = std::accumulate(pedestals->begin(), pedestals->end(), 0.0) / pedestals->size();
+
+  float num_ped = 0;
+  for (int i = 0; i < pedestals->size(); i++)
+  {
+    num_ped += pow(pedestals->at(i) - mean_pedestal, 2);
+  }
+  rms_pedestal = std::sqrt(num_ped / pedestals->size());
+
+  mean_rsigma = std::accumulate(rsigma->begin(), rsigma->end(), 0.0) / rsigma->size();
+  float num_rsigma = 0;
+  for (int i = 0; i < rsigma->size(); i++)
+  {
+    num_rsigma += pow(rsigma->at(i) - mean_rsigma, 2);
+  }
+  rms_rsigma = std::sqrt(num_rsigma / rsigma->size());
 
   gr->GetXaxis()->SetTitle("channel");
   TAxis *axis = gr->GetXaxis();
   axis->SetLimits(0, NChannels);
   axis->SetNdivisions(NVas, false);
   gr->Draw("AL*");
+  TLatex ped_info;
+  ped_info.SetTextSize(0.025);
+  ped_info.SetTextAngle(90);
+  ped_info.SetTextAlign(12);
+  ped_info.DrawLatex(680, gr->GetYaxis()->GetXmin(), Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
   TString out_pdf_open = output_filename + "_" + Form("%d", side) + ".pdf(";
   c1->Print(out_pdf_open, "pdf");
 
+  gr2->GetXaxis()->SetTitle("channel");
   TAxis *axis2 = gr2->GetXaxis();
   axis2->SetLimits(0, NChannels);
   axis2->SetNdivisions(NVas, false);
   gr2->Draw("AL*");
+  TLatex rsig_info;
+  rsig_info.SetTextSize(0.025);
+  rsig_info.SetTextAngle(90);
+  rsig_info.SetTextAlign(12);
+  rsig_info.DrawLatex(680, gr2->GetYaxis()->GetXmin(), Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
   TString out_pdf = output_filename + "_" + Form("%d", side) + ".pdf";
   c1->Print(out_pdf, "pdf");
 
@@ -227,9 +265,9 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
       hCN[ch]->Fit("gaus", "Q");
       g = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
       gr3->SetPoint(ch, ch, g->GetParameter(2));
-
+      sigma->push_back(g->GetParameter(2));
       //Flag for channels that are too noisy or dead
-      if (sigma->at(ch) < 0.01 || sigma->at(ch) > sigma_cut)
+      if (rsigma->at(ch) < 0.01 || rsigma->at(ch) > sigma_cut)
       {
         if (g->GetParameter(2) < 0.01 || g->GetParameter(2) > sigma_cut)
         {
@@ -240,37 +278,53 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     else
     {
       gr3->SetPoint(ch, ch, 0);
+      rsigma->push_back(0);
       badchan = true;
     }
 
-    if(!pdf_only){
-    //Writing info in .cal file (should be backwards-compatible with miniTRB tools)
-    calfile << ch << ", " << ch / 64 << ", "
-            << va_chan
-            << ", " << pedestals->at(ch) << ", " << sigma->at(ch) << ", "
-            << g->GetParameter(2)
-            << ", "
-            << badchan
-            << ", "
-            << "0.000"
-            << "\n";
-    va_chan++;
-    if (va_chan == 64)
+    if (!pdf_only)
     {
-      va_chan = 0;
-    }
+      //Writing info in .cal file (should be backwards-compatible with miniTRB tools)
+      calfile << ch << ", " << ch / 64 << ", "
+              << va_chan
+              << ", " << pedestals->at(ch) << ", " << rsigma->at(ch) << ", "
+              << g->GetParameter(2)
+              << ", "
+              << badchan
+              << ", "
+              << "0.000"
+              << "\n";
+      va_chan++;
+      if (va_chan == 64)
+      {
+        va_chan = 0;
+      }
     }
   }
+  mean_sigma = std::accumulate(sigma->begin(), sigma->end(), 0.0) / sigma->size();
+  rms_sigma = std::sqrt(std::inner_product(sigma->begin(), sigma->end(), sigma->begin(), 0.0) / sigma->size());
+  float num_sigma = 0;
+  for (int i = 0; i < sigma->size(); i++)
+  {
+    num_sigma += pow(sigma->at(i) - mean_sigma, 2);
+  }
+  rms_sigma = std::sqrt(num_sigma / sigma->size());
 
   TAxis *axis3 = gr3->GetXaxis();
   axis3->SetLimits(0, NChannels);
   axis3->SetNdivisions(NVas, false);
   gr3->Draw("AL*");
+  TLatex sig_info;
+  sig_info.SetTextSize(0.025);
+  sig_info.SetTextAngle(90);
+  sig_info.SetTextAlign(12);
+  sig_info.DrawLatex(680, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f", mean_sigma, rms_sigma));
   TString out_pdf_close = output_filename + "_" + Form("%d", side) + ".pdf)";
   c1->Print(out_pdf_close, "pdf");
 
-  if(!pdf_only){
-  calfile.close();
+  if (!pdf_only)
+  {
+    calfile.close();
   }
   //foutput->Close();
   return 0;
