@@ -44,6 +44,10 @@ raw_viewer:
 	$(ROOTCLING) -f guiDict.cxx ./src/viewerGUI.hh ./src/guiLinkDef.h
 	$(CXX) ./src/viewerGUI.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
+bias_control: 
+	$(ROOTCLING) -f guiDict.cxx ./src/biascontrol.hh ./src/guiLinkDef.h
+	$(CXX) ./src/biascontrol.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
+
 clean:
 	rm -f ./miniTRB_compress
 	rm -f ./FOOT_compress
@@ -52,4 +56,4 @@ clean:
 	rm -f ./raw_threshold_scan
 	rm -f ./raw_viewer
 	rm -f ./calibration
-
+	rm -f ./bias_control
