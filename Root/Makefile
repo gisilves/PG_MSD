@@ -18,7 +18,7 @@ endif
 
 default: miniTRB_compress FOOT_compress
 
-all: miniTRB_compress FOOT_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration
+all: miniTRB_compress FOOT_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control
 
 .PHONY: all
 

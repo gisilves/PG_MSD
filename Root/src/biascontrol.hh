@@ -6,6 +6,7 @@ class TGWindow;
 class TGMainFrame;
 class TRootEmbeddedCanvas;
 class TGNumberEntry;
+class TGTextEntry;
 class TGHorizontalFrame;
 class TGVerticalFrame;
 class TGTextButton;
@@ -22,7 +23,8 @@ class MyMainFrame
 private:
   TGMainFrame *fMain;
   TRootEmbeddedCanvas *fEcanvas;
-  TGNumberEntry *fNumber, *fNumber1;
+  TGNumberEntry *fNumber;
+  TGTextEntry *fNumber1;
   TGHorizontalFrame *fHor0, *fHor0b, *fHor1, *fHor3, *fHor4;
   TGVerticalFrame *fVer0, *fVer1;
   TGTextButton *fExit, *fDraw, *fOpen, *fSave;
@@ -40,6 +42,5 @@ public:
   void DoClose();
   void DoOpenCalib(bool newDAQ);
   void PrintCode(Int_t code);
-  void viewer(int evt, int side, char filename[200], char calibfile[200]);
   ClassDef(MyMainFrame, 0)
 };
