@@ -24,3 +24,5 @@ Software for FOOT MSD data analysis
 **raw_viewer:** to open the GUI viewer for raw data
 
 **calibration:** to compute calibrations from raw data
+
+**bias_control:** to control the CAEN Power Supply module remotely via Arduino Uno 
