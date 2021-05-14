@@ -6,6 +6,7 @@
 #include "TGraph.h"
 #include "anyoption.h"
 #include <ctime>
+#include <tuple>
 
 #include "FOOT.h"
 
@@ -29,7 +30,7 @@ std::vector<T> reorder(std::vector<T> const &v)
     {
         for (int adc : order)
         {
-            reordered_vec.at(adc*128+ch) = v.at(j);
+            reordered_vec.at(adc * 128 + ch) = v.at(j);
             j++;
         }
     }
@@ -75,19 +76,15 @@ int main(int argc, char *argv[])
         return 2;
     }
     int version;
-    int bitsize = 2712;
 
     std::cout << " " << std::endl;
     std::cout << "Processing file " << opt->getArgv(0) << std::endl;
 
-    file.seekg(0, std::ios::end);
-    int fileSize = file.tellg() / bitsize; //Estimate number of events from filesize
-    file.seekg(0);
-
     //Create output ROOT file
     TString output_filename = opt->getArgv(1);
 
-    foutput = new TFile(output_filename.Data(), "RECREATE");
+    int complevel = ROOT::CompressionSettings(ROOT::kLZMA, 2);
+    foutput = new TFile(output_filename.Data(), "RECREATE", "Foot data", complevel);
     foutput->cd();
 
     //Initialize TTree(s)
@@ -96,51 +93,121 @@ int main(int argc, char *argv[])
     TTree *raw_events = new TTree("raw_events", "raw_events");
     std::vector<unsigned int> raw_event;
     raw_events->Branch("RAW Event", &raw_event);
-
     TTree *raw_events_B = new TTree("raw_events_B", "raw_events_B");
     std::vector<unsigned int> raw_event_B;
     raw_events_B->Branch("RAW Event B", &raw_event_B);
 
+    TTree *raw_events_C = new TTree("raw_events_C", "raw_events_C");
+    std::vector<unsigned int> raw_event_C;
+    raw_events_C->Branch("RAW Event C", &raw_event_C);
+    TTree *raw_events_D = new TTree("raw_events_D", "raw_events_D");
+    std::vector<unsigned int> raw_event_D;
+    raw_events_D->Branch("RAW Event D", &raw_event_D);
+
+    TTree *raw_events_E = new TTree("raw_events_E", "raw_events_E");
+    std::vector<unsigned int> raw_event_E;
+    raw_events_E->Branch("RAW Event E", &raw_event_E);
+    TTree *raw_events_F = new TTree("raw_events_F", "raw_events_F");
+    std::vector<unsigned int> raw_event_F;
+    raw_events_F->Branch("RAW Event F", &raw_event_F);
+
     bool little_endian = 0;
-    int offset;
+    int offset = 0;
 
     //Find if there is an offset before first event and the event type
-    offset = seek_header(file, little_endian);
-
-    //std::cout << "Offset at " << offset << std::endl;
-
-    bool master_head = chk_evt_master_header(file, little_endian, offset);
-
-    //std::cout << "Master header is " << master_head << std::endl;
-
-    bool builder_head = read_evt_builder_header(file, little_endian, offset);
-
-    //std::cout << "Event builder header is " << builder_head << std::endl;
-
-    unsigned int evt_size = read_evt_header(file, little_endian, offset);
-
-    //std::cout << "Event size is " << std::dec << evt_size - 8 << std::endl;
+    offset = seek_run_header(file, little_endian);
 
     //Read raw events and write to TTree
-    std::cout << "Trying to read " << fileSize << " events ..." << std::endl;
-
     int evtnum = 0;
+    int fileSize = 0;
+    int boards = 0;
+    int position = 0;
+    int blank_evt_offset = 0;
+    int blank_evt_num = 0;
+    std::tuple<int, int> retValues;
 
-    while (evtnum < fileSize)
+    while (!file.eof())
     {
-        std::cout << "\rReading event " << evtnum + 1 << " of " << fileSize << std::flush;
-        raw_event_buffer = reorder(read_event(file, offset, evtnum));
+        if (chk_evt_master_header(file, little_endian, offset))
+        {
+            retValues = chk_evt_RCD_header(file, little_endian, offset);
+            boards = std::get<0>(retValues);
+            blank_evt_offset = std::get<1>(retValues);
 
-        raw_event    = std::vector<unsigned int>(raw_event_buffer.begin(),raw_event_buffer.begin()+640);
-        raw_event_B  = std::vector<unsigned int>(raw_event_buffer.begin()+640,raw_event_buffer.end());
-        raw_events->Fill();
-        raw_events_B->Fill();
-        evtnum++;
+            if (evtnum == 0 && boards)
+            {
+                file.seekg(0, std::ios::end);
+                fileSize = ((int)file.tellg() - 280 + offset) / (boards * 2712 + 1); //Estimate number of events from filesize
+                file.seekg(position);
+                std::cout << "Estimating " << fileSize << " events to read ... (very unreliable estimate)" << std::endl;
+                std::cout << "Trying to read file with " << boards << " readout boards connected" << std::endl;
+            }
+
+            std::cout << "\rReading event " << evtnum << std::flush;
+
+            if (boards == 0)
+            {
+                offset += blank_evt_offset;
+                blank_evt_num++;
+                continue;
+            }
+
+            for (int board_num = 0; board_num < boards; board_num++)
+            {
+                if (read_evt_header(file, little_endian, offset, board_num))
+                {
+                    raw_event_buffer = reorder(read_event(file, offset, board_num));
+
+                    if (board_num == 0)
+                    {
+                        raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
+                        raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                        raw_events->Fill();
+                        raw_events_B->Fill();
+                    }
+                    else if (board_num == 1)
+                    {
+                        raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
+                        raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                        raw_events_C->Fill();
+                        raw_events_D->Fill();
+                    }
+                    else
+                    {
+                        raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
+                        raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                        raw_events_E->Fill();
+                        raw_events_F->Fill();
+                    }
+                }
+            }
+
+            offset = (int)file.tellg() - 280 + 32 + boards * 4;
+            evtnum++;
+        }
+        else
+        {
+            std::cout << "Closing file after " << evtnum << " events" << std::endl;
+            break;
+        }
     }
+
+    std::cout << "\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << std::endl;
 
     raw_events->Write();
     raw_events_B->Write();
-    std::cout << std::endl;
+
+    if (boards == 2)
+    {
+        raw_events_C->Write();
+        raw_events_D->Write();
+    }
+
+    if (boards == 3)
+    {
+        raw_events_E->Write();
+        raw_events_F->Write();
+    }
 
     foutput->Close();
     file.close();

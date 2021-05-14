@@ -22,7 +22,8 @@ int main(int argc, char *argv[])
   bool symmetric = false;
   bool absolute = false;
   bool verb = false;
-
+  bool invert = false;
+  
   float highthreshold = 3.5;
   float lowthreshold = 1.0;
   int symmetricwidth = 0;
@@ -58,12 +59,14 @@ int main(int argc, char *argv[])
   opt->addUsage("  --minstrip       ................................. Minimun strip number to analyze");
   opt->addUsage("  --maxstrip       ................................. Maximum strip number to analyze");
   opt->addUsage("  --side           ................................. Sensor side for new FOOT DAQ (0,1)");
+  opt->addUsage("  --invert         ................................. To search for negative signal peaks (prototype ADC board)");
 
   opt->setFlag("help", 'h');
   opt->setFlag("symmetric", 's');
   opt->setFlag("absolute", 'a');
   opt->setFlag("verbose", 'v');
-
+  opt->setFlag("invert");
+  
   opt->setOption("version");
   opt->setOption("nevents");
   opt->setOption("output");
@@ -130,6 +133,9 @@ int main(int argc, char *argv[])
   if (opt->getFlag("verbose") || opt->getFlag('v'))
     verb = true;
 
+  if (opt->getFlag("invert"))
+    invert = true;
+
   if (opt->getValue("highthreshold"))
     highthreshold = atof(opt->getValue("highthreshold"));
 
@@ -162,31 +168,31 @@ int main(int argc, char *argv[])
 
   //////////////////Histos//////////////////
   TH1F *hADCCluster =
-      new TH1F("hADCCluster", "hADCCluster", 100, 0, 100);
+      new TH1F("hADCCluster", "hADCCluster", 200, 0, 200);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster1Strip =
-      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 100, 0, 100);
+      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 200, 0, 200);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster2Strip =
-      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 100, 0, 200);
+      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 200, 0, 200);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterManyStrip = new TH1F(
-      "hADCClusterManyStrip", "hADCClusterManyStrip", 100, 0, 200);
+      "hADCClusterManyStrip", "hADCClusterManyStrip", 200, 0, 200);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterSeed =
-      new TH1F("hADCClusterSeed", "hADCClusterSeed", 100, 0, 200);
+      new TH1F("hADCClusterSeed", "hADCClusterSeed", 200, 0, 200);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed =
-      new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 100);
+      new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 200);
   hPercentageSeed->GetXaxis()->SetTitle("percentage");
 
   TH1F *hPercSeedintegral =
-      new TH1F("hPercSeedintegral", "hPercSeedintegral", 200, 20, 100);
+      new TH1F("hPercSeedintegral", "hPercSeedintegral", 200, 20, 200);
   hPercSeedintegral->GetXaxis()->SetTitle("percentage");
 
   TH1F *hClusterCharge =
@@ -199,7 +205,7 @@ int main(int argc, char *argv[])
   TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 200, 0, 250);
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 2000);
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 200);
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
@@ -243,7 +249,7 @@ int main(int argc, char *argv[])
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5,
-                             10000, 0, 2000);
+                             1000, 0, 200);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
@@ -362,7 +368,7 @@ int main(int argc, char *argv[])
   int maxEVT = 0;
   int maxPOS = 0;
 
-  for (int index_event = 0; index_event < entries; index_event++)
+  for (int index_event = 1; index_event < entries; index_event++)
   {
     chain->GetEntry(index_event);
 
@@ -396,7 +402,11 @@ int main(int argc, char *argv[])
           }
           else
           {
-            signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+	    signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+	    if(invert)
+	      {
+		signal.at(i) = - signal.at(i);
+	      }
           }
         }
       }

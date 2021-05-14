@@ -3,12 +3,13 @@
 #include <fstream>
 #include <iterator>
 #include <vector>
+#include <tuple>
 #include <unistd.h>
 #include <iostream>
 
 #define verbose false
 
-int seek_header(std::fstream &file, bool little_endian)
+int seek_run_header(std::fstream &file, bool little_endian)
 {
   int offset = 0;
   unsigned int header;
@@ -35,6 +36,14 @@ int seek_header(std::fstream &file, bool little_endian)
     if (val == header)
     {
       found = true;
+      if (verbose)
+      {
+        std::cout << "Found header at offset " << offset << std::endl;
+      }
+      file.seekg(offset + 240);
+      file.read(reinterpret_cast<char *>(&buffer), 4);
+      val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+      std::cout << "Trying to read file number " << val << std::endl;
     }
     else
     {
@@ -44,32 +53,32 @@ int seek_header(std::fstream &file, bool little_endian)
 
   if (!found)
   {
+            if (verbose)
+        {
     std::cout << "Can't find event header in the file" << std::endl;
+        }
     return -999;
   }
   else
   {
-    return offset+264;
+    return offset;
   }
 }
 
-
-bool chk_evt_master_header(std::fstream &file, bool little_endian, int run_offset)
+int chk_evt_master_header(std::fstream &file, bool little_endian, int run_offset)
 {
   bool is_good = false;
-  int master_offset = run_offset + 84;
-
   unsigned char buffer[4];
   unsigned int val;
+  int boards;
 
   if (!file.eof())
   {
-    file.seekg(master_offset);
+    file.seekg(run_offset + 280);
     file.read(reinterpret_cast<char *>(&buffer), 4);
-    
     val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
-    if (val == 0x12341234 || val == 0x34123412)
+    if (val == 0x1234cccc || val == 0xcccc3412)
     {
       is_good = true;
     }
@@ -77,48 +86,71 @@ bool chk_evt_master_header(std::fstream &file, bool little_endian, int run_offse
 
   if (!is_good)
   {
-    std::cout << "Can't find event master header for the event" << std::endl;
-    return is_good;
+    if (verbose)
+    {
+      std::cout << "ERROR: Can't find event master header for the event" << std::endl;
+    }
+    return -1;
   }
 
   return is_good;
 }
 
-bool read_evt_builder_header(std::fstream &file, bool little_endian, int run_offset)
+std::tuple<int, int> chk_evt_RCD_header(std::fstream &file, bool little_endian, int run_offset)
 {
   bool is_good = false;
-  int builder_offset = run_offset + 92;
+  int boards = 0;
+  int blank_evt_offset = 0;
 
   unsigned char buffer[4];
   unsigned int val;
 
   if (!file.eof())
   {
-    file.seekg(builder_offset);
+    file.seekg(run_offset + 292);
     file.read(reinterpret_cast<char *>(&buffer), 4);
-    
+    val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+    boards = val / 2644;
+
+    file.seekg(run_offset + 296);
+    file.read(reinterpret_cast<char *>(&buffer), 4);
     val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
-    if (val == 0xbabadeea || val == 0xeadebaba)
+    if (val == 0xee1234ee || val == 0xee3412ee)
     {
       is_good = true;
+
+      file.seekg(run_offset + 296 + 92);
+      file.read(reinterpret_cast<char *>(&buffer), 4);
+      val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+      if (val == 0xee1234ee || val == 0xee3412ee)
+      {
+        if (verbose)
+        {
+          std::cout << "\nERROR: skipping blank event " << std::endl;
+        }
+        blank_evt_offset = 92;
+      }
+      file.seekg(run_offset + 296);
     }
   }
 
   if (!is_good)
   {
-    std::cout << "Can't find event builder header for the event" << std::endl;
-    return is_good;
+    if (verbose)
+    {
+      std::cout << "Can't find RCD header for the event" << std::endl;
+    }
+    return std::make_tuple(-1, -1);
   }
 
-  return is_good;
+  return std::make_tuple(boards, blank_evt_offset);
 }
 
-
-unsigned int read_evt_header(std::fstream &file, bool little_endian, int run_offset)
+bool read_evt_header(std::fstream &file, bool little_endian, int run_offset, int board)
 {
   bool is_good = false;
-  int evt_offset = run_offset + 116;
   unsigned int evt_size = 0;
 
   unsigned char buffer[4];
@@ -126,33 +158,37 @@ unsigned int read_evt_header(std::fstream &file, bool little_endian, int run_off
 
   if (!file.eof())
   {
-    file.seekg(evt_offset);
+    file.seekg(run_offset + board * 2644 + 348);
     file.read(reinterpret_cast<char *>(&buffer), 4);
     val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
-    if (val == 0x0105ad4e || val == 0x4ead0501)
+    if (val == 0x34123412 || val == 0x12341234)
     {
-      is_good = true;
-      file.seekg(run_offset + 112);
+      file.seekg(run_offset + board * 2644 + 356);
       file.read(reinterpret_cast<char *>(&buffer), 4);
-      evt_size = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+      val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+      if (val == 0xbabadeea || val == 0xeadebaba)
+      {
+        is_good = true;
+        return is_good;
+      }
+      else
+      {
+        if (verbose)
+        {
+          std::cout << "Can't find event builder header for the event" << std::endl;
+        }
+        return -1;
+      }
     }
   }
-
-  if (!is_good)
-  {
-    std::cout << "Can't find event builder header for the event" << std::endl;
-    return -1;
-  }
-
-  return evt_size;
 }
 
-std::vector<unsigned int> read_event(std::fstream &file, int offset, int evt)
+std::vector<unsigned int> read_event(std::fstream &file, int offset, int board)
 {
-  int bitsize = 2712;
 
-  file.seekg(offset + 132 + evt * bitsize);
+  file.seekg(offset + 396 + (board)*2644);
 
   int event_size = 1280;
 
@@ -163,14 +199,14 @@ std::vector<unsigned int> read_event(std::fstream &file, int offset, int evt)
 
   std::vector<unsigned int> event(event_size);
 
-  for (int i = 0; i < event.size(); i=i+2)
+  for (int i = 0; i < event.size(); i = i + 2)
   {
     file.read(reinterpret_cast<char *>(&buffer), 4);
     val1 = buffer[0] | buffer[1] << 8;
     val2 = buffer[2] | buffer[3] << 8;
 
-    event.at(i) = val1/4;
-    event.at(i+1) = val2/4;
+    event.at(i) = val1 / 4;
+    event.at(i + 1) = val2 / 4;
   }
 
   return event;

@@ -98,6 +98,8 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fMain->MapSubwindows();
   fMain->Resize(fMain->GetDefaultSize());
   fMain->MapWindow();
+  fMain->SetIconPixmap("./test.png");
+  fMain->MapRaised();
   fMain->SetWMSizeHints(w, h, w, h, 0, 0);
 }
 

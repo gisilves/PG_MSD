@@ -10,6 +10,7 @@
 #include "environment.h"
 #include <algorithm>
 #include <numeric>
+#include "TLine.h"
 
 #include "anyoption.h"
 #include "event.h"
@@ -58,7 +59,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d", side));
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
-
+    
   std::vector<float> pedestals[NChannels];
   float mean_pedestal = 0;
   float rms_pedestal = 0;
@@ -159,7 +160,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     //Fitting histos with gaus to compute ped and raw_sigma
     if (hADC[ch]->GetEntries())
     {
-      hADC[ch]->Fit("gaus", "Q");
+      hADC[ch]->Fit("gaus", "QMS");
       g = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
       pedestals->push_back(g->GetParameter(1));
       rsigma->push_back(g->GetParameter(2));
@@ -259,14 +260,14 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     bool badchan = false;
     if (hCN[ch]->GetEntries())
     {
-      hCN[ch]->Fit("gaus", "Q");
+      hCN[ch]->Fit("gaus", "QMS");
       g = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
       gr3->SetPoint(ch, ch, g->GetParameter(2));
       sigma->push_back(g->GetParameter(2));
       //Flag for channels that are too noisy or dead
-      if (rsigma->at(ch) < 0.01 || rsigma->at(ch) > sigma_cut)
+      if (rsigma->at(ch) < 3 || rsigma->at(ch) > sigmaraw_cut)
       {
-        if (g->GetParameter(2) < 0.01 || g->GetParameter(2) > sigma_cut)
+        if (g->GetParameter(2) < 2 || g->GetParameter(2) > sigma_cut)
         {
           badchan = true;
         }
