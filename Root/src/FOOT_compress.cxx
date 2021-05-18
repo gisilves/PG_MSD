@@ -147,9 +147,17 @@ int main(int argc, char *argv[])
 
             if (boards == 0)
             {
-                offset += blank_evt_offset;
-                blank_evt_num++;
-                continue;
+                if (blank_evt_offset)
+                {
+                    offset += blank_evt_offset;
+                    blank_evt_num++;
+                    continue;
+                }
+                else
+                {
+                    blank_evt_num++;
+                    break;
+                }
             }
 
             for (int board_num = 0; board_num < boards; board_num++)
