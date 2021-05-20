@@ -21,7 +21,7 @@
 
 AnyOption *opt; //Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side, bool pdf_only)
+int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side, bool pdf_only, bool fast)
 {
   TString root_filename = output_filename + "_" + side + ".root";
   TFile *foutput;
@@ -59,7 +59,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d", side));
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
-    
+
   std::vector<float> pedestals[NChannels];
   float mean_pedestal = 0;
   float rms_pedestal = 0;
@@ -81,22 +81,36 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   ofstream calfile;
   if (!pdf_only)
   {
-    std::cout << "\n CALIBRATION FILE FOR SIDE " << side << "\n";
-    std::cout << "\n Sensor Name: ";
-    std::cin >> name;
-    std::cout << "\n Location: ";
-    std::cin >> location;
-    std::cout << "\n Bias (V): ";
-    std::cin >> bias;
-    std::cout << "\n Leakage current (uA): ";
-    std::cin >> leak;
-    std::cout << "\n 6V current (mA): ";
-    std::cin >> curr6v;
-    std::cout << "\n 3V current (mA): ";
-    std::cin >> curr3v;
-    std::cout << "\n Hold Delay: ";
-    std::cin >> delay;
-    std::cout << "\n";
+    if (!fast)
+    {
+      std::cout << "\n CALIBRATION FILE FOR SIDE " << side << "\n";
+      std::cout << "\n Sensor Name: ";
+      std::cin >> name;
+      std::cout << "\n Location: ";
+      std::cin >> location;
+      std::cout << "\n Bias (V): ";
+      std::cin >> bias;
+      std::cout << "\n Leakage current (uA): ";
+      std::cin >> leak;
+      std::cout << "\n 6V current (mA): ";
+      std::cin >> curr6v;
+      std::cout << "\n 3V current (mA): ";
+      std::cin >> curr3v;
+      std::cout << "\n Hold Delay: ";
+      std::cin >> delay;
+      std::cout << "\n";
+    }
+    else
+    {
+      strcpy(name,"nd ");
+      strcpy(location,"nd ");
+      strcpy(bias,"nd ");
+      strcpy(leak,"nd ");
+      strcpy(curr6v,"nd ");
+      strcpy(curr3v,"nd ");
+      strcpy(delay,"nd ");
+
+    }
 
     std::time_t result = std::time(nullptr);
 
@@ -160,7 +174,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     //Fitting histos with gaus to compute ped and raw_sigma
     if (hADC[ch]->GetEntries())
     {
-      hADC[ch]->Fit("gaus", "QMS");
+      hADC[ch]->Fit("gaus", "QS");
       g = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
       pedestals->push_back(g->GetParameter(1));
       rsigma->push_back(g->GetParameter(2));
@@ -260,14 +274,14 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     bool badchan = false;
     if (hCN[ch]->GetEntries())
     {
-      hCN[ch]->Fit("gaus", "QMS");
+      hCN[ch]->Fit("gaus", "QS");
       g = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
       gr3->SetPoint(ch, ch, g->GetParameter(2));
       sigma->push_back(g->GetParameter(2));
       //Flag for channels that are too noisy or dead
-      if (rsigma->at(ch) < 3 || rsigma->at(ch) > sigmaraw_cut)
+      if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
       {
-        if (g->GetParameter(2) < 2 || g->GetParameter(2) > sigma_cut)
+        if (g->GetParameter(2) < 1 || g->GetParameter(2) > sigma_cut)
         {
           badchan = true;
         }
@@ -335,9 +349,10 @@ int main(int argc, char *argv[])
 {
   bool verb = false;
   bool pdf_only = false;
+  bool fast_mode = false;
 
-  float sigmaraw_cut = 5;
-  float sigma_cut = 3;
+  float sigmaraw_cut = 8;
+  float sigma_cut = 5;
   int cntype = 0;
 
   int NChannels = -1;
@@ -356,10 +371,11 @@ int main(int argc, char *argv[])
   opt->addUsage("  --output         ................................. Output .cal file ");
   opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
   opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
-
+  opt->addUsage("  --fast           ................................. no info prompt");
   opt->setFlag("help", 'h');
   opt->setFlag("verbose", 'v');
   opt->setFlag("pdf");
+  opt->setFlag("fast");
 
   opt->setOption("version");
   opt->setOption("output");
@@ -415,6 +431,9 @@ int main(int argc, char *argv[])
   if (opt->getValue("pdf"))
     pdf_only = true;
 
+  if (opt->getFlag("fast"))
+    fast_mode = true;
+
   // Create output .cal file
   TString output_filename;
   if (opt->getValue("output"))
@@ -435,7 +454,7 @@ int main(int argc, char *argv[])
     chain->Add(opt->getArgv(ii));
   }
 
-  compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, pdf_only);
+  compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, pdf_only, fast_mode);
 
   if (newDAQ)
   {
@@ -445,7 +464,7 @@ int main(int argc, char *argv[])
       chain2->Add(opt->getArgv(ii));
     }
 
-    compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 1, pdf_only);
+    compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 1, pdf_only, fast_mode);
   }
 
   return 0;
