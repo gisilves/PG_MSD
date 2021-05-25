@@ -93,23 +93,29 @@ int main(int argc, char *argv[])
     TTree *raw_events = new TTree("raw_events", "raw_events");
     std::vector<unsigned int> raw_event;
     raw_events->Branch("RAW Event", &raw_event);
+    raw_events->SetAutoFlush(0);
     TTree *raw_events_B = new TTree("raw_events_B", "raw_events_B");
     std::vector<unsigned int> raw_event_B;
     raw_events_B->Branch("RAW Event B", &raw_event_B);
+    raw_events_B->SetAutoFlush(0);
 
     TTree *raw_events_C = new TTree("raw_events_C", "raw_events_C");
     std::vector<unsigned int> raw_event_C;
     raw_events_C->Branch("RAW Event C", &raw_event_C);
+    raw_events_C->SetAutoFlush(0);
     TTree *raw_events_D = new TTree("raw_events_D", "raw_events_D");
     std::vector<unsigned int> raw_event_D;
     raw_events_D->Branch("RAW Event D", &raw_event_D);
+    raw_events_D->SetAutoFlush(0);
 
     TTree *raw_events_E = new TTree("raw_events_E", "raw_events_E");
     std::vector<unsigned int> raw_event_E;
     raw_events_E->Branch("RAW Event E", &raw_event_E);
+    raw_events_E->SetAutoFlush(0);
     TTree *raw_events_F = new TTree("raw_events_F", "raw_events_F");
     std::vector<unsigned int> raw_event_F;
     raw_events_F->Branch("RAW Event F", &raw_event_F);
+    raw_events_E->SetAutoFlush(0);
 
     bool little_endian = 0;
     int offset = 0;
@@ -124,15 +130,21 @@ int main(int argc, char *argv[])
     int position = 0;
     int blank_evt_offset = 0;
     int blank_evt_num = 0;
-    std::tuple<int, int> retValues;
+    std::tuple<int, int> RCD_retValues;
+    std::tuple<bool, unsigned int> evt_retValues;
+    bool is_good = false;
+    unsigned short timestamp = 0;
+    unsigned short start_time = 0;
+    unsigned short end_time = 0;
+    float mean_rate = 0;
 
     while (!file.eof())
     {
         if (chk_evt_master_header(file, little_endian, offset))
         {
-            retValues = chk_evt_RCD_header(file, little_endian, offset);
-            boards = std::get<0>(retValues);
-            blank_evt_offset = std::get<1>(retValues);
+            RCD_retValues = chk_evt_RCD_header(file, little_endian, offset);
+            boards = std::get<0>(RCD_retValues);
+            blank_evt_offset = std::get<1>(RCD_retValues);
 
             if (evtnum == 0 && boards)
             {
@@ -144,7 +156,6 @@ int main(int argc, char *argv[])
             }
 
             std::cout << "\rReading event " << evtnum << std::flush;
-
             if (boards == 0)
             {
                 if (blank_evt_offset)
@@ -162,7 +173,20 @@ int main(int argc, char *argv[])
 
             for (int board_num = 0; board_num < boards; board_num++)
             {
-                if (read_evt_header(file, little_endian, offset, board_num))
+                evt_retValues = read_evt_header(file, little_endian, offset, board_num);
+                is_good = std::get<0>(evt_retValues);
+                timestamp = std::get<1>(evt_retValues);
+
+                if (evtnum == 0 && board_num == 0)
+                {
+                    start_time = timestamp;
+                }
+                else if (evtnum != 0 && board_num == 0)
+                {
+                    end_time = timestamp;
+                }
+
+                if (is_good)
                 {
                     raw_event_buffer = reorder(read_event(file, offset, board_num));
 
@@ -200,7 +224,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    std::cout << "\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << std::endl;
+    mean_rate = evtnum/ (end_time - start_time);
+    std::cout << "\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << " acquired with a mean rate of " << mean_rate << " Hz" << std::endl;
 
     raw_events->Write();
     raw_events_B->Write();

@@ -1,5 +1,6 @@
 #include "TChain.h"
 #include "TFile.h"
+#include "TError.h"
 #include "TH1.h"
 #include "TF1.h"
 #include "TGraph.h"
@@ -21,9 +22,9 @@
 
 AnyOption *opt; //Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int side, bool pdf_only, bool fast)
+int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int board, int side, bool pdf_only, bool fast)
 {
-  TString root_filename = output_filename + "_" + side + ".root";
+  TString root_filename = output_filename + "_board-" + board + "_side-" + side + ".root";
   TFile *foutput;
   foutput = new TFile(root_filename.Data(), "RECREATE");
   foutput->cd();
@@ -34,29 +35,29 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   TH1D *hCN[NChannels];
   for (int ch = 0; ch < NChannels; ch++)
   {
-    hADC[ch] = new TH1D(Form("pedestal_channel_%d_side_%d", ch, side), Form("Pedestal %d", ch), 50, 0, -1);
+    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d_side_%d", ch, board, side), Form("Pedestal %d", ch), 50, 0, -1);
     hADC[ch]->GetXaxis()->SetTitle("ADC");
-    hSignal[ch] = new TH1D(Form("signal_channel_%d_side_%d", ch, side), Form("Signal %d", ch), 50, 0, -1);
+    hSignal[ch] = new TH1D(Form("signal_channel_%d_board_%d_side_%d", ch, board, side), Form("Signal %d", ch), 50, 0, -1);
     hSignal[ch]->GetXaxis()->SetTitle("ADC");
-    hCN[ch] = new TH1D(Form("cn_channel_%d_side_%d", ch, side), Form("CN %d", ch), 50, 0, -1);
+    hCN[ch] = new TH1D(Form("cn_channel_%d_board_%d_side_%d", ch, board, side), Form("CN %d", ch), 50, 0, -1);
     hCN[ch]->GetXaxis()->SetTitle("ADC");
   }
 
   TF1 *g;
 
-  TCanvas *c1 = new TCanvas(Form("c1_%d", side), "Canvas", 1920, 1080);
+  TCanvas *c1 = new TCanvas(Form("c1_%d_%d", board, side), "Canvas", 1920, 1080);
   c1->SetGrid();
 
   TGraph *gr = new TGraph(NChannels);
-  gr->SetTitle("Pedestals for file " + output_filename + "_" + Form("%d", side));
+  gr->SetTitle("Pedestals for file " + output_filename + "_" + Form("%d_%d", board, side));
 
   TGraph *gr2 = new TGraph(NChannels);
-  gr2->SetTitle("Raw Sigma for file " + output_filename + "_" + Form("%d", side));
+  gr2->SetTitle("Raw Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
-  gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d", side));
+  gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
 
@@ -102,19 +103,18 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     }
     else
     {
-      strcpy(name,"nd ");
-      strcpy(location,"nd ");
-      strcpy(bias,"nd ");
-      strcpy(leak,"nd ");
-      strcpy(curr6v,"nd ");
-      strcpy(curr3v,"nd ");
-      strcpy(delay,"nd ");
-
+      strcpy(name, "nd ");
+      strcpy(location, "nd ");
+      strcpy(bias, "nd ");
+      strcpy(leak, "nd ");
+      strcpy(curr6v, "nd ");
+      strcpy(curr3v, "nd ");
+      strcpy(delay, "nd ");
     }
 
     std::time_t result = std::time(nullptr);
 
-    calfile.open(output_filename + "_" + Form("%d", side) + ".cal");
+    calfile.open(output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".cal");
     calfile << "temp_SN= NC\n";
     calfile << "temp_SN= NC\n";
     calfile << "name= " << name << "\n";
@@ -135,12 +135,20 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     calfile << "occupancy_k= NC\n";
   }
 
+  std::cout << "\nProcessing data for detector on board " << board << " on side " << side << std::endl;
   int entries = chain.GetEntries();
-  std::cout << "This run has " << entries << " entries" << std::endl;
+  std::cout << "\tThis run has " << entries << " entries" << std::endl;
+
+  if (entries == 0)
+  {
+    std::cout << "\tERROR: skipping empty run" << std::endl;
+    return -1;
+  }
+
   if (entries > 5000)
   {
     entries = 5000;
-    std::cout << "The first " << entries << " entries will be used for calibration" << std::endl;
+    std::cout << "\tThe first " << entries << " entries will be used for calibration" << std::endl;
   }
 
   // Read raw event from input chain TTree
@@ -217,7 +225,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   ped_info.SetTextAngle(90);
   ped_info.SetTextAlign(12);
   ped_info.DrawLatex(680, gr->GetYaxis()->GetXmin(), Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
-  TString out_pdf_open = output_filename + "_" + Form("%d", side) + ".pdf(";
+  TString out_pdf_open = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf(";
   c1->Print(out_pdf_open, "pdf");
 
   gr2->GetXaxis()->SetTitle("channel");
@@ -230,7 +238,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   rsig_info.SetTextAngle(90);
   rsig_info.SetTextAlign(12);
   rsig_info.DrawLatex(680, gr2->GetYaxis()->GetXmin(), Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
-  TString out_pdf = output_filename + "_" + Form("%d", side) + ".pdf";
+  TString out_pdf = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf";
   c1->Print(out_pdf, "pdf");
 
   //Like before, but this time we correct for common noise
@@ -331,7 +339,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   sig_info.SetTextAngle(90);
   sig_info.SetTextAlign(12);
   sig_info.DrawLatex(680, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f", mean_sigma, rms_sigma));
-  TString out_pdf_close = output_filename + "_" + Form("%d", side) + ".pdf)";
+  TString out_pdf_close = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf)";
   c1->Print(out_pdf_close, "pdf");
 
   if (!pdf_only)
@@ -347,6 +355,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
 
 int main(int argc, char *argv[])
 {
+  gErrorIgnoreLevel = kWarning;
   bool verb = false;
   bool pdf_only = false;
   bool fast_mode = false;
@@ -429,10 +438,16 @@ int main(int argc, char *argv[])
     cntype = atoi(opt->getValue("cn"));
 
   if (opt->getValue("pdf"))
+  {
     pdf_only = true;
+    std::cout << "\nPDF flag activated: no .cal file will be written on disk" << std::endl;
+  }
 
   if (opt->getFlag("fast"))
+  {
     fast_mode = true;
+    std::cout << "\nFast flag activated: no additional info will be written in the .cal file" << std::endl;
+  }
 
   // Create output .cal file
   TString output_filename;
@@ -446,25 +461,64 @@ int main(int argc, char *argv[])
     return 2;
   }
 
+  int boards = 0;
+  int board_num = 0;
+  int ladder_side = 0;
+
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain("raw_events"); //Chain input rootfiles
   for (int ii = 0; ii < opt->getArgc(); ii++)
   {
-    std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+    std::cout << "\nAdding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
     chain->Add(opt->getArgv(ii));
   }
 
-  compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, pdf_only, fast_mode);
-
-  if (newDAQ)
+  if (!newDAQ)
   {
-    TChain *chain2 = new TChain("raw_events_B");
-    for (int ii = 0; ii < opt->getArgc(); ii++)
+    compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode);
+  }
+  else
+  {
+    std::cout << "\nFOOT DAQ FILE" << std::endl;
+
+    TFile tempfile(opt->getArgv(0));
+    TIter list(tempfile.GetListOfKeys());
+    TKey *key;
+    while ((key = (TKey *)list()))
     {
-      chain2->Add(opt->getArgv(ii));
+      if (!strcmp(key->GetClassName(), "TTree"))
+      {
+        boards++;
+      }
+    }
+    boards /= 2;
+    std::cout << "File with " << boards << " board(s)" << std::endl;
+
+    TTree *T;
+    TIter list2(tempfile.GetListOfKeys());
+    while ((key = (TKey *)list2()))
+    {
+      if (!strcmp(key->GetClassName(), "TTree"))
+      {
+        TChain *chain2 = new TChain(key->GetName());
+        for (int ii = 0; ii < opt->getArgc(); ii++)
+        {
+          chain2->Add(opt->getArgv(ii));
+        }
+        compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode);
+        board_num++;
+        if (ladder_side == 0)
+        {
+          ladder_side = 1;
+        }
+        else
+        {
+          ladder_side = 0;
+        }
+      }
     }
 
-    compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 1, pdf_only, fast_mode);
+    tempfile.Close();
   }
 
   return 0;
