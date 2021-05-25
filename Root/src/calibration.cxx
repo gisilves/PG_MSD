@@ -29,7 +29,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   foutput = new TFile(root_filename.Data(), "RECREATE");
   foutput->cd();
 
-  //histo
+  //histos
   TH1D *hADC[NChannels];
   TH1D *hSignal[NChannels];
   TH1D *hCN[NChannels];
@@ -43,7 +43,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     hCN[ch]->GetXaxis()->SetTitle("ADC");
   }
 
-  TF1 *g;
+  TF1 *fittedgaus;
 
   TCanvas *c1 = new TCanvas(Form("c1_%d_%d", board, side), "Canvas", 1920, 1080);
   c1->SetGrid();
@@ -183,7 +183,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     if (hADC[ch]->GetEntries())
     {
       hADC[ch]->Fit("gaus", "QS");
-      g = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
+      fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
       pedestals->push_back(g->GetParameter(1));
       rsigma->push_back(g->GetParameter(2));
       gr->SetPoint(ch, ch, g->GetParameter(1));
@@ -283,7 +283,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     if (hCN[ch]->GetEntries())
     {
       hCN[ch]->Fit("gaus", "QS");
-      g = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
+      fittedgaus = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
       gr3->SetPoint(ch, ch, g->GetParameter(2));
       sigma->push_back(g->GetParameter(2));
       //Flag for channels that are too noisy or dead

@@ -43,7 +43,10 @@ int seek_run_header(std::fstream &file, bool little_endian)
       file.seekg(offset + 240);
       file.read(reinterpret_cast<char *>(&buffer), 4);
       val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-      std::cout << "Trying to read file number " << val << std::endl;
+      if (verbose)
+      {
+        std::cout << "Trying to read file number " << val << std::endl;
+      }
     }
     else
     {
@@ -148,7 +151,7 @@ std::tuple<int, int> chk_evt_RCD_header(std::fstream &file, bool little_endian, 
   return std::make_tuple(boards, blank_evt_offset);
 }
 
-std::tuple<bool,unsigned short> read_evt_header(std::fstream &file, bool little_endian, int run_offset, int board)
+std::tuple<bool, unsigned short> read_evt_header(std::fstream &file, bool little_endian, int run_offset, int board)
 {
   bool is_good = false;
   unsigned int evt_size = 0;

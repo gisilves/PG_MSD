@@ -151,11 +151,11 @@ int main(int argc, char *argv[])
                 file.seekg(0, std::ios::end);
                 fileSize = ((int)file.tellg() - 280 + offset) / (boards * 2712 + 1); //Estimate number of events from filesize
                 file.seekg(position);
-                std::cout << "Estimating " << fileSize << " events to read ... (very unreliable estimate)" << std::endl;
-                std::cout << "Trying to read file with " << boards << " readout boards connected" << std::endl;
+                std::cout << "\tEstimating " << fileSize << " events to read ... (very unreliable estimate)" << std::endl;
+                std::cout << "\tTrying to read file with " << boards << " readout boards connected" << std::endl;
             }
 
-            std::cout << "\rReading event " << evtnum << std::flush;
+            std::cout << "\r\tReading event " << evtnum << std::flush;
             if (boards == 0)
             {
                 if (blank_evt_offset)
@@ -224,8 +224,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    mean_rate = evtnum/ (end_time - start_time);
-    std::cout << "\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << " acquired with a mean rate of " << mean_rate << " Hz" << std::endl;
+    mean_rate = evtnum / (end_time - start_time);
+    std::cout << "\n\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << " acquired with a mean rate of " << mean_rate << " Hz" << std::endl;
 
     raw_events->Write();
     raw_events_B->Write();
