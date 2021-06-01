@@ -154,13 +154,39 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
-  if (side == 0)
+
+  if (board == 0)
   {
-    chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
+    if (side == 0)
+    {
+      chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
+    }
+    else
+    {
+      chain.SetBranchAddress("RAW Event B", &raw_event, &RAW);
+    }
   }
-  else
+  else if (board == 1)
   {
-    chain.SetBranchAddress("RAW Event B", &raw_event, &RAW);
+    if (side == 0)
+    {
+      chain.SetBranchAddress("RAW Event C", &raw_event, &RAW);
+    }
+    else
+    {
+      chain.SetBranchAddress("RAW Event D", &raw_event, &RAW);
+    }
+  }
+  else if (board == 2)
+  {
+    if (side == 0)
+    {
+      chain.SetBranchAddress("RAW Event E", &raw_event, &RAW);
+    }
+    else
+    {
+      chain.SetBranchAddress("RAW Event F", &raw_event, &RAW);
+    }
   }
 
   //First half of events are used to compute pedestals and raw_sigmas
@@ -184,10 +210,10 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     {
       hADC[ch]->Fit("gaus", "QS");
       fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
-      pedestals->push_back(g->GetParameter(1));
-      rsigma->push_back(g->GetParameter(2));
-      gr->SetPoint(ch, ch, g->GetParameter(1));
-      gr2->SetPoint(ch, ch, g->GetParameter(2));
+      pedestals->push_back(fittedgaus->GetParameter(1));
+      rsigma->push_back(fittedgaus->GetParameter(2));
+      gr->SetPoint(ch, ch, fittedgaus->GetParameter(1));
+      gr2->SetPoint(ch, ch, fittedgaus->GetParameter(2));
     }
     else
     {
@@ -284,12 +310,12 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     {
       hCN[ch]->Fit("gaus", "QS");
       fittedgaus = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
-      gr3->SetPoint(ch, ch, g->GetParameter(2));
-      sigma->push_back(g->GetParameter(2));
+      gr3->SetPoint(ch, ch, fittedgaus->GetParameter(2));
+      sigma->push_back(fittedgaus->GetParameter(2));
       //Flag for channels that are too noisy or dead
       if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
       {
-        if (g->GetParameter(2) < 1 || g->GetParameter(2) > sigma_cut)
+        if (fittedgaus->GetParameter(2) < 1 || fittedgaus->GetParameter(2) > sigma_cut)
         {
           badchan = true;
         }
@@ -308,7 +334,7 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
       calfile << ch << ", " << ch / 64 << ", "
               << va_chan
               << ", " << pedestals->at(ch) << ", " << rsigma->at(ch) << ", "
-              << g->GetParameter(2)
+              << fittedgaus->GetParameter(2)
               << ", "
               << badchan
               << ", "

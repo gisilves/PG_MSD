@@ -93,29 +93,29 @@ int main(int argc, char *argv[])
     TTree *raw_events = new TTree("raw_events", "raw_events");
     std::vector<unsigned int> raw_event;
     raw_events->Branch("RAW Event", &raw_event);
-    raw_events->SetAutoFlush(0);
+    raw_events->SetAutoSave(0);
     TTree *raw_events_B = new TTree("raw_events_B", "raw_events_B");
     std::vector<unsigned int> raw_event_B;
     raw_events_B->Branch("RAW Event B", &raw_event_B);
-    raw_events_B->SetAutoFlush(0);
+    raw_events_B->SetAutoSave(0);
 
     TTree *raw_events_C = new TTree("raw_events_C", "raw_events_C");
     std::vector<unsigned int> raw_event_C;
     raw_events_C->Branch("RAW Event C", &raw_event_C);
-    raw_events_C->SetAutoFlush(0);
+    raw_events_C->SetAutoSave(0);
     TTree *raw_events_D = new TTree("raw_events_D", "raw_events_D");
     std::vector<unsigned int> raw_event_D;
     raw_events_D->Branch("RAW Event D", &raw_event_D);
-    raw_events_D->SetAutoFlush(0);
+    raw_events_D->SetAutoSave(0);
 
     TTree *raw_events_E = new TTree("raw_events_E", "raw_events_E");
     std::vector<unsigned int> raw_event_E;
     raw_events_E->Branch("RAW Event E", &raw_event_E);
-    raw_events_E->SetAutoFlush(0);
+    raw_events_E->SetAutoSave(0);
     TTree *raw_events_F = new TTree("raw_events_F", "raw_events_F");
     std::vector<unsigned int> raw_event_F;
     raw_events_F->Branch("RAW Event F", &raw_event_F);
-    raw_events_E->SetAutoFlush(0);
+    raw_events_F->SetAutoSave(0);
 
     bool little_endian = 0;
     int offset = 0;
@@ -127,6 +127,7 @@ int main(int argc, char *argv[])
     int evtnum = 0;
     int fileSize = 0;
     int boards = 0;
+    int expected_boards = 0;
     int position = 0;
     int blank_evt_offset = 0;
     int blank_evt_num = 0;
@@ -153,6 +154,7 @@ int main(int argc, char *argv[])
                 file.seekg(position);
                 std::cout << "\tEstimating " << fileSize << " events to read ... (very unreliable estimate)" << std::endl;
                 std::cout << "\tTrying to read file with " << boards << " readout boards connected" << std::endl;
+                expected_boards = boards;
             }
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
@@ -169,6 +171,13 @@ int main(int argc, char *argv[])
                     blank_evt_num++;
                     break;
                 }
+            }
+
+            if (boards != expected_boards)
+            {
+                std::cout << "\n\tSkipping event with " << boards << " instead of the expected " << expected_boards << std::endl;
+                evtnum++;
+                break;
             }
 
             for (int board_num = 0; board_num < boards; board_num++)
@@ -188,10 +197,12 @@ int main(int argc, char *argv[])
 
                 if (is_good)
                 {
+
                     raw_event_buffer = reorder(read_event(file, offset, board_num));
 
                     if (board_num == 0)
                     {
+                        //std::cout << "\nBoard number " << board_num << std::endl;
                         raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
                         raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
                         raw_events->Fill();
@@ -199,13 +210,15 @@ int main(int argc, char *argv[])
                     }
                     else if (board_num == 1)
                     {
+                        //std::cout << "\nBoard number " << board_num << std::endl;
                         raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
                         raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
                         raw_events_C->Fill();
                         raw_events_D->Fill();
                     }
-                    else
+                    else if (board_num == 2)
                     {
+                        //std::cout << "\nBoard number " << board_num << std::endl;
                         raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
                         raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
                         raw_events_E->Fill();
@@ -230,13 +243,13 @@ int main(int argc, char *argv[])
     raw_events->Write();
     raw_events_B->Write();
 
-    if (boards == 2)
+    if (raw_events_C->GetEntries() && raw_events_D->GetEntries())
     {
         raw_events_C->Write();
         raw_events_D->Write();
     }
 
-    if (boards == 3)
+    if (raw_events_E->GetEntries() && raw_events_F->GetEntries())
     {
         raw_events_E->Write();
         raw_events_F->Write();
