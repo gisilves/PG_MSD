@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
   bool absolute = false;
   bool verb = false;
   bool invert = false;
-  
+
   float highthreshold = 3.5;
   float lowthreshold = 1.0;
   int symmetricwidth = 0;
@@ -38,6 +38,7 @@ int main(int argc, char *argv[])
 
   bool newDAQ = false;
   int side = 0;
+  int board = 0;
 
   opt = new AnyOption();
   opt->addUsage("Usage: ./raw_clusterize [options] [arguments] rootfile1 rootfile2 ...");
@@ -58,7 +59,8 @@ int main(int argc, char *argv[])
   opt->addUsage("  --maxcn          ................................. Max CN for a good event");
   opt->addUsage("  --minstrip       ................................. Minimun strip number to analyze");
   opt->addUsage("  --maxstrip       ................................. Maximum strip number to analyze");
-  opt->addUsage("  --side           ................................. Sensor side for new FOOT DAQ (0,1)");
+  opt->addUsage("  --board          ................................. ADC board to analyze (0, 1, 2)");
+  opt->addUsage("  --side           ................................. Sensor side for new FOOT DAQ (0, 1)");
   opt->addUsage("  --invert         ................................. To search for negative signal peaks (prototype ADC board)");
 
   opt->setFlag("help", 'h');
@@ -66,7 +68,7 @@ int main(int argc, char *argv[])
   opt->setFlag("absolute", 'a');
   opt->setFlag("verbose", 'v');
   opt->setFlag("invert");
-  
+
   opt->setOption("version");
   opt->setOption("nevents");
   opt->setOption("output");
@@ -79,6 +81,7 @@ int main(int argc, char *argv[])
   opt->setOption("minstrip");
   opt->setOption("maxstrip");
   opt->setOption("side");
+  opt->setOption("board");
 
   opt->processFile("./options.txt");
   opt->processCommandArgs(argc, argv);
@@ -165,6 +168,9 @@ int main(int argc, char *argv[])
 
   if (opt->getValue("side"))
     side = atoi(opt->getValue("side"));
+
+  if (opt->getValue("board"))
+    board = atoi(opt->getValue("board"));
 
   //////////////////Histos//////////////////
   TH1F *hADCCluster =
@@ -287,16 +293,51 @@ int main(int argc, char *argv[])
   TGraph *nclus_event = new TGraph();
 
   // Join ROOTfiles in a single chain
-  TChain *chain = new TChain("raw_events"); //Chain input rootfiles
-  for (int ii = 0; ii < opt->getArgc(); ii++)
-  {
-    std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-    chain->Add(opt->getArgv(ii));
-  }
+  TChain *chain = new TChain();
+  TChain *chain2 = new TChain();
 
-  if (newDAQ)
+  if (board == 0)
   {
-    TChain *chain2 = new TChain("raw_events_B");
+    chain->SetName("raw_events"); //Chain input rootfiles
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    if (newDAQ)
+    {
+      chain2->SetName("raw_events_B");
+      for (int ii = 0; ii < opt->getArgc(); ii++)
+      {
+        chain2->Add(opt->getArgv(ii));
+      }
+      chain->AddFriend(chain2);
+    }
+  }
+  else if (board == 1)
+  {
+    chain->SetName("raw_events_C"); //Chain input rootfiles
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_D");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
+  else if (board == 2)
+  {
+    chain->SetName("raw_events_E"); //Chain input rootfiles
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_F");
     for (int ii = 0; ii < opt->getArgc(); ii++)
     {
       chain2->Add(opt->getArgv(ii));
@@ -323,18 +364,40 @@ int main(int argc, char *argv[])
   std::cout << "Processing " << entries << " entries" << std::endl;
 
   // Read raw event from input chain TTree
+  if (side && !newDAQ)
+  {
+    std::cout << "Error: version selected does not contain side " << side << std::endl;
+    return 2;
+  }
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
-  chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
 
-  if (side == 1 && newDAQ)
+  if (board == 0)
   {
-    chain->SetBranchAddress("RAW Event B", &raw_event, &RAW);
+    chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event B", &raw_event, &RAW);
+    }
   }
-  else if (side)
+  else if (board == 1)
   {
-    std::cout << "Error: version selected soed not contain side " << side << std::endl;
-    return 2;
+    chain->SetBranchAddress("RAW Event C", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event D", &raw_event, &RAW);
+    }
+  }
+  else if (board == 2)
+  {
+    chain->SetBranchAddress("RAW Event E", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event F", &raw_event, &RAW);
+    }
   }
 
   // Create output ROOTfile
@@ -349,7 +412,7 @@ int main(int argc, char *argv[])
     return 2;
   }
 
-  TFile *foutput = new TFile(output_filename.Data(), "RECREATE");
+  TFile *foutput = new TFile(output_filename + "_board_" + board + "_side_" + side + ".root", "RECREATE");
   foutput->cd();
 
   //Read Calibration file
@@ -402,11 +465,11 @@ int main(int argc, char *argv[])
           }
           else
           {
-	    signal.at(i) = (raw_event->at(i) - cal.ped[i]);
-	    if(invert)
-	      {
-		signal.at(i) = - signal.at(i);
-	      }
+            signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+            if (invert)
+            {
+              signal.at(i) = -signal.at(i);
+            }
           }
         }
       }
