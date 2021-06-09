@@ -26,11 +26,12 @@ private:
   TGHorizontalFrame *fHor0, *fHor0b, *fHor1, *fHor3, *fHor4;
   TGVerticalFrame *fVer0, *fVer1;
   TGTextButton *fExit, *fDraw, *fOpen, *fSave;
-  TGLabel *evtLabel, *calibLabel, *calibLabel2, *fileLabel, *pedLabel, *sideLabel;
+  TGLabel *evtLabel, *calibLabel, *calibLabel2, *calibLabel3, *calibLabel4, *calibLabel5, *calibLabel6, *fileLabel, *pedLabel, *detectorLabel;
   TGTextView *fStatusBar;
   TGCheckButton *fPed;
   TGraph *gr_event = new TGraph();
   bool newDAQ = false;
+  int boards = 1;
 
 public:
   MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h);
@@ -38,8 +39,8 @@ public:
   void DoDraw();
   void DoOpen();
   void DoClose();
-  void DoOpenCalib(bool newDAQ);
+  void DoOpenCalib(bool newDAQ, int boards);
   void PrintCode(Int_t code);
-  void viewer(int evt, int side, char filename[200], char calibfile[200]);
+  void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);
   ClassDef(MyMainFrame, 0)
 };

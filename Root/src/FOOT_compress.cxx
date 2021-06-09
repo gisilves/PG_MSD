@@ -128,63 +128,57 @@ int main(int argc, char *argv[])
     int fileSize = 0;
     int boards = 0;
     int expected_boards = 0;
-    int position = 0;
     int blank_evt_offset = 0;
     int blank_evt_num = 0;
+    std::tuple<bool, int> MASTER_retValues;
     std::tuple<int, int> RCD_retValues;
-    std::tuple<bool, unsigned int> evt_retValues;
+    std::tuple<bool, unsigned int, int> evt_retValues;
     bool is_good = false;
     unsigned short timestamp = 0;
     unsigned short start_time = 0;
     unsigned short end_time = 0;
+    int master_evt_offset = 0;
+    int RCD_offset = 0;
+    int evt_offset = 0;
     float mean_rate = 0;
+
+    char dummy[200];
 
     while (!file.eof())
     {
-        if (chk_evt_master_header(file, little_endian, offset))
+        MASTER_retValues = chk_evt_master_header(file, little_endian, offset);
+        master_evt_offset = std::get<1>(MASTER_retValues);
+
+        if (std::get<0>(MASTER_retValues))
         {
-            RCD_retValues = chk_evt_RCD_header(file, little_endian, offset);
+            RCD_retValues = chk_evt_RCD_header(file, little_endian, master_evt_offset);
             boards = std::get<0>(RCD_retValues);
-            blank_evt_offset = std::get<1>(RCD_retValues);
+            RCD_offset = std::get<1>(RCD_retValues);
 
             if (evtnum == 0 && boards)
             {
                 file.seekg(0, std::ios::end);
-                fileSize = ((int)file.tellg() - 280 + offset) / (boards * 2712 + 1); //Estimate number of events from filesize
-                file.seekg(position);
-                std::cout << "\tEstimating " << fileSize << " events to read ... (very unreliable estimate)" << std::endl;
                 std::cout << "\tTrying to read file with " << boards << " readout boards connected" << std::endl;
+                fileSize = (int)file.tellg() / (boards * 2700 + 1); //Estimate number of events from filesize
+                std::cout << "\tEstimating " << floor(fileSize / 1000) * 1000 << " events to read ... (very unreliable estimate)" << std::endl;
                 expected_boards = boards;
             }
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
-            if (boards == 0)
-            {
-                if (blank_evt_offset)
-                {
-                    offset += blank_evt_offset;
-                    blank_evt_num++;
-                    continue;
-                }
-                else
-                {
-                    blank_evt_num++;
-                    break;
-                }
-            }
 
-            if (boards != expected_boards)
-            {
-                std::cout << "\n\tSkipping event with " << boards << " instead of the expected " << expected_boards << std::endl;
-                evtnum++;
-                break;
-            }
+            // if (boards != expected_boards)
+            // {
+            //     std::cout << "\n\tSkipping event with " << boards << " instead of the expected " << expected_boards << std::endl;
+            //     evtnum++;
+            //     break;
+            // }
 
             for (int board_num = 0; board_num < boards; board_num++)
             {
-                evt_retValues = read_evt_header(file, little_endian, offset, board_num);
+                evt_retValues = read_evt_header(file, little_endian, RCD_offset, board_num);
                 is_good = std::get<0>(evt_retValues);
                 timestamp = std::get<1>(evt_retValues);
+                evt_offset = std::get<2>(evt_retValues);
 
                 if (evtnum == 0 && board_num == 0)
                 {
@@ -197,8 +191,7 @@ int main(int argc, char *argv[])
 
                 if (is_good)
                 {
-
-                    raw_event_buffer = reorder(read_event(file, offset, board_num));
+                    raw_event_buffer = reorder(read_event(file, evt_offset, board_num));
 
                     if (board_num == 0)
                     {
@@ -225,19 +218,24 @@ int main(int argc, char *argv[])
                         raw_events_F->Fill();
                     }
                 }
+                else
+                    continue;
+
+                RCD_offset = evt_offset - 4;
             }
 
-            offset = (int)file.tellg() - 280 + 32 + boards * 4;
+            offset = (int)file.tellg();
             evtnum++;
+            if (evtnum == 5) break; 
         }
         else
         {
-            std::cout << "Closing file after " << evtnum << " events" << std::endl;
+            std::cout << "\n\tClosing file after " << evtnum << " events" << std::endl;
             break;
         }
     }
 
-    mean_rate = evtnum / (end_time - start_time);
+    mean_rate = evtnum / ((end_time - start_time) + 1);
     std::cout << "\n\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << " acquired with a mean rate of " << mean_rate << " Hz" << std::endl;
 
     raw_events->Write();

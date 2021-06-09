@@ -67,63 +67,71 @@ int seek_run_header(std::fstream &file, bool little_endian)
     return offset;
   }
 }
-
-int chk_evt_master_header(std::fstream &file, bool little_endian, int run_offset)
+std::tuple<bool, int> chk_evt_master_header(std::fstream &file, bool little_endian, int run_offset)
 {
-  bool is_good = false;
   unsigned char buffer[4];
   unsigned int val;
   int boards;
+  bool found = false;
 
-  if (!file.eof())
+  while (!file.eof() && !found)
   {
-    file.seekg(run_offset + 280);
+    file.seekg(run_offset);
     file.read(reinterpret_cast<char *>(&buffer), 4);
     val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
     if (val == 0x1234cccc || val == 0xcccc3412)
     {
-      is_good = true;
+      if (verbose)
+      {
+        std::cout << "Found event master header at position " << run_offset << std::endl;
+      }
+      found = true;
+      return std::make_tuple(true, run_offset);
+    }
+    else
+    {
+      run_offset += 4;
     }
   }
 
-  if (!is_good)
+  if (!found)
   {
     if (verbose)
     {
       std::cout << "ERROR: Can't find event master header for the event" << std::endl;
     }
-    return -1;
+    return std::make_tuple(false, run_offset);
   }
-
-  return is_good;
 }
 
 std::tuple<int, int> chk_evt_RCD_header(std::fstream &file, bool little_endian, int run_offset)
 {
   bool is_good = false;
   int boards = 0;
-  int blank_evt_offset = 0;
+  int RCD_offset = 0;
+  bool found = false;
 
   unsigned char buffer[4];
   unsigned int val;
 
-  if (!file.eof())
+  while (!file.eof() && !found)
   {
-    file.seekg(run_offset + 292);
-    file.read(reinterpret_cast<char *>(&buffer), 4);
-    val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-    boards = val / 2644;
-
-    file.seekg(run_offset + 296);
+    file.seekg(run_offset);
     file.read(reinterpret_cast<char *>(&buffer), 4);
     val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
     if (val == 0xee1234ee || val == 0xee3412ee)
     {
       is_good = true;
+      found = true;
 
-      file.seekg(run_offset + 296 + 92);
+      file.seekg(run_offset - 4);
+      file.read(reinterpret_cast<char *>(&buffer), 4);
+      val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+      boards = val / 2644;
+
+      file.seekg(run_offset + 92);
       file.read(reinterpret_cast<char *>(&buffer), 4);
       val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
@@ -133,10 +141,18 @@ std::tuple<int, int> chk_evt_RCD_header(std::fstream &file, bool little_endian, 
         {
           std::cout << "\nERROR: skipping blank event " << std::endl;
         }
-        blank_evt_offset = 92;
+        run_offset += 92;
       }
-      file.seekg(run_offset + 296);
     }
+    else
+    {
+      run_offset += 4;
+    }
+  }
+
+  if (verbose)
+  {
+    std::cout << "Found RCD header at position " << run_offset << std::endl;
   }
 
   if (!is_good)
@@ -148,37 +164,57 @@ std::tuple<int, int> chk_evt_RCD_header(std::fstream &file, bool little_endian, 
     return std::make_tuple(-1, -1);
   }
 
-  return std::make_tuple(boards, blank_evt_offset);
+  return std::make_tuple(boards, run_offset);
 }
 
-std::tuple<bool, unsigned short> read_evt_header(std::fstream &file, bool little_endian, int run_offset, int board)
+std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool little_endian, int run_offset, int board)
 {
-  bool is_good = false;
+  bool found = false;
   unsigned int evt_size = 0;
   unsigned short timestamp = 0;
   unsigned char buffer[4];
   unsigned int val;
 
-  if (!file.eof())
+  if (verbose)
   {
-    file.seekg(run_offset + board * 2644 + 348);
+    std::cout << "\n\nStarting from offset " << run_offset << std::endl;
+  }
+
+  while (!file.eof() & !found)
+  {
+    file.seekg(run_offset);
     file.read(reinterpret_cast<char *>(&buffer), 4);
     val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
+    if (val == 0x1234cccc || val == 0xcccc3412)
+    {
+      if (verbose)
+      {
+        std::cout << "ERROR: board number " << board << " data not found, skipping to next event" << std::endl;
+      }
+      return std::make_tuple(false, timestamp, run_offset);
+    }
+
     if (val == 0x34123412 || val == 0x12341234)
     {
-      file.seekg(run_offset + board * 2644 + 356);
+      file.seekg(run_offset + 8);
       file.read(reinterpret_cast<char *>(&buffer), 4);
       val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-
+      
       if (val == 0xbabadeea || val == 0xeadebaba)
       {
-        is_good = true;
-
-        file.seekg(run_offset + board * 2644 + 336);
+        file.seekg(run_offset - 12);
         file.read(reinterpret_cast<char *>(&buffer), 4);
         timestamp = buffer[0] | buffer[1] << 8;
-        return std::make_tuple(is_good, timestamp);
+        found = true;
+
+        if (verbose)
+        {
+          std::cout << "Found evt header at position " << run_offset + 8 << std::endl;
+        }
+
+        return std::make_tuple(true, timestamp, run_offset + 8);
+        break;
       }
       else
       {
@@ -186,8 +222,12 @@ std::tuple<bool, unsigned short> read_evt_header(std::fstream &file, bool little
         {
           std::cout << "Can't find event builder header for the event" << std::endl;
         }
-        return std::make_tuple(-1, -1);
+        return std::make_tuple(false, -1, run_offset + 8);
       }
+    }
+    else
+    {
+      run_offset += 4;
     }
   }
 }
@@ -195,7 +235,11 @@ std::tuple<bool, unsigned short> read_evt_header(std::fstream &file, bool little
 std::vector<unsigned int> read_event(std::fstream &file, int offset, int board)
 {
 
-  file.seekg(offset + 396 + (board)*2644);
+  file.seekg(offset + 40);
+  if (verbose)
+  {
+    std::cout << "Reading event at position " << offset + 40 << std::endl;
+  }
 
   int event_size = 1280;
 

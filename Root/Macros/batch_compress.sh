@@ -1,6 +1,6 @@
 #!/bin/bash                                                                                                                                  
 
-DATAFOLDER="/nfs/NASPG/BTData/2020-2021_FOOT_data/NEWDAQ/de10_data"
+DATAFOLDER="/nfs/NASPG/BTData/Jun2021_FOOT_data"
 
 #-------------------------------------------------------------------------------------                                                       
                                                                                                                                              

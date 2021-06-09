@@ -27,6 +27,9 @@ miniTRB_compress: ./src/miniTRB_compress.cxx
 
 FOOT_compress: ./src/FOOT_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	
+FOOT_compress_single: ./src/FOOT_compress_single.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_clusterize: ./src/raw_clusterize.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)

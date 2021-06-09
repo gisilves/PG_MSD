@@ -59,7 +59,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   ipLabel = new TGLabel(fHor1, "Arduino IP:");
   fHor1->AddFrame(ipLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fIP = new TGTextEntry(fHor1, "192.168.0.242");
+  fIP = new TGTextEntry(fHor1, "192.168.1.242");
   fHor1->AddFrame(fIP, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   portLabel = new TGLabel(fHor1, "Port:");
@@ -108,14 +108,14 @@ void MyMainFrame::DoPing()
   TString ping = "echo \"" + std::string("\\") + "?ping\" | nc -w 3 " + std::string(fIP->GetText()) + " " + std::to_string((int)fPORT->GetNumber());
   if(gSystem->GetFromPipe(ping) == "PONG")
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Arduino http server is running");
   }  
   else
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Can't connect to Arduino");
@@ -132,20 +132,20 @@ void MyMainFrame::DoStatus()
 
   if(gSystem->GetFromPipe(ping) == "PONG")
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Searching for connected PS units ...");
     fStatusBar->AddLine(gSystem->GetFromPipe(status));
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     fStatusBar->AddLine(gSystem->GetFromPipe(voltage));
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     fStatusBar->AddLine(gSystem->GetFromPipe(current));
     fStatusBar->ShowBottom();
   }
   else
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Can't connect to Arduino");
@@ -159,7 +159,7 @@ void MyMainFrame::DoBiasON()
 
   if(gSystem->GetFromPipe(ping) == "PONG")
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine(gSystem->GetFromPipe(bias_on));
@@ -167,7 +167,7 @@ void MyMainFrame::DoBiasON()
   }
   else
   { 
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Can't connect to Arduino");
@@ -181,7 +181,7 @@ void MyMainFrame::DoBiasOFF()
 
   if(gSystem->GetFromPipe(ping) == "PONG")
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine(gSystem->GetFromPipe(bias_off));
@@ -189,7 +189,7 @@ void MyMainFrame::DoBiasOFF()
   }
   else
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Can't connect to Arduino");
@@ -203,7 +203,7 @@ void MyMainFrame::DoBiasUP()
 
   if(gSystem->GetFromPipe(ping) == "PONG")
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine(gSystem->GetFromPipe(bias_up));
@@ -211,7 +211,7 @@ void MyMainFrame::DoBiasUP()
   }
   else
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Can't connect to Arduino");
@@ -225,7 +225,7 @@ void MyMainFrame::DoBiasDWN()
 
   if(gSystem->GetFromPipe(ping) == "PONG")
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine(gSystem->GetFromPipe(bias_dwn));
@@ -233,7 +233,7 @@ void MyMainFrame::DoBiasDWN()
   }
   else
   {
-    fStatusBar->AddLine("");
+    fStatusBar->AddLine("\n");
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Can't connect to Arduino");
@@ -270,7 +270,7 @@ MyMainFrame::~MyMainFrame()
 void biascontrol()
 {
   // Popup the GUI...
-  new MyMainFrame(gClient->GetRoot(), 650, 200);
+  new MyMainFrame(gClient->GetRoot(), 1200, 200);
 }
 
 int main(int argc, char **argv)
