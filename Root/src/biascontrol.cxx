@@ -270,7 +270,7 @@ MyMainFrame::~MyMainFrame()
 void biascontrol()
 {
   // Popup the GUI...
-  new MyMainFrame(gClient->GetRoot(), 1200, 200);
+  new MyMainFrame(gClient->GetRoot(), 1000, 200);
 }
 
 int main(int argc, char **argv)
