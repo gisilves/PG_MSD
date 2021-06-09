@@ -226,7 +226,6 @@ int main(int argc, char *argv[])
 
             offset = (int)file.tellg();
             evtnum++;
-            if (evtnum == 5) break; 
         }
         else
         {
