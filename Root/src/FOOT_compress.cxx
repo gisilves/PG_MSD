@@ -219,7 +219,7 @@ int main(int argc, char *argv[])
                     }
                 }
                 else
-                    continue;
+                    break;
 
                 RCD_offset = evt_offset - 4;
             }

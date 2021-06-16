@@ -1,5 +1,6 @@
 #include "TChain.h"
 #include "TFile.h"
+#include "TF1.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "TGraph.h"
@@ -17,12 +18,51 @@
 
 AnyOption *opt; //Handle the option input
 
+calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
+{
+  calib new_calibration;
+
+  std::vector<float> pedestals;
+  float mean_pedestal = 0;
+  float rms_pedestal = 0;
+  std::vector<float> rsigma;
+  float mean_rsigma = 0;
+  float rms_rsigma = 0;
+  std::vector<float> sigma;
+  float mean_sigma = 0;
+  float rms_sigma = 0;
+
+  TF1 *fittedgaus;
+
+  for (int ch = 0; ch < NChannels; ch++)
+  {
+    //Fitting histos with gaus to compute ped and raw_sigma
+    if (hADC[ch]->GetEntries())
+    {
+      hADC[ch]->Fit("gaus", "QS");
+      fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
+      pedestals.push_back(fittedgaus->GetParameter(1));
+      rsigma.push_back(fittedgaus->GetParameter(2));
+    }
+    else
+    {
+      pedestals.push_back(0);
+      rsigma.push_back(0);
+    }
+  }
+
+  new_calibration = (calib){.ped = pedestals, .rsig = rsigma, .sig = cal.sig, .status = cal.status};
+  return new_calibration;
+}
+
 int main(int argc, char *argv[])
 {
+  gErrorIgnoreLevel = kWarning;
   bool symmetric = false;
   bool absolute = false;
   bool verb = false;
   bool invert = false;
+  bool dynped = false;
 
   float highthreshold = 3.5;
   float lowthreshold = 1.0;
@@ -50,6 +90,7 @@ int main(int argc, char *argv[])
   opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
+  opt->addUsage("  --dynped         ................................. Enable dynamic pedestals ");
   opt->addUsage("  --highthreshold  ................................. High threshold used in the clusterization ");
   opt->addUsage("  --lowthreshold   ................................. Low threshold used in the clusterization ");
   opt->addUsage("  -s, --symmetric  ................................. Use symmetric cluster instead of double threshold ");
@@ -68,6 +109,7 @@ int main(int argc, char *argv[])
   opt->setFlag("absolute", 'a');
   opt->setFlag("verbose", 'v');
   opt->setFlag("invert");
+  opt->setFlag("dynped");
 
   opt->setOption("version");
   opt->setOption("nevents");
@@ -147,6 +189,9 @@ int main(int argc, char *argv[])
 
   if (opt->getValue("symmetric"))
     symmetric = true;
+
+  if (opt->getValue("dynped"))
+    dynped = true;
 
   if (opt->getValue("symmetric") && opt->getValue("symmetricwidth"))
     symmetricwidth = atoi(opt->getValue("symmetricwidth"));
@@ -425,11 +470,29 @@ int main(int argc, char *argv[])
   calib cal;
   read_calib(opt->getValue("calibration"), &cal);
 
+  //histos for dynamic calibration
+  TH1D *hADC[NChannels];
+  TH1D *hADC_CN[NChannels];
+
+  for (int ch = 0; ch < NChannels; ch++)
+  {
+    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d_side_%d", ch, board, side), Form("Pedestal %d", ch), 50, 0, -1);
+    hADC[ch]->GetXaxis()->SetTitle("ADC");
+    hADC_CN[ch] = new TH1D(Form("cn_channel_%d_board_%d_side_%d", ch, board, side), Form("CN %d", ch), 50, 0, -1);
+    hADC_CN[ch]->GetXaxis()->SetTitle("ADC");
+  }
+
   // Loop over events
   int perc = 0;
   int maxADC = 0;
   int maxEVT = 0;
   int maxPOS = 0;
+
+  //Initialize TTree
+  //TTree *clusters_tree = new TTree("cluster_tree", "cluster_tree");
+  std::vector<cluster> result; //Vector of resulting clusters
+  //clusters_tree->Branch("CLUSTERS", &result);
+  //clusters_tree->SetAutoSave(0);
 
   for (int index_event = 1; index_event < entries; index_event++)
   {
@@ -450,8 +513,19 @@ int main(int argc, char *argv[])
       perc++;
     }
 
+    if ((index_event % 5000) == 0 && dynped)
+    {
+      std::cout << "Updating pedestals" << std::endl;
+
+      cal = update_pedestals(hADC, NChannels, cal);
+      for (int ch = 0; ch < NChannels; ch++)
+      {
+        hADC[ch]->Reset();
+        hADC_CN[ch]->Reset();
+      }
+    }
+
     std::vector<float> signal(raw_event->size()); //Vector of pedestal subtracted signal
-    std::vector<cluster> result;                  //Vector of resulting clusters
 
     if (raw_event->size() == 384 || raw_event->size() == 640)
     {
@@ -466,6 +540,12 @@ int main(int argc, char *argv[])
           else
           {
             signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+
+            if (dynped)
+            {
+              hADC[i]->Fill(raw_event->at(i));
+            }
+
             if (invert)
             {
               signal.at(i) = -signal.at(i);
@@ -566,6 +646,9 @@ int main(int argc, char *argv[])
 
       result = clusterize(&cal, &signal, highthreshold, lowthreshold,
                           symmetric, symmetricwidth, absolute);
+
+      //clusters_tree->Fill();
+
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
 
       for (int i = 0; i < result.size(); i++)
@@ -578,8 +661,8 @@ int main(int argc, char *argv[])
         if (!GoodCluster(result.at(i), &cal))
           continue;
 
-        if ((GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207))
-          continue;
+        // if ((GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207))
+        //   continue;
         //  PrintCluster(result.at(i));
 
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip)
@@ -719,6 +802,8 @@ int main(int argc, char *argv[])
   nclus_event->SetMarkerSize(0.5);
   nclus_event->Draw("*lSAME");
   nclus_event->Write();
+
+  //clusters_tree->Write();
 
   foutput->Close();
   return 0;

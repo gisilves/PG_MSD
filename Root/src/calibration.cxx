@@ -49,14 +49,17 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   c1->SetGrid();
 
   TGraph *gr = new TGraph(NChannels);
+  gr->SetName("Pedestals");
   gr->SetTitle("Pedestals for file " + output_filename + "_" + Form("%d_%d", board, side));
 
   TGraph *gr2 = new TGraph(NChannels);
+  gr2->SetName("RawSigma");
   gr2->SetTitle("Raw Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
+  gr3->SetName("Sigma");
   gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);

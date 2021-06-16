@@ -174,7 +174,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   Long64_t entries = chain->GetEntries();
 
   fStatusBar->AddLine("");
-  fStatusBar->AddLine("Event: " + TGString(evt) + " of: " + TGString(entries -1) + " for detector: " + TGString(detector));
+  fStatusBar->AddLine("Event: " + TGString(evt) + " of: " + TGString(entries - 1) + " for detector: " + TGString(detector));
   fStatusBar->ShowBottom();
 
   //Read Calibration file
@@ -345,7 +345,22 @@ void MyMainFrame::DoOpen()
       fStatusBar->Clear();
       fileLabel->SetText(fi.fFilename);
       fNumber->SetText("0");
-      DoOpenCalib(newDAQ, boards);
+
+      Int_t buttons = kMBYes + kMBNo;
+      Int_t retval;
+
+      new TGMsgBox(gClient->GetRoot(), fMain,
+                   "Calib?", "Do you want to load the calibration files?",
+                   kMBIconQuestion, buttons, &retval);
+      if (retval == kMBYes)
+      {
+        fPed->SetOn();
+        DoOpenCalib(newDAQ, boards);
+      }
+      else
+      {
+        fPed->SetDisabledAndSelected(0);
+      }
     }
     else
     {

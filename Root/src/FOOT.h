@@ -179,6 +179,7 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
   {
     std::cout << "\n\nStarting from offset " << run_offset << std::endl;
   }
+  file.seekg(run_offset);
 
   while (!file.eof() & !found)
   {
@@ -195,12 +196,22 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
       return std::make_tuple(false, timestamp, run_offset);
     }
 
+    if (val == 0xdddd3412 || val == 0xdd1234dd)
+    {
+      if (verbose)
+      {
+        std::cout << "Reached Master Event Footer" << std::endl;
+      }
+      file.seekg(0, std::ios::end);
+      return std::make_tuple(false, timestamp, (int)file.tellg());
+    }
+
     if (val == 0x34123412 || val == 0x12341234)
     {
       file.seekg(run_offset + 8);
       file.read(reinterpret_cast<char *>(&buffer), 4);
       val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-      
+
       if (val == 0xbabadeea || val == 0xeadebaba)
       {
         file.seekg(run_offset - 12);
@@ -214,7 +225,6 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
         }
 
         return std::make_tuple(true, timestamp, run_offset + 8);
-        break;
       }
       else
       {
@@ -222,13 +232,19 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
         {
           std::cout << "Can't find event builder header for the event" << std::endl;
         }
-        return std::make_tuple(false, -1, run_offset + 8);
+        return std::make_tuple(false, timestamp, run_offset + 8);
       }
     }
     else
     {
       run_offset += 4;
     }
+  }
+
+  if (!found)
+  {
+    std::cout << "Header not found: EoF?" << std::endl;
+    return std::make_tuple(false, timestamp, run_offset);
   }
 }
 
