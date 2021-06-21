@@ -9,6 +9,8 @@
 
 #define verbose false
 
+//for conversion with FOOT_compress of FOOT DAQ raw files to a rootfile with TTrees of raw events
+
 int seek_run_header(std::fstream &file, bool little_endian)
 {
   int offset = 0;

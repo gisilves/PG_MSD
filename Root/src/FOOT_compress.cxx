@@ -166,13 +166,6 @@ int main(int argc, char *argv[])
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
 
-            // if (boards != expected_boards)
-            // {
-            //     std::cout << "\n\tSkipping event with " << boards << " instead of the expected " << expected_boards << std::endl;
-            //     evtnum++;
-            //     break;
-            // }
-
             for (int board_num = 0; board_num < boards; board_num++)
             {
                 evt_retValues = read_evt_header(file, little_endian, RCD_offset, board_num);

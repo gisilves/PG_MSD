@@ -16,19 +16,21 @@
 #include "omp.h"
 #endif
 
-AnyOption *opt; //Handle the option input
+AnyOption *opt; //Handle the input options
 
 calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
+//Dynamic pedestal calculation while processing the file:
+//when used it is assumed that the single strip occupancy will be low (not true for an higly collimated beam)
 {
-  calib new_calibration;
+  calib new_calibration; //calibration struct
 
-  std::vector<float> pedestals;
+  std::vector<float> pedestals; //vector of pedestals
   float mean_pedestal = 0;
   float rms_pedestal = 0;
-  std::vector<float> rsigma;
+  std::vector<float> rsigma; //vector of strip noise
   float mean_rsigma = 0;
   float rms_rsigma = 0;
-  std::vector<float> sigma;
+  std::vector<float> sigma; //vector of strip noise after common mode subtraction
   float mean_sigma = 0;
   float rms_sigma = 0;
 
@@ -36,22 +38,22 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 
   for (int ch = 0; ch < NChannels; ch++)
   {
-    //Fitting histos with gaus to compute ped and raw_sigma
+    //Fitting histos with gaus to compute ped and raw_sigma: it is assumed that channel noise is normal (true unless there is a problem with the readout ASIC)
     if (hADC[ch]->GetEntries())
     {
       hADC[ch]->Fit("gaus", "QS");
       fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
-      pedestals.push_back(fittedgaus->GetParameter(1));
-      rsigma.push_back(fittedgaus->GetParameter(2));
+      pedestals.push_back(fittedgaus->GetParameter(1)); //mean of the fitted gaussian is the pedestal for the channel
+      rsigma.push_back(fittedgaus->GetParameter(2));    //sigma of the fitted gaussian is the noise for the channel
     }
     else
     {
-      pedestals.push_back(0);
+      pedestals.push_back(0); //there was no data to compute pedestals and noise (channel disabled): setting them to 0
       rsigma.push_back(0);
     }
   }
 
-  new_calibration = (calib){.ped = pedestals, .rsig = rsigma, .sig = cal.sig, .status = cal.status};
+  new_calibration = (calib){.ped = pedestals, .rsig = rsigma, .sig = cal.sig, .status = cal.status}; //new calibration structure has the updated pedestals, we use previous info for all the other parameters
   return new_calibration;
 }
 
@@ -137,11 +139,11 @@ int main(int argc, char *argv[])
 
   if (!opt->getValue("version"))
   {
-    std::cout << "ERROR: no miniTRB version provided" << std::endl;
+    std::cout << "ERROR: no DAQ board version provided" << std::endl;
     return 2;
   }
 
-  if (atoi(opt->getValue("version")) == 1212)
+  if (atoi(opt->getValue("version")) == 1212) //original DaMPE miniTRB system
   {
     NChannels = 384;
     NVas = 6;
@@ -149,7 +151,7 @@ int main(int argc, char *argv[])
     maxStrip = 383;
     sensor_pitch = 0.242;
   }
-  else if (atoi(opt->getValue("version")) == 1313)
+  else if (atoi(opt->getValue("version")) == 1313) //modded DaMPE miniTRB system for the first FOOT prototype
   {
     NChannels = 640;
     NVas = 10;
@@ -157,7 +159,7 @@ int main(int argc, char *argv[])
     maxStrip = 639;
     sensor_pitch = 0.150;
   }
-  else if (atoi(opt->getValue("version")) == 2020)
+  else if (atoi(opt->getValue("version")) == 2020) //FOOT ADC boards + DE10Nano
   {
     NChannels = 640;
     NVas = 10;
@@ -168,7 +170,7 @@ int main(int argc, char *argv[])
   }
   else
   {
-    std::cout << "ERROR: invalid miniTRB version" << std::endl;
+    std::cout << "ERROR: invalid DAQ board version" << std::endl;
     return 2;
   }
 
@@ -218,27 +220,28 @@ int main(int argc, char *argv[])
     board = atoi(opt->getValue("board"));
 
   //////////////////Histos//////////////////
-  TH1F *hADCCluster =
+
+  TH1F *hADCCluster = //ADC content of all clusters
       new TH1F("hADCCluster", "hADCCluster", 200, 0, 200);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hADCCluster1Strip =
+  TH1F *hADCCluster1Strip = //ADC content of clusters with a single strips
       new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 200, 0, 200);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hADCCluster2Strip =
+  TH1F *hADCCluster2Strip = //ADC content of clusters with 2 strips
       new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 200, 0, 200);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hADCClusterManyStrip = new TH1F(
+  TH1F *hADCClusterManyStrip = new TH1F( //ADC content of clusters with more than 2 strips
       "hADCClusterManyStrip", "hADCClusterManyStrip", 200, 0, 200);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hADCClusterSeed =
+  TH1F *hADCClusterSeed = //ADC content of the "seed strip"
       new TH1F("hADCClusterSeed", "hADCClusterSeed", 200, 0, 200);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hPercentageSeed =
+  TH1F *hPercentageSeed = //percentage of the "seed strip" wrt the whole cluster
       new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 200);
   hPercentageSeed->GetXaxis()->SetTitle("percentage");
 
@@ -246,65 +249,65 @@ int main(int argc, char *argv[])
       new TH1F("hPercSeedintegral", "hPercSeedintegral", 200, 20, 200);
   hPercSeedintegral->GetXaxis()->SetTitle("percentage");
 
-  TH1F *hClusterCharge =
+  TH1F *hClusterCharge = //sqrt(ADC signal / MIP_ADC) for the cluster
       new TH1F("hClusterCharge", "hClusterCharge", 1000, -0.5, 5.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5);
+  TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5); //sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 200, 0, 250);
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 200, 0, 250); //cluster S/N
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 200);
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 200); //seed S/N
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
+  TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5); //clusters center of gravity in terms of strip number
   hClusterCog->GetXaxis()->SetTitle("cog");
 
-  TH1F *hBeamProfile = new TH1F("hBeamProfile", "hBeamProfile", 100, -0.5, 99.5);
+  TH1F *hBeamProfile = new TH1F("hBeamProfile", "hBeamProfile", 100, -0.5, 99.5); //clusters center of gravity converted to mm
   hBeamProfile->GetXaxis()->SetTitle("pos (mm)");
 
-  TH1F *hSeedPos = new TH1F("hSeedPos", "hSeedPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5);
+  TH1F *hSeedPos = new TH1F("hSeedPos", "hSeedPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5); //clusters seed position in terms of strip number
   hSeedPos->GetXaxis()->SetTitle("strip");
 
-  TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5);
+  TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5); //number of clusters found in each event
   hNclus->GetXaxis()->SetTitle("n clusters");
 
-  TH1F *hNstrip = new TH1F("hNstrip", "hNstrip", 10, -0.5, 9.5);
+  TH1F *hNstrip = new TH1F("hNstrip", "hNstrip", 10, -0.5, 9.5); //number of strips per cluster
   hNstrip->GetXaxis()->SetTitle("n strips");
 
   TH1F *hNstripSeed = new TH1F("hNstripSeed", "hNstripSeed", 10, -0.5, 9.5);
   hNstripSeed->GetXaxis()->SetTitle("n strips over seed threshold");
 
-  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 200, 0, 100,
+  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 200, 0, 100, //cluster ADC vs seed ADC
                               200, 0, 100);
   hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
   hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
 
-  TH1F *hEta = new TH1F("hEta", "hEta", 100, 0, 1);
+  TH1F *hEta = new TH1F("hEta", "hEta", 100, 0, 1); //not the real eta function, ignore
   hEta->GetXaxis()->SetTitle("Eta");
 
-  TH1F *hEta1 = new TH1F("hEta1", "hEta1", 100, 0, 1);
+  TH1F *hEta1 = new TH1F("hEta1", "hEta1", 100, 0, 1); //not the real eta function, ignore
   hEta1->GetXaxis()->SetTitle("Eta (one seed)");
 
-  TH1F *hEta2 = new TH1F("hEta2", "hEta2", 100, 0, 1);
+  TH1F *hEta2 = new TH1F("hEta2", "hEta2", 100, 0, 1); //not the real eta function, ignore
   hEta2->GetXaxis()->SetTitle("Eta (two seed)");
 
-  TH1F *hDifference = new TH1F("hDifference", "hDifference", 200, -5, 5);
+  TH1F *hDifference = new TH1F("hDifference", "hDifference", 200, -5, 5); //relative difference for clusters with 2 strips
   hDifference->GetXaxis()->SetTitle("(ADC_0-ADC_1)/(ADC_0+ADC_1)");
 
-  TH2F *hADCvsWidth =
+  TH2F *hADCvsWidth = //cluster ADC vs cluster width
       new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 100, 0, 200);
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5,
+  TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, //cluster ADC vs cog
                              1000, 0, 200);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsEta =
+  TH2F *hADCvsEta = //ignore
       new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 100, 0, 200);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
@@ -318,32 +321,32 @@ int main(int argc, char *argv[])
   hNStripvsSN->GetXaxis()->SetTitle("S/N");
   hNStripvsSN->GetYaxis()->SetTitle("# of strips");
 
-  TH1F *hCommonNoise0 = new TH1F("hCommonNoise0", "hCommonNoise0", 100, -20, 20);
+  TH1F *hCommonNoise0 = new TH1F("hCommonNoise0", "hCommonNoise0", 100, -20, 20); //common noise: first algo
   hCommonNoise0->GetXaxis()->SetTitle("CN");
 
-  TH1F *hCommonNoise1 = new TH1F("hCommonNoise1", "hCommonNoise1", 100, -20, 20);
+  TH1F *hCommonNoise1 = new TH1F("hCommonNoise1", "hCommonNoise1", 100, -20, 20); //common noise: second algo
   hCommonNoise1->GetXaxis()->SetTitle("CN");
 
-  TH1F *hCommonNoise2 = new TH1F("hCommonNoise2", "hCommonNoise2", 100, -20, 20);
+  TH1F *hCommonNoise2 = new TH1F("hCommonNoise2", "hCommonNoise2", 100, -20, 20); //common noise: third algo
   hCommonNoise2->GetXaxis()->SetTitle("CN");
 
   TH2F *hCommonNoiseVsVA = new TH2F("hCommonNoiseVsVA", "hCommonNoiseVsVA", 100, -20, 20, 10, -0.5, 9.5);
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
 
-  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 100, 0, 50, 100, 0, 50);
+  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 100, 0, 50, 100, 0, 50); //ADc of first strip vs ADC of second strip for clusters with 2 strips
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
-  TGraph *nclus_event = new TGraph();
+  TGraph *nclus_event = new TGraph(); //number of clusters as a function of event number
 
   // Join ROOTfiles in a single chain
-  TChain *chain = new TChain();
-  TChain *chain2 = new TChain();
+  TChain *chain = new TChain();  //TChain for the first detector TTree (we read 2 detectors with each board on the new DAQ and 1 with the miniTRB)
+  TChain *chain2 = new TChain(); //TChain for the second detectoe TTree
 
-  if (board == 0)
+  if (board == 0) //TTree name depends on DAQ board
   {
-    chain->SetName("raw_events"); //Chain input rootfiles
+    chain->SetName("raw_events"); //simply called raw_events for retrocompatibility with old files from the prototype
     for (int ii = 0; ii < opt->getArgc(); ii++)
     {
       std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
@@ -361,7 +364,7 @@ int main(int argc, char *argv[])
   }
   else if (board == 1)
   {
-    chain->SetName("raw_events_C"); //Chain input rootfiles
+    chain->SetName("raw_events_C");
     for (int ii = 0; ii < opt->getArgc(); ii++)
     {
       std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
@@ -376,7 +379,7 @@ int main(int argc, char *argv[])
   }
   else if (board == 2)
   {
-    chain->SetName("raw_events_E"); //Chain input rootfiles
+    chain->SetName("raw_events_E");
     for (int ii = 0; ii < opt->getArgc(); ii++)
     {
       std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
@@ -398,7 +401,7 @@ int main(int argc, char *argv[])
   }
   std::cout << "This run has " << entries << " entries" << std::endl;
 
-  if (opt->getValue("nevents"))
+  if (opt->getValue("nevents")) //to process only the first "nevents" events in the chain
   {
     unsigned int temp_entries = atoi(opt->getValue("nevents"));
     if (temp_entries < entries)
@@ -411,10 +414,11 @@ int main(int argc, char *argv[])
   // Read raw event from input chain TTree
   if (side && !newDAQ)
   {
-    std::cout << "Error: version selected does not contain side " << side << std::endl;
+    std::cout << "Error: version selected does not contain side " << side << std::endl; //only the new DAQ files contain more than 1 TTree (so side and board > 0)
     return 2;
   }
-  std::vector<unsigned int> *raw_event = 0;
+
+  std::vector<unsigned int> *raw_event = 0; //buffer vector for the raw event in the TTree
   TBranch *RAW = 0;
 
   if (board == 0)
@@ -467,13 +471,12 @@ int main(int argc, char *argv[])
     return 2;
   }
 
-  calib cal;
+  calib cal; //calibration struct
   read_calib(opt->getValue("calibration"), &cal);
 
   //histos for dynamic calibration
   TH1D *hADC[NChannels];
   TH1D *hADC_CN[NChannels];
-
   for (int ch = 0; ch < NChannels; ch++)
   {
     hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d_side_%d", ch, board, side), Form("Pedestal %d", ch), 50, 0, -1);
@@ -483,18 +486,14 @@ int main(int argc, char *argv[])
   }
 
   // Loop over events
-  int perc = 0;
-  int maxADC = 0;
-  int maxEVT = 0;
-  int maxPOS = 0;
+  int perc = 0; //percentage of processed events
+  int maxADC = 0; //max ADC in all the events, to set proper graph/histo limits
+  int maxEVT = 0; //event where maxADC was found
+  int maxPOS = 0; //position of the strip with value maxADC
 
-  //Initialize TTree
-  //TTree *clusters_tree = new TTree("cluster_tree", "cluster_tree");
   std::vector<cluster> result; //Vector of resulting clusters
-  //clusters_tree->Branch("CLUSTERS", &result);
-  //clusters_tree->SetAutoSave(0);
 
-  for (int index_event = 1; index_event < entries; index_event++)
+  for (int index_event = 1; index_event < entries; index_event++)//looping on the events
   {
     chain->GetEntry(index_event);
 
@@ -504,7 +503,7 @@ int main(int argc, char *argv[])
       std::cout << "EVENT: " << index_event << std::endl;
     }
 
-    Double_t pperc = 10.0 * ((index_event + 1.0) / entries);
+    Double_t pperc = 10.0 * ((index_event + 1.0) / entries); //print every 10% of processed events
     if (pperc >= perc)
     {
       std::cout << "Processed " << (index_event + 1) << " out of " << entries
@@ -513,21 +512,21 @@ int main(int argc, char *argv[])
       perc++;
     }
 
-    if ((index_event % 5000) == 0 && dynped)
+    if ((index_event % 5000) == 0 && dynped)            //if dynamic pedestals are enabled we recalculate them
     {
       std::cout << "Updating pedestals" << std::endl;
 
       cal = update_pedestals(hADC, NChannels, cal);
       for (int ch = 0; ch < NChannels; ch++)
       {
-        hADC[ch]->Reset();
+        hADC[ch]->Reset();      //we only keep the last 5000 events for the pedestals
         hADC_CN[ch]->Reset();
       }
     }
 
     std::vector<float> signal(raw_event->size()); //Vector of pedestal subtracted signal
 
-    if (raw_event->size() == 384 || raw_event->size() == 640)
+    if (raw_event->size() == 384 || raw_event->size() == 640) //if the raw file was correctly processed these are the only possible values
     {
       if (cal.ped.size() >= raw_event->size())
       {
@@ -535,7 +534,7 @@ int main(int argc, char *argv[])
         {
           if (cal.status[i] != 0)
           {
-            signal.at(i) = 0;
+            signal.at(i) = 0; //channel has a non 0 status in calibration (problem with channel: noisy, dead etc..), setting signal to 0
           }
           else
           {
@@ -543,12 +542,12 @@ int main(int argc, char *argv[])
 
             if (dynped)
             {
-              hADC[i]->Fill(raw_event->at(i));
+              hADC[i]->Fill(raw_event->at(i)); //if dynped is enabled we keep in memory the raw value to
             }
 
             if (invert)
             {
-              signal.at(i) = -signal.at(i);
+              signal.at(i) = -signal.at(i);  //one of the prototype DAQ boards had the analog output inverted
             }
           }
         }
@@ -570,41 +569,37 @@ int main(int argc, char *argv[])
       continue;
     }
 
-    for (int va = 0; va < NVas; va++) //Loop on VA
+    for (int va = 0; va < NVas; va++) //Loop on VA (readout chip): common noise algo 1
     {
       float cn = GetCN(&signal, va, 0);
       if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise0->Fill(cn);
-        //hCommonNoiseVsVA->Fill(cn, va);
       }
     }
 
-    for (int va = 0; va < NVas; va++) //Loop on VA
+    for (int va = 0; va < NVas; va++) //Loop on VA: common noise algo 2
     {
       float cn = GetCN(&signal, va, 1);
       if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise1->Fill(cn);
-        //hCommonNoiseVsVA->Fill(cn, va);
       }
     }
 
-    for (int va = 0; va < NVas; va++) //Loop on VA
+    for (int va = 0; va < NVas; va++) //Loop on VA: common noise algo 3
     {
       float cn = GetCN(&signal, va, 2);
       if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise2->Fill(cn);
-        //hCommonNoiseVsVA->Fill(cn, va);
       }
     }
 
     bool goodCN = true;
-
     if (cntype >= 0)
     {
-#pragma omp parallel for                //Multithread for loop
+#pragma omp parallel for                //Multithread for loop (not sure it makes a real difference since I moved to a newer c++ compiler)
       for (int va = 0; va < NVas; va++) //Loop on VA
       {
         float cn = GetCN(&signal, va, cntype);
@@ -612,7 +607,7 @@ int main(int argc, char *argv[])
         {
           hCommonNoiseVsVA->Fill(cn, va);
 
-          for (int ch = va * 64; ch < (va + 1) * 64; ch++) //Loop on VA channels
+          for (int ch = va * 64; ch < (va + 1) * 64; ch++) //Loop on VA channels, subtracting common mode noise to the signals before clustering
           {
             signal.at(ch) = signal.at(ch) - cn;
           }
@@ -636,7 +631,7 @@ int main(int argc, char *argv[])
       if (*max_element(signal.begin(), signal.end()) > 4096) //4096 is the maximum ADC value possible, any more than that means the event is corrupted
         continue;
 
-      if (*max_element(signal.begin(), signal.end()) > maxADC)
+      if (*max_element(signal.begin(), signal.end()) > maxADC) //searching for the highest ADC value
       {
         maxADC = *max_element(signal.begin(), signal.end());
         maxEVT = index_event;
@@ -644,10 +639,8 @@ int main(int argc, char *argv[])
         maxPOS = std::distance(signal.begin(), it);
       }
 
-      result = clusterize(&cal, &signal, highthreshold, lowthreshold,
+      result = clusterize(&cal, &signal, highthreshold, lowthreshold,   //clustering function
                           symmetric, symmetricwidth, absolute);
-
-      //clusters_tree->Fill();
 
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
 
@@ -661,11 +654,7 @@ int main(int argc, char *argv[])
         if (!GoodCluster(result.at(i), &cal))
           continue;
 
-        // if ((GetClusterCOG(result.at(i)) > 205 && GetClusterCOG(result.at(i)) < 207))
-        //   continue;
-        //  PrintCluster(result.at(i));
-
-        if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip)
+        if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip) //cut on position on the detector in terms of strip number
         {
           if (i == 0)
           {
@@ -751,19 +740,19 @@ int main(int argc, char *argv[])
   hNclus->Write();
 
   Double_t norm = hADCCluster->GetEntries();
-  //hADCCluster->Scale(1 / norm);
+  hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
 
   Double_t norm1 = hADCCluster1Strip->GetEntries();
-  //hADCCluster1Strip->Scale(1 / norm1);
+  hADCCluster1Strip->Scale(1 / norm1);
   hADCCluster1Strip->Write();
 
   Double_t norm2 = hADCCluster2Strip->GetEntries();
-  //hADCCluster2Strip->Scale(1 / norm2);
+  hADCCluster2Strip->Scale(1 / norm2);
   hADCCluster2Strip->Write();
 
   Double_t norm3 = hADCClusterManyStrip->GetEntries();
-  //hADCClusterManyStrip->Scale(1 / norm3);
+  hADCClusterManyStrip->Scale(1 / norm3);
   hADCClusterManyStrip->Write();
 
   hADCClusterSeed->Write();
@@ -802,8 +791,6 @@ int main(int argc, char *argv[])
   nclus_event->SetMarkerSize(0.5);
   nclus_event->Draw("*lSAME");
   nclus_event->Write();
-
-  //clusters_tree->Write();
 
   foutput->Close();
   return 0;

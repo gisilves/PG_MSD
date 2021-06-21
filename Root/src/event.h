@@ -8,7 +8,7 @@
 
 #define verbose false
 
-#define MIP_ADC 15       //50ADC: DAMPE 300um ??ADC:FOOT
+#define MIP_ADC 15 //50ADC: DAMPE 300um ??ADC:FOOT 150um
 #define maxClusters 10
 typedef struct
 {
@@ -20,11 +20,11 @@ typedef struct
 
 typedef struct calib
 {
-  std::vector<float> ped;
-  std::vector<float> rsig;
-  std::vector<float> sig;
-  std::vector<int> status;
-} calib; //calibration structure
+  std::vector<float> ped;  //pedestals
+  std::vector<float> rsig; //raw sigmas (noise)
+  std::vector<float> sig;  //sigma (noise after common mode subtraction)
+  std::vector<int> status; //status of strip (0 good, !0 bad)
+} calib;                   //calibration structure
 
 int PrintCluster(cluster clus)
 {
@@ -104,7 +104,7 @@ int GetClusterSeedIndex(cluster clus, calib *cal) //Position of the seed in the 
   int seed_idx = -999;
   std::vector<float> ADC = GetClusterADC(clus);
 
-  float sn_max = 0; //seed is defined as the strip with highest ADC value
+  float sn_max = 0;
 
   for (size_t i = 0; i < ADC.size(); i++)
   {
@@ -131,7 +131,7 @@ int GetClusterVA(cluster clus, calib *cal)
   return seed / 64;
 }
 
-float GetCN(std::vector<float> *signal, int va, int type)
+float GetCN(std::vector<float> *signal, int va, int type) //common mode noise calculation with 3 possible algos: done on a VA (readout ASIC) base
 {
   float mean = 0;
   float rms = 0;
@@ -141,7 +141,7 @@ float GetCN(std::vector<float> *signal, int va, int type)
   mean = TMath::Mean(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
   rms = TMath::RMS(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
 
-  if (type == 0) //Common noise with respect to VA mean ADC value
+  if (type == 0) //simple common noise wrt VA mean ADC value
   {
     for (size_t i = (va * 64); i < (va + 1) * 64; i++)
     {
@@ -160,11 +160,11 @@ float GetCN(std::vector<float> *signal, int va, int type)
       return -999;
     }
   }
-  else if (type == 1) //Common noise with fixed threshold to exclude signal strips
+  else if (type == 1) //Common noise with fixed threshold to exclude potential real signal strips
   {
     for (size_t i = (va * 64); i < (va + 1) * 64; i++)
     {
-      if (signal->at(i) < MIP_ADC / 2)
+      if (signal->at(i) < MIP_ADC / 2) //very conservative cut: half the value expected for a Minimum Ionizing Particle
       {
         cn += signal->at(i);
         cnt++;
@@ -179,13 +179,13 @@ float GetCN(std::vector<float> *signal, int va, int type)
       return -999;
     }
   }
-  else //Common Noise with 'self tuning' threshold
+  else //Common Noise with 'self tuning' threshold: we use the some of the channels to calculate a baseline level, then we use all the strips in a band around that value to compute the CN
   {
     float hard_cm = 0;
     int cnt2 = 0;
     for (size_t i = (va * 64 + 8); i < (va * 64 + 23); i++)
     {
-      if (signal->at(i) < 50)
+      if (signal->at(i) < 1.5* MIP_ADC) //looser constraint than algo 2
       {
         hard_cm += signal->at(i);
         cnt2++;
@@ -202,7 +202,7 @@ float GetCN(std::vector<float> *signal, int va, int type)
 
     for (size_t i = (va * 64 + 23); i < (va * 64 + 55); i++)
     {
-      if (signal->at(i) > hard_cm - 2 * rms && signal->at(i) < hard_cm + 2 * rms)
+      if (signal->at(i) > hard_cm - 2 * rms && signal->at(i) < hard_cm + 2 * rms) //we use only channels with a value around the baseline calculated at the previous step
       {
         cn += signal->at(i);
         cnt++;
@@ -253,7 +253,7 @@ float GetSeedSN(cluster clus, calib *cal)
   }
 }
 
-float GetClusterEta(cluster clus) //Only for clusters with 2 strips
+float GetClusterEta(cluster clus) //Only for clusters with 2 strips: not the real eta function, ignore especially for FOOT
 {
   float eta = -999;
   std::vector<float> ADC = GetClusterADC(clus);
@@ -277,39 +277,23 @@ float GetClusterEta(cluster clus) //Only for clusters with 2 strips
   return eta;
 }
 
-// float GetClusterEta(cluster clus) //Only for clusters with 2 strips
-// {
-//   float eta = -999;
-//   std::vector<float> ADC = GetClusterADC(clus);
-//   float strip1, strip2;
-
-//   if (ADC.size() == 2)
-//   {
-//     strip1 = ADC.at(0);
-//     strip2 = ADC.at(1);
-
-//     eta = (strip1 - strip2) / (strip1 + strip2);
-//   }
-//   return eta;
-// }
-
-float GetPosition(cluster clus, float sensor_pitch)
+float GetPosition(cluster clus, float sensor_pitch) //conversion to mm
 {
   float position_mm = GetClusterCOG(clus) * sensor_pitch;
   return position_mm;
 }
 
-float GetClusterMIPCharge(cluster clus)
+float GetClusterMIPCharge(cluster clus)   //conversion to "Z" charge of the cluster
 {
   return sqrt(GetClusterSignal(clus) / MIP_ADC);
 }
 
 float GetSeedMIPCharge(cluster clus, calib *cal)
 {
-  return sqrt(GetClusterSeedADC(clus, cal) / MIP_ADC);
+  return sqrt(GetClusterSeedADC(clus, cal) / MIP_ADC); //conversion to "Z" charge of the cluster seed
 }
 
-bool GoodCluster(cluster clus, calib *cal)
+bool GoodCluster(cluster clus, calib *cal) //cluster is good if all the strips are "good" in the calibration
 {
   bool good = true;
   int pos = 0;
@@ -328,7 +312,7 @@ bool GoodCluster(cluster clus, calib *cal)
   return good;
 }
 
-int read_calib(const char *calib_file, calib *cal)
+int read_calib(const char *calib_file, calib *cal) //read ASCII calib file: based on DaMPE calibration files
 {
 
   std::ifstream in;
@@ -336,7 +320,7 @@ int read_calib(const char *calib_file, calib *cal)
 
   char comma;
 
-  Float_t strip, va, vachannel, ped, rawsigma, sigma, status, boh;
+  Float_t strip, va, vachannel, ped, rawsigma, sigma, status, not_used;
   Int_t nlines = 0;
 
   std::string dummyLine;
@@ -349,7 +333,7 @@ int read_calib(const char *calib_file, calib *cal)
   while (in.good())
   {
     in >> strip >> comma >> va >> comma >> vachannel >> comma >> ped >> comma >>
-        rawsigma >> comma >> sigma >> comma >> status >> comma >> boh;
+        rawsigma >> comma >> sigma >> comma >> status >> comma >> not_used;
 
     if (strip >= 0)
     {
@@ -373,8 +357,8 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
   std::vector<cluster> clusters; //Vector returned with all found clusters
   cluster new_cluster;           //Struct for a new cluster to add to the results
 
-  std::vector<int> candidate_seeds;
-  std::vector<int> seeds;
+  std::vector<int> candidate_seeds; // candidate "seeds" are defined as strips with a value higher than the high_threshold (defined in terms or S/N or absolute value) 
+  std::vector<int> seeds;           // some of the candidate seed might actually be part of the same cluster: seed is redefined after the cluster is constructed
 
   if (highThresh < lowThresh)
   {
@@ -413,13 +397,13 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
     {
       for (size_t i = 1; i < candidate_seeds.size(); i++)
       {
-        if (std::abs(candidate_seeds.at(i) - candidate_seeds.at(i - 1)) != 1) //Removing adjacent candidate seeds: keeping only the first
+        if (std::abs(candidate_seeds.at(i) - candidate_seeds.at(i - 1)) != 1) //Removing adjacent candidate seeds for the cluster: keeping only the first, the second will be naturally part of the cluster at the end
         {
           seeds.push_back(candidate_seeds.at(i));
         }
       }
     }
-    if (seeds.size() > maxClusters || seeds.size() == 0)
+    if (seeds.size() > maxClusters || seeds.size() == 0) //cut on max number of clusters
     {
       throw "Error: too many or no seeds. ";
     }
@@ -433,33 +417,30 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
   if (seeds.size() != 0)
   {
-    for (size_t seed = 0; seed < seeds.size(); seed++)
+    for (size_t current_seed_numb = 0; current_seed_numb < seeds.size(); current_seed_numb++) //looping on all the cluster seeds
     {
+      
+      //starting from the seed strip we look to both its right and its left to find strips to add to the cluster 
       bool overThreshL = true;
       bool overThreshR = true;
       int overSEED = 1;
       int L = 0;
       int R = 0;
-      int width = 0;
-      std::vector<float> clusterADC;
+      //
 
-      float seed_check = signal->at(seeds.at(seed));
-      if (!absoluteThresholds)
-      {
-        seed_check = seed_check / cal->sig.at(seeds.at(seed));
-      }
-      if (seed_check == 0)
-        continue;
+
+      int width = 0;                 //cluster width
+      std::vector<float> clusterADC; //ADC value of strips in the clusters
 
       if (symmetric) //Cluster is defined as a fixed number of strips neighboring the seed
       {
-        if (seeds.at(seed) - symmetric_width > 0 && seeds.at(seed) + symmetric_width < signal->size())
+        if (seeds.at(current_seed_numb) - symmetric_width > 0 && seeds.at(current_seed_numb) + symmetric_width < signal->size())
         {
-          std::copy(signal->begin() + (seeds.at(seed) - symmetric_width),
-                    signal->begin() + (seeds.at(seed) + symmetric_width) + 1,
+          std::copy(signal->begin() + (seeds.at(current_seed_numb) - symmetric_width),
+                    signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
                     back_inserter(clusterADC));
 
-          new_cluster.address = seeds.at(seed) - symmetric_width;
+          new_cluster.address = seeds.at(current_seed_numb) - symmetric_width;
           new_cluster.width = 2 * symmetric_width + 1;
           new_cluster.ADC = clusterADC;
           new_cluster.over = -999;
@@ -474,8 +455,8 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
       {
         while (overThreshL) //Will move to the left of the seed
         {
-          int stripL = seeds.at(seed) - L - 1;
-          if (stripL < 0)
+          int stripL = seeds.at(current_seed_numb) - L - 1;
+          if (stripL < 0) //we are outside the detector
           {
             overThreshL = false;
             continue;
@@ -483,27 +464,27 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
           if (verbose)
           {
-            std::cout << "Seed " << seeds.at(seed) << " stripL " << stripL << " status " << cal->status.at(stripL) << std::endl;
+            std::cout << "Seed " << seeds.at(current_seed_numb) << " stripL " << stripL << " status " << cal->status.at(stripL) << std::endl;
           }
 
-          if (cal->status.at(stripL) == 0)
+          if (cal->status.at(stripL) == 0) //strip is good according to calibration
           {
             float value = signal->at(stripL);
             if (!absoluteThresholds)
             {
-              value = value / cal->sig.at(stripL);
+              value = value / cal->sig.at(stripL); //value in terms of S/N
             }
 
-            if (value > lowThresh)
+            if (value > lowThresh) //strip is over the lower threshold, we will add it to the cluster
             {
               L++;
               if (verbose)
               {
                 std::cout << "Strip is over Lthresh" << std::endl;
               }
-              if (value > highThresh)
+              if (value > highThresh) //strip is also over the higher threshold, it could actually be the real seed of the cluster
               {
-                overSEED++;
+                overSEED++; //we keep track of how many strips are over the higher threshold
               }
             }
             else
@@ -517,7 +498,7 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
           }
         }
 
-        while (overThreshR) //Will move to the right of the seed
+        while (overThreshR) //Will move to the right of the seed, everything is the same as the previous step
         {
           int stripR = seeds.at(seed) + R + 1;
           if (stripR >= signal->size())
@@ -565,13 +546,14 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
         std::copy(signal->begin() + (seeds.at(seed) - L),
                   signal->begin() + (seeds.at(seed) + R) + 1,
-                  back_inserter(clusterADC));
+                  back_inserter(clusterADC)); //we copy the strips that are part of the cluster to the buffer vector
 
+        //setting parameters to the correct value in the cluster struct
         new_cluster.address = seeds.at(seed) - L;
         new_cluster.width = (R + L) + 1;
         new_cluster.ADC = clusterADC;
         new_cluster.over = overSEED;
-        clusters.push_back(new_cluster);
+        clusters.push_back(new_cluster); //adding new cluster to cluster result vector 
 
         nclust++;
 
