@@ -16,7 +16,7 @@ OPTFLAGS += -fopenmp
 endif
 
 
-default: miniTRB_compress FOOT_compress
+default: FOOT_compress
 
 all: miniTRB_compress FOOT_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control
 
@@ -26,9 +26,6 @@ miniTRB_compress: ./src/miniTRB_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 FOOT_compress: ./src/FOOT_compress.cxx
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
-	
-FOOT_compress_single: ./src/FOOT_compress_single.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_clusterize: ./src/raw_clusterize.cxx
