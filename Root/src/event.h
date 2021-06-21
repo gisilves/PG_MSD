@@ -500,7 +500,7 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
         while (overThreshR) //Will move to the right of the seed, everything is the same as the previous step
         {
-          int stripR = seeds.at(seed) + R + 1;
+          int stripR = seeds.at(current_seed_numb) + R + 1;
           if (stripR >= signal->size())
           {
             overThreshR = false;
@@ -509,7 +509,7 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
           if (verbose)
           {
-            std::cout << "Seed " << seeds.at(seed) << " stripR " << stripR << " status " << cal->status.at(stripR) << std::endl;
+            std::cout << "Seed " << seeds.at(current_seed_numb) << " stripR " << stripR << " status " << cal->status.at(stripR) << std::endl;
           }
 
           if (cal->status.at(stripR) == 0)
@@ -544,12 +544,12 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
           }
         }
 
-        std::copy(signal->begin() + (seeds.at(seed) - L),
-                  signal->begin() + (seeds.at(seed) + R) + 1,
+        std::copy(signal->begin() + (seeds.at(current_seed_numb) - L),
+                  signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
                   back_inserter(clusterADC)); //we copy the strips that are part of the cluster to the buffer vector
 
         //setting parameters to the correct value in the cluster struct
-        new_cluster.address = seeds.at(seed) - L;
+        new_cluster.address = seeds.at(current_seed_numb) - L;
         new_cluster.width = (R + L) + 1;
         new_cluster.ADC = clusterADC;
         new_cluster.over = overSEED;
@@ -559,11 +559,11 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
 
         if (verbose)
         {
-          std::cout << "Add: " << seeds.at(seed) - L << " Width: " << (R + L) + 1 << std::endl;
+          std::cout << "Add: " << seeds.at(current_seed_numb) - L << " Width: " << (R + L) + 1 << std::endl;
           std::cout << std::endl;
         }
-        std::fill(signal->begin() + (seeds.at(seed) - L),
-                  signal->begin() + (seeds.at(seed) + R) + 1,
+        std::fill(signal->begin() + (seeds.at(current_seed_numb) - L),
+                  signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
                   0);
       }
     }
