@@ -48,6 +48,9 @@ int main(int argc, char *argv[])
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
+    opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
+
+    opt->setOption("boards");
 
     opt->setFlag("help", 'h');
 
@@ -152,15 +155,24 @@ int main(int argc, char *argv[])
         if (std::get<0>(MASTER_retValues))
         {
             RCD_retValues = chk_evt_RCD_header(file, little_endian, master_evt_offset);
-            boards = std::get<0>(RCD_retValues);
+
+            if (atoi(opt->getValue("boards")))
+            {
+                boards = atoi(opt->getValue("boards"));
+            }
+            else
+            {
+                boards = std::get<0>(RCD_retValues);
+            }
+
             RCD_offset = std::get<1>(RCD_retValues);
 
             if (evtnum == 0 && boards)
             {
                 file.seekg(0, std::ios::end);
                 std::cout << "\tTrying to read file with " << boards << " readout boards connected" << std::endl;
-                fileSize = (int)file.tellg() / (boards * 2700 + 1); //Estimate number of events from filesize
-                std::cout << "\tEstimating " << floor(fileSize / 1000) * 1000 << " events to read ... (very unreliable estimate)" << std::endl;
+                //fileSize = (int)file.tellg() / (boards * 2700 + 1); //Estimate number of events from filesize
+                //std::cout << "\tEstimating " << floor(fileSize / 1000) * 1000 << " events to read ... (very unreliable estimate)" << std::endl;
                 expected_boards = boards;
             }
 

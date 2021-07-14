@@ -219,14 +219,29 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
         file.seekg(run_offset - 12);
         file.read(reinterpret_cast<char *>(&buffer), 4);
         timestamp = buffer[0] | buffer[1] << 8;
-        found = true;
 
         if (verbose)
         {
           std::cout << "Found evt header at position " << run_offset + 8 << std::endl;
         }
 
-        return std::make_tuple(true, timestamp, run_offset + 8);
+        file.seekg(run_offset + 12);
+        file.read(reinterpret_cast<char *>(&buffer), 4);
+        val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+        if (val == 0xbadcafe1 || val == 0xe1afdcba || val == 0xbadcafe2 || val == 0xe2afdcba || val == 0xbadcafe3 || val == 0xe3afdcba)
+        {
+          found = true;
+          if (verbose)
+          {
+            std::cout << "Found DE10 header at position " << run_offset + 12 << std::endl;
+          }
+          return std::make_tuple(true, timestamp, run_offset + 8);
+        }
+        else
+        {
+          run_offset += 4;
+        }
       }
       else
       {
