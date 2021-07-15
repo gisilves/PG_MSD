@@ -41,8 +41,6 @@ AnyOption *opt; //Handle the option input
 
 int main(int argc, char *argv[])
 {
-    bool fixVAnumber = false;
-
     opt = new AnyOption();
     opt->addUsage("Usage: ./FOOT_compress [options] raw_data_file output_rootfile");
     opt->addUsage("");
@@ -58,11 +56,6 @@ int main(int argc, char *argv[])
     opt->processCommandArgs(argc, argv);
 
     TFile *foutput;
-
-    TGraph *header = new TGraph();
-    header->SetName("header");
-    header->SetMarkerSize(0.5);
-    unsigned int goodevents = 0;
 
     if (!opt->hasOptions())
     { /* print usage if no options */
@@ -145,7 +138,15 @@ int main(int argc, char *argv[])
     int evt_offset = 0;
     float mean_rate = 0;
 
-    char dummy[200];
+    if(!opt->getValue("boards"))
+    {
+        std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
+        return 2;
+    }
+    else
+    {
+        boards = atoi(opt->getValue("boards"));
+    }
 
     while (!file.eof())
     {
@@ -156,11 +157,7 @@ int main(int argc, char *argv[])
         {
             RCD_retValues = chk_evt_RCD_header(file, little_endian, master_evt_offset);
 
-            if (atoi(opt->getValue("boards")))
-            {
-                boards = atoi(opt->getValue("boards"));
-            }
-            else
+            if (!boards)
             {
                 boards = std::get<0>(RCD_retValues);
             }
@@ -189,7 +186,7 @@ int main(int argc, char *argv[])
                 {
                     start_time = timestamp;
                 }
-                else if (evtnum != 0 && board_num == 0)
+                else if (evtnum != 0 && board_num == boards)
                 {
                     end_time = timestamp;
                 }
