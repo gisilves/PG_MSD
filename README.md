@@ -1,17 +1,7 @@
 # FOOT_MSD
 Software for FOOT MSD data analysis
 
-###### Python:
-
-**Plot Calibration.ipynb:** export miniTRB calibrations to pictures
-
-**miniTRB read binary.ipynb:** read (and convert) miniTRB raw data binary files acquired with Firefly
-
-**FOOT read binary.ipynb:** read FOOT raw data binary files acquired with DE10nano
-
-**Clustering.ipynb:** calculate double threshold and symmetric clusters
-
-###### Root:
+###### Root 6 with C++14 support needed (to compile, *make + executable name* or *make all*):
 
 **miniTRB_compress and FOOT_compress:** to compress binary raw data into rootfiles
 
