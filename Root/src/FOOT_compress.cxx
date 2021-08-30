@@ -47,10 +47,11 @@ int main(int argc, char *argv[])
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
-
+    opt->addUsage("  --gsi            ................................. To compress data from GSI hybrids (10 ADC per detector)");
     opt->setOption("boards");
 
     opt->setFlag("help", 'h');
+    opt->setFlag("gsi");
 
     opt->processFile("./options.txt");
     opt->processCommandArgs(argc, argv);
@@ -123,6 +124,7 @@ int main(int argc, char *argv[])
     int evtnum = 0;
     int fileSize = 0;
     int boards = 0;
+    bool gsi = false;
     int expected_boards = 0;
     int blank_evt_offset = 0;
     int blank_evt_num = 0;
@@ -138,7 +140,7 @@ int main(int argc, char *argv[])
     int evt_offset = 0;
     float mean_rate = 0;
 
-    if(!opt->getValue("boards"))
+    if (!opt->getValue("boards"))
     {
         std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
         return 2;
@@ -146,6 +148,11 @@ int main(int argc, char *argv[])
     else
     {
         boards = atoi(opt->getValue("boards"));
+    }
+
+    if (opt->getValue("gsi"))
+    {
+        gsi = true;
     }
 
     while (!file.eof())
@@ -168,6 +175,10 @@ int main(int argc, char *argv[])
             {
                 file.seekg(0, std::ios::end);
                 std::cout << "\tTrying to read file with " << boards << " readout boards connected" << std::endl;
+                if (gsi)
+                {
+                    std::cout << "\tFormatting data for GSI hybrids" << std::endl;
+                }
                 //fileSize = (int)file.tellg() / (boards * 2700 + 1); //Estimate number of events from filesize
                 //std::cout << "\tEstimating " << floor(fileSize / 1000) * 1000 << " events to read ... (very unreliable estimate)" << std::endl;
                 expected_boards = boards;
@@ -195,29 +206,64 @@ int main(int argc, char *argv[])
                 {
                     raw_event_buffer = reorder(read_event(file, evt_offset, board_num));
 
-                    if (board_num == 0)
+                    if (!gsi)
                     {
-                        //std::cout << "\nBoard number " << board_num << std::endl;
-                        raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                        raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
-                        raw_events->Fill();
-                        raw_events_B->Fill();
+                        if (board_num == 0)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
+                            raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                            raw_events->Fill();
+                            raw_events_B->Fill();
+                        }
+                        else if (board_num == 1)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
+                            raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                            raw_events_C->Fill();
+                            raw_events_D->Fill();
+                        }
+                        else if (board_num == 2)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
+                            raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                            raw_events_E->Fill();
+                            raw_events_F->Fill();
+                        }
                     }
-                    else if (board_num == 1)
+                    else
                     {
-                        //std::cout << "\nBoard number " << board_num << std::endl;
-                        raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                        raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
-                        raw_events_C->Fill();
-                        raw_events_D->Fill();
-                    }
-                    else if (board_num == 2)
-                    {
-                        //std::cout << "\nBoard number " << board_num << std::endl;
-                        raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                        raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
-                        raw_events_E->Fill();
-                        raw_events_F->Fill();
+                        //std::cout << "\nFixing holes" << std::endl;
+
+                        if (board_num == 0)
+                        {
+                            for (int hole = 1; hole < 11; hole++)
+                            {
+                                raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
+                            }
+                            raw_event = raw_event_buffer;
+                            raw_events->Fill();
+                        }
+                        else if (board_num == 1)
+                        {
+                            for (int hole = 1; hole < 11; hole++)
+                            {
+                                raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
+                            }
+                            raw_event_B = raw_event_buffer;
+                            raw_events_B->Fill();
+                        }
+                        else if (board_num == 2)
+                        {
+                            for (int hole = 1; hole < 11; hole++)
+                            {
+                                raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
+                            }
+                            raw_event_C = raw_event_buffer;
+                            raw_events_C->Fill();
+                        }
                     }
                 }
                 else
@@ -239,18 +285,33 @@ int main(int argc, char *argv[])
     mean_rate = evtnum / ((end_time - start_time) + 1);
     std::cout << "\n\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << " acquired with a mean rate of " << mean_rate << " Hz" << std::endl;
 
-    raw_events->Write();
-    raw_events_B->Write();
+    if (raw_events->GetEntries())
+    {
+        raw_events->Write();
+    }
 
-    if (raw_events_C->GetEntries() && raw_events_D->GetEntries())
+    if (raw_events_B->GetEntries())
+    {
+        raw_events_B->Write();
+    }
+
+    if (raw_events_C->GetEntries())
     {
         raw_events_C->Write();
+    }
+
+    if (raw_events_D->GetEntries())
+    {
         raw_events_D->Write();
     }
 
-    if (raw_events_E->GetEntries() && raw_events_F->GetEntries())
+    if (raw_events_E->GetEntries())
     {
         raw_events_E->Write();
+    }
+
+    if (raw_events_F->GetEntries())
+    {
         raw_events_F->Write();
     }
 
