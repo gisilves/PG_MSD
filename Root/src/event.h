@@ -5,6 +5,7 @@
 #include <vector>
 #include <unistd.h>
 #include <iostream>
+#include <numeric>
 
 #define verbose false
 
@@ -185,7 +186,7 @@ float GetCN(std::vector<float> *signal, int va, int type) //common mode noise ca
     int cnt2 = 0;
     for (size_t i = (va * 64 + 8); i < (va * 64 + 23); i++)
     {
-      if (signal->at(i) < 1.5* MIP_ADC) //looser constraint than algo 2
+      if (signal->at(i) < 1.5 * MIP_ADC) //looser constraint than algo 2
       {
         hard_cm += signal->at(i);
         cnt2++;
@@ -283,7 +284,7 @@ float GetPosition(cluster clus, float sensor_pitch) //conversion to mm
   return position_mm;
 }
 
-float GetClusterMIPCharge(cluster clus)   //conversion to "Z" charge of the cluster
+float GetClusterMIPCharge(cluster clus) //conversion to "Z" charge of the cluster
 {
   return sqrt(GetClusterSignal(clus) / MIP_ADC);
 }
@@ -357,7 +358,7 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
   std::vector<cluster> clusters; //Vector returned with all found clusters
   cluster new_cluster;           //Struct for a new cluster to add to the results
 
-  std::vector<int> candidate_seeds; // candidate "seeds" are defined as strips with a value higher than the high_threshold (defined in terms or S/N or absolute value) 
+  std::vector<int> candidate_seeds; // candidate "seeds" are defined as strips with a value higher than the high_threshold (defined in terms or S/N or absolute value)
   std::vector<int> seeds;           // some of the candidate seed might actually be part of the same cluster: seed is redefined after the cluster is constructed
 
   if (highThresh < lowThresh)
@@ -419,15 +420,14 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
   {
     for (size_t current_seed_numb = 0; current_seed_numb < seeds.size(); current_seed_numb++) //looping on all the cluster seeds
     {
-      
-      //starting from the seed strip we look to both its right and its left to find strips to add to the cluster 
+
+      //starting from the seed strip we look to both its right and its left to find strips to add to the cluster
       bool overThreshL = true;
       bool overThreshR = true;
       int overSEED = 1;
       int L = 0;
       int R = 0;
       //
-
 
       int width = 0;                 //cluster width
       std::vector<float> clusterADC; //ADC value of strips in the clusters
@@ -440,11 +440,15 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
                     signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
                     back_inserter(clusterADC));
 
-          new_cluster.address = seeds.at(current_seed_numb) - symmetric_width;
-          new_cluster.width = 2 * symmetric_width + 1;
-          new_cluster.ADC = clusterADC;
-          new_cluster.over = -999;
-          clusters.push_back(new_cluster);
+          if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0) > 0)
+          {
+
+            new_cluster.address = seeds.at(current_seed_numb) - symmetric_width;
+            new_cluster.width = 2 * symmetric_width + 1;
+            new_cluster.ADC = clusterADC;
+            new_cluster.over = -999;
+            clusters.push_back(new_cluster);
+          }
         }
         else //Cluster can't be contained in the detector
         {
@@ -548,23 +552,26 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
                   signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
                   back_inserter(clusterADC)); //we copy the strips that are part of the cluster to the buffer vector
 
-        //setting parameters to the correct value in the cluster struct
-        new_cluster.address = seeds.at(current_seed_numb) - L;
-        new_cluster.width = (R + L) + 1;
-        new_cluster.ADC = clusterADC;
-        new_cluster.over = overSEED;
-        clusters.push_back(new_cluster); //adding new cluster to cluster result vector 
-
-        nclust++;
-
-        if (verbose)
+        if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0) > 0)
         {
-          std::cout << "Add: " << seeds.at(current_seed_numb) - L << " Width: " << (R + L) + 1 << std::endl;
-          std::cout << std::endl;
+          //setting parameters to the correct value in the cluster struct
+          new_cluster.address = seeds.at(current_seed_numb) - L;
+          new_cluster.width = (R + L) + 1;
+          new_cluster.ADC = clusterADC;
+          new_cluster.over = overSEED;
+          clusters.push_back(new_cluster); //adding new cluster to cluster result vector
+
+          nclust++;
+
+          if (verbose)
+          {
+            std::cout << "Add: " << seeds.at(current_seed_numb) - L << " Width: " << (R + L) + 1 << std::endl;
+            std::cout << std::endl;
+          }
+          std::fill(signal->begin() + (seeds.at(current_seed_numb) - L),
+                    signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
+                    0);
         }
-        std::fill(signal->begin() + (seeds.at(current_seed_numb) - L),
-                  signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
-                  0);
       }
     }
   }

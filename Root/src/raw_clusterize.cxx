@@ -222,44 +222,44 @@ int main(int argc, char *argv[])
   //////////////////Histos//////////////////
 
   TH1F *hADCCluster = //ADC content of all clusters
-      new TH1F("hADCCluster", "hADCCluster", 200, 0, 200);
+      new TH1F("hADCCluster", "hADCCluster", 2500, 0, 5000);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster1Strip = //ADC content of clusters with a single strips
-      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 200, 0, 200);
+      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 2500, 0, 5000);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster2Strip = //ADC content of clusters with 2 strips
-      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 200, 0, 200);
+      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 2500, 0, 5000);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterManyStrip = new TH1F( //ADC content of clusters with more than 2 strips
-      "hADCClusterManyStrip", "hADCClusterManyStrip", 200, 0, 200);
+      "hADCClusterManyStrip", "hADCClusterManyStrip", 2500, 0, 5000);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterSeed = //ADC content of the "seed strip"
-      new TH1F("hADCClusterSeed", "hADCClusterSeed", 200, 0, 200);
+      new TH1F("hADCClusterSeed", "hADCClusterSeed", 2500, 0, 5000);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed = //percentage of the "seed strip" wrt the whole cluster
-      new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 200);
+      new TH1F("hPercentageSeed", "hPercentageSeed", 200, 20, 150);
   hPercentageSeed->GetXaxis()->SetTitle("percentage");
 
   TH1F *hPercSeedintegral =
-      new TH1F("hPercSeedintegral", "hPercSeedintegral", 200, 20, 200);
+      new TH1F("hPercSeedintegral", "hPercSeedintegral", 200, 20, 150);
   hPercSeedintegral->GetXaxis()->SetTitle("percentage");
 
   TH1F *hClusterCharge = //sqrt(ADC signal / MIP_ADC) for the cluster
-      new TH1F("hClusterCharge", "hClusterCharge", 1000, -0.5, 5.5);
+      new TH1F("hClusterCharge", "hClusterCharge", 1000, -0.5, 25.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 5.5); //sqrt(ADC signal / MIP_ADC) for the seed
+  TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 25.5); //sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 200, 0, 250); //cluster S/N
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 2500, 0, 5000); //cluster S/N
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 1000, 0, 200); //seed S/N
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 2000, 0, 5000); //seed S/N
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5); //clusters center of gravity in terms of strip number
@@ -280,8 +280,8 @@ int main(int argc, char *argv[])
   TH1F *hNstripSeed = new TH1F("hNstripSeed", "hNstripSeed", 10, -0.5, 9.5);
   hNstripSeed->GetXaxis()->SetTitle("n strips over seed threshold");
 
-  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 200, 0, 100, //cluster ADC vs seed ADC
-                              200, 0, 100);
+  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 2500, 0, 5000, //cluster ADC vs seed ADC
+                              2500, 0, 5000);
   hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
   hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
 
@@ -298,26 +298,26 @@ int main(int argc, char *argv[])
   hDifference->GetXaxis()->SetTitle("(ADC_0-ADC_1)/(ADC_0+ADC_1)");
 
   TH2F *hADCvsWidth = //cluster ADC vs cluster width
-      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 100, 0, 200);
+      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 2500, 0, 5000);
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, //cluster ADC vs cog
-                             1000, 0, 200);
+                             2500, 0, 5000);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta = //ignore
-      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 100, 0, 200);
+      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 2000, 0, 5000);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 200, 0, 250, 100, 0, 200);
+  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 2000, 0, 2500, 2000, 0, 5000);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
   TH2F *hNStripvsSN =
-      new TH2F("hNstripvsSN", "hNstripvsSN", 1000, 0, 500, 5, -0.5, 4.5);
+      new TH2F("hNstripvsSN", "hNstripvsSN", 1000, 0, 2500, 5, -0.5, 4.5);
   hNStripvsSN->GetXaxis()->SetTitle("S/N");
   hNStripvsSN->GetYaxis()->SetTitle("# of strips");
 
@@ -334,7 +334,7 @@ int main(int argc, char *argv[])
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
 
-  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 100, 0, 50, 100, 0, 50); //ADc of first strip vs ADC of second strip for clusters with 2 strips
+  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 2500, 0, 5000, 2500, 0, 5000); //ADc of first strip vs ADC of second strip for clusters with 2 strips
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
@@ -486,14 +486,14 @@ int main(int argc, char *argv[])
   }
 
   // Loop over events
-  int perc = 0; //percentage of processed events
+  int perc = 0;   //percentage of processed events
   int maxADC = 0; //max ADC in all the events, to set proper graph/histo limits
   int maxEVT = 0; //event where maxADC was found
   int maxPOS = 0; //position of the strip with value maxADC
 
   std::vector<cluster> result; //Vector of resulting clusters
 
-  for (int index_event = 1; index_event < entries; index_event++)//looping on the events
+  for (int index_event = 0; index_event < entries; index_event++) //looping on the events
   {
     chain->GetEntry(index_event);
 
@@ -512,14 +512,14 @@ int main(int argc, char *argv[])
       perc++;
     }
 
-    if ((index_event % 5000) == 0 && dynped)            //if dynamic pedestals are enabled we recalculate them
+    if ((index_event % 5000) == 0 && dynped) //if dynamic pedestals are enabled we recalculate them
     {
       std::cout << "Updating pedestals" << std::endl;
 
       cal = update_pedestals(hADC, NChannels, cal);
       for (int ch = 0; ch < NChannels; ch++)
       {
-        hADC[ch]->Reset();      //we only keep the last 5000 events for the pedestals
+        hADC[ch]->Reset(); //we only keep the last 5000 events for the pedestals
         hADC_CN[ch]->Reset();
       }
     }
@@ -538,6 +538,7 @@ int main(int argc, char *argv[])
           }
           else
           {
+
             signal.at(i) = (raw_event->at(i) - cal.ped[i]);
 
             if (dynped)
@@ -547,7 +548,7 @@ int main(int argc, char *argv[])
 
             if (invert)
             {
-              signal.at(i) = -signal.at(i);  //one of the prototype DAQ boards had the analog output inverted
+              signal.at(i) = -signal.at(i); //one of the prototype DAQ boards had the analog output inverted
             }
           }
         }
@@ -599,7 +600,6 @@ int main(int argc, char *argv[])
     bool goodCN = true;
     if (cntype >= 0)
     {
-#pragma omp parallel for                //Multithread for loop (not sure it makes a real difference since I moved to a newer c++ compiler)
       for (int va = 0; va < NVas; va++) //Loop on VA
       {
         float cn = GetCN(&signal, va, cntype);
@@ -639,13 +639,14 @@ int main(int argc, char *argv[])
         maxPOS = std::distance(signal.begin(), it);
       }
 
-      result = clusterize(&cal, &signal, highthreshold, lowthreshold,   //clustering function
+      result = clusterize(&cal, &signal, highthreshold, lowthreshold, //clustering function
                           symmetric, symmetricwidth, absolute);
 
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
 
       for (int i = 0; i < result.size(); i++)
       {
+
         if (verb)
         {
           PrintCluster(result.at(i));
@@ -692,6 +693,7 @@ int main(int argc, char *argv[])
           hBeamProfile->Fill(GetPosition(result.at(i), sensor_pitch));
           hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
           hNstrip->Fill(GetClusterWidth(result.at(i)));
+
           if (result.at(i).width == 2)
           {
             hEta->Fill(GetClusterEta(result.at(i)));
@@ -705,6 +707,7 @@ int main(int argc, char *argv[])
             }
             hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
           }
+
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
           hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
           hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
