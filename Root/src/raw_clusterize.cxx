@@ -225,6 +225,10 @@ int main(int argc, char *argv[])
       new TH1F("hADCCluster", "hADCCluster", 2500, 0, 5000);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
+  TH1F *hADCClusterEdge = //ADC content of all clusters
+      new TH1F("hADCClusterEdge", "hADCClusterEdge", 2500, 0, 5000);
+  hADCClusterEdge->GetXaxis()->SetTitle("ADC");
+
   TH1F *hADCCluster1Strip = //ADC content of clusters with a single strips
       new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 2500, 0, 5000);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
@@ -333,6 +337,10 @@ int main(int argc, char *argv[])
   TH2F *hCommonNoiseVsVA = new TH2F("hCommonNoiseVsVA", "hCommonNoiseVsVA", 100, -20, 20, 10, -0.5, 9.5);
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
+
+  TH2F *hEtaVsADC = new TH2F("hEtaVsADC", "hEtaVsADC", 100, 0, 1, 1000, 0, 250);
+  hCommonNoiseVsVA->GetXaxis()->SetTitle("ADC");
+  hCommonNoiseVsVA->GetYaxis()->SetTitle("Eta");
 
   TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 2500, 0, 5000, 2500, 0, 5000); //ADc of first strip vs ADC of second strip for clusters with 2 strips
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
@@ -664,17 +672,25 @@ int main(int argc, char *argv[])
 
           hADCCluster->Fill(GetClusterSignal(result.at(i)));
 
+          if (GetClusterSeed(result.at(i), &cal) % 64 == 0)
+          {
+            hADCClusterEdge->Fill(GetClusterSignal(result.at(i)));
+          }
+
           if (result.at(i).width == 1)
           {
             hADCCluster1Strip->Fill(GetClusterSignal(result.at(i)));
+            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
           }
           else if (result.at(i).width == 2)
           {
             hADCCluster2Strip->Fill(GetClusterSignal(result.at(i)));
+            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
           }
           else
           {
             hADCClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
+            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
           }
 
           hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
@@ -746,17 +762,23 @@ int main(int argc, char *argv[])
   hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
 
-  Double_t norm1 = hADCCluster1Strip->GetEntries();
-  hADCCluster1Strip->Scale(1 / norm1);
+  norm = hADCClusterEdge->GetEntries();
+  hADCClusterEdge->Scale(1 / norm);
+  hADCClusterEdge->Write();
+
+  norm = hADCCluster1Strip->GetEntries();
+  hADCCluster1Strip->Scale(1 / norm);
   hADCCluster1Strip->Write();
 
-  Double_t norm2 = hADCCluster2Strip->GetEntries();
-  hADCCluster2Strip->Scale(1 / norm2);
+  norm = hADCCluster2Strip->GetEntries();
+  hADCCluster2Strip->Scale(1 / norm);
   hADCCluster2Strip->Write();
 
-  Double_t norm3 = hADCClusterManyStrip->GetEntries();
-  hADCClusterManyStrip->Scale(1 / norm3);
+  norm = hADCClusterManyStrip->GetEntries();
+  hADCClusterManyStrip->Scale(1 / norm);
   hADCClusterManyStrip->Write();
+
+  hEtaVsADC->Write();
 
   hADCClusterSeed->Write();
   hClusterCharge->Write();

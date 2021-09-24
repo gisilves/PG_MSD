@@ -9,7 +9,7 @@
 
 #define verbose false
 
-#define MIP_ADC 15 //50ADC: DAMPE 300um ??ADC:FOOT 150um
+#define MIP_ADC 15 //50ADC: DAMPE 300um 15ADC:FOOT 150um
 #define maxClusters 10
 typedef struct
 {

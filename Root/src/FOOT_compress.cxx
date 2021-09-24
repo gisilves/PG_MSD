@@ -239,7 +239,7 @@ int main(int argc, char *argv[])
 
                         if (board_num == 0)
                         {
-                            for (int hole = 1; hole < 11; hole++)
+                            for (int hole = 1; hole <= 10; hole++)
                             {
                                 raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
                             }
@@ -248,7 +248,7 @@ int main(int argc, char *argv[])
                         }
                         else if (board_num == 1)
                         {
-                            for (int hole = 1; hole < 11; hole++)
+                            for (int hole = 1; hole <= 10; hole++)
                             {
                                 raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
                             }
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
                         }
                         else if (board_num == 2)
                         {
-                            for (int hole = 1; hole < 11; hole++)
+                            for (int hole = 1; hole <= 10; hole++)
                             {
                                 raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
                             }

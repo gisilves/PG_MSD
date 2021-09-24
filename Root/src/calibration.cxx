@@ -491,7 +491,7 @@ int main(int argc, char *argv[])
     return 2;
   }
 
-  int boards = 0;
+  int detectors = 0;
   int board_num = 0;
   int ladder_side = 0;
 
@@ -518,11 +518,10 @@ int main(int argc, char *argv[])
     {
       if (!strcmp(key->GetClassName(), "TTree"))
       {
-        boards++;
+        detectors++;
       }
     }
-    boards /= 2;
-    std::cout << "File with " << boards << " board(s)" << std::endl;
+    std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
     TTree *T;
     TIter list2(tempfile.GetListOfKeys());
