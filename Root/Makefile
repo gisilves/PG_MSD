@@ -18,7 +18,7 @@ endif
 
 default: FOOT_compress
 
-all: miniTRB_compress FOOT_compress PGDAQ_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control
+all: miniTRB_compress FOOT_compress PAPERO_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control
 
 .PHONY: all
 
@@ -28,7 +28,7 @@ miniTRB_compress: ./src/miniTRB_compress.cxx
 FOOT_compress: ./src/FOOT_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-PGDAQ_compress: ./src/PGDAQ_compress.cxx
+PAPERO_compress: ./src/PAPERO_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_clusterize: ./src/raw_clusterize.cxx
@@ -54,7 +54,7 @@ bias_control:
 clean:
 	rm -f ./miniTRB_compress
 	rm -f ./FOOT_compress
-	rm -f ./PGDAQ_compress
+	rm -f ./PAPERO_compress
 	rm -f ./raw_clusterize
 	rm -f ./raw_cn
 	rm -f ./raw_threshold_scan

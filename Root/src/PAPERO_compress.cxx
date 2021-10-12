@@ -8,7 +8,7 @@
 #include <ctime>
 #include <tuple>
 
-#include "PGDAQ.h"
+#include "PAPERO.h"
 
 template <typename T>
 void print(std::vector<T> const &v)
@@ -42,7 +42,7 @@ AnyOption *opt; //Handle the option input
 int main(int argc, char *argv[])
 {
     opt = new AnyOption();
-    opt->addUsage("Usage: ./PGDAQ_compress [options] raw_data_file output_rootfile");
+    opt->addUsage("Usage: ./PAPERO_compress [options] raw_data_file output_rootfile");
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
@@ -122,10 +122,11 @@ int main(int argc, char *argv[])
     int evtnum = 0;
     int boards = 0;
     int board_id = -1;
+    int trigger_id = -1;
     int evt_size = 0;
     unsigned short timestamp = 0;
     float mean_rate = 0;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> evt_retValues;
+    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> evt_retValues;
 
     if (!opt->getValue("boards"))
     {
@@ -149,13 +150,17 @@ int main(int argc, char *argv[])
             evtnum = std::get<3>(evt_retValues);
             board_id = std::get<4>(evt_retValues);
             timestamp = std::get<5>(evt_retValues);
+            trigger_id = std::get<6>(evt_retValues);
                 
-            std::cout << "\r\tReading event " << evtnum << std::endl;
+            std::cout << "\r\tReading event " << evtnum << std::flush;
             raw_event_buffer = reorder(read_event(file, offset, evt_size));
 
-
+            if(verbose)
+            {
             std::cout << "\tBoard ID " << board_id << std::endl;
-
+            std::cout << "\t\tTrigger ID " << trigger_id << std::endl;
+            }
+            
             if (board_id == 0)
             {
                 raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);

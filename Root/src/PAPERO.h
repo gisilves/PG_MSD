@@ -9,7 +9,7 @@
 
 #define verbose false
 
-//for conversion with FOOT_compress of FOOT DAQ raw files to a rootfile with TTrees of raw events
+//for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
 int seek_run_header(std::fstream &file)
 {
@@ -20,7 +20,7 @@ int seek_run_header(std::fstream &file)
   unsigned char buffer[4];
   unsigned int val;
 
-  header = 0xbaba1afa;
+  header = 0xbaba1a9a;
 
   while (!found && !file.eof())
   {
@@ -56,7 +56,7 @@ int seek_run_header(std::fstream &file)
   }
 }
 
-std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> read_evt_header(std::fstream &file, int offset)
+std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> read_evt_header(std::fstream &file, int offset)
 {
   unsigned char buffer[4];
 
@@ -64,6 +64,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   unsigned long fw_version = -1;
   unsigned long trigger = 0;
   unsigned long board_id = -1;
+  unsigned long trigger_id = -1;
   unsigned long timestamp = -1;
   unsigned long val;
 
@@ -88,12 +89,13 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     trigger = buffer[3] | buffer[2] << 8 | buffer[1] << 16 | buffer[0] << 24;
 
     file.read(reinterpret_cast<char *>(&buffer), 4);
-    board_id = buffer[1];
+    board_id = buffer[2] | buffer[1] << 8;
+    trigger_id = buffer[4] | buffer[3] << 8;
 
     file.read(reinterpret_cast<char *>(&buffer), 4);
     timestamp = buffer[3] | buffer[2] << 8 | buffer[1] << 16 | buffer[0] << 24;
 
-    return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp);
+    return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, trigger_id);
   }
   else
   {
@@ -101,7 +103,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     {
       std::cout << "Reached EOF" << std::endl;
     }
-    return std::make_tuple(false, -1, -1, -1, -1, -1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1);
   }
 }
 
