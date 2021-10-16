@@ -8,12 +8,14 @@
 #include "TCanvas.h"
 #include "TLatex.h"
 #include <iostream>
-#include "environment.h"
 #include <algorithm>
 #include <numeric>
+#include <string>
 #include "TLine.h"
 #include "TKey.h"
 
+
+#include "environment.h"
 #include "anyoption.h"
 #include "event.h"
 
@@ -155,42 +157,18 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     std::cout << "\tThe first " << entries << " entries will be used for calibration" << std::endl;
   }
 
+  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  if (board == 0)
+  if (board== 0 && side == 0)
   {
-    if (side == 0)
-    {
-      chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
-    }
-    else
-    {
-      chain.SetBranchAddress("RAW Event B", &raw_event, &RAW);
-    }
+    chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
   }
-  else if (board == 1)
+  else
   {
-    if (side == 0)
-    {
-      chain.SetBranchAddress("RAW Event C", &raw_event, &RAW);
-    }
-    else
-    {
-      chain.SetBranchAddress("RAW Event D", &raw_event, &RAW);
-    }
-  }
-  else if (board == 2)
-  {
-    if (side == 0)
-    {
-      chain.SetBranchAddress("RAW Event E", &raw_event, &RAW);
-    }
-    else
-    {
-      chain.SetBranchAddress("RAW Event F", &raw_event, &RAW);
-    }
+    chain.SetBranchAddress((TString)"RAW Event "+alphabet.at(2*board+side), &raw_event, &RAW);
   }
 
   //First half of events are used to compute pedestals and raw_sigmas

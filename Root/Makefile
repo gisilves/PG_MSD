@@ -9,7 +9,7 @@ ANYOPTION=$(SRC)/anyoption.cpp
 UNAME := $(shell uname)
 
 CFLAGS += $(shell root-config --ldflags --cflags --glibs) -g -fPIC
-OPTFLAGS += -Ofast -mtune=native -march=native -w -funroll-loops -D_GLIBCXX_PARALLEL
+OPTFLAGS += -O3 -mtune=native -march=native -w -funroll-loops -D_GLIBCXX_PARALLEL
 
 ifeq ($(shell uname -s),Linux) # LINUX
 OPTFLAGS += -fopenmp
