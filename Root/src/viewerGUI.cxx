@@ -287,7 +287,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 
   int nVAs = raw_event->size() / 64;
 
-  frame->SetTitle("Event number " + TString::Format("%0d", (int)evt) + " Side: " + TString::Format("%0d", (int)detector));
+  frame->SetTitle("Event number " + TString::Format("%0d", (int)evt) + " Detector: " + TString::Format("%0d", (int)detector));
   frame->GetXaxis()->SetNdivisions(-nVAs);
   frame->GetXaxis()->SetTitle("Strip number");
   frame->GetYaxis()->SetTitle("ADC");

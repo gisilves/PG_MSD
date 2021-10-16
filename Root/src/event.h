@@ -262,17 +262,9 @@ float GetClusterEta(cluster clus) //Only for clusters with 2 strips: not the rea
 
   if (ADC.size() == 2)
   {
-    if (ADC.at(0) > ADC.at(1))
-    {
       strip1 = ADC.at(0);
       strip2 = ADC.at(1);
-    }
-    else
-    {
-      strip1 = ADC.at(1);
-      strip2 = ADC.at(0);
-    }
-
+      
     eta = (strip1 - strip2) / (strip1 + strip2);
   }
   return eta;
