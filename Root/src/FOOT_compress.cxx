@@ -205,30 +205,30 @@ int main(int argc, char *argv[])
                 if (is_good)
                 {
                     raw_event_buffer = reorder(read_event(file, evt_offset, board_num));
-
+                    
                     if (!gsi)
                     {
                         if (board_num == 0)
                         {
                             //std::cout << "\nBoard number " << board_num << std::endl;
-                            raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                            raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                            raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                             raw_events->Fill();
                             raw_events_B->Fill();
                         }
                         else if (board_num == 1)
                         {
                             //std::cout << "\nBoard number " << board_num << std::endl;
-                            raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                            raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                            raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                             raw_events_C->Fill();
                             raw_events_D->Fill();
                         }
                         else if (board_num == 2)
                         {
                             //std::cout << "\nBoard number " << board_num << std::endl;
-                            raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                            raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                            raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                             raw_events_E->Fill();
                             raw_events_F->Fill();
                         }

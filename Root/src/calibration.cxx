@@ -14,7 +14,6 @@
 #include "TLine.h"
 #include "TKey.h"
 
-
 #include "environment.h"
 #include "anyoption.h"
 #include "event.h"
@@ -162,13 +161,13 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  if (board== 0 && side == 0)
+  if (board == 0 && side == 0)
   {
     chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
   }
   else
   {
-    chain.SetBranchAddress((TString)"RAW Event "+alphabet.at(2*board+side), &raw_event, &RAW);
+    chain.SetBranchAddress((TString) "RAW Event " + alphabet.at(2 * board + side), &raw_event, &RAW);
   }
 
   //First half of events are used to compute pedestals and raw_sigmas
@@ -258,9 +257,8 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
     {
       //Pedestal subtraction
       std::vector<float> signal;
-      std::transform(raw_event->begin(), raw_event->end(), pedestals->begin(), std::back_inserter(signal), [&](double raw, double ped) {
-        return raw - ped;
-      });
+      std::transform(raw_event->begin(), raw_event->end(), pedestals->begin(), std::back_inserter(signal), [&](double raw, double ped)
+                     { return raw - ped; });
 
       //Chip-wise CN subtraction before filling the histos
       for (int va = 0; va < NVas; va++) //Loop on VA
@@ -375,7 +373,7 @@ int main(int argc, char *argv[])
   int NChannels = -1;
   int NVas = -1;
 
-  bool newDAQ = false;
+  bool newDAQ = true;
   int side = 0;
 
   opt = new AnyOption();
@@ -384,17 +382,17 @@ int main(int argc, char *argv[])
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA miniTRB or 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
   opt->addUsage("  --output         ................................. Output .cal file ");
   opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
   opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
   opt->addUsage("  --fast           ................................. no info prompt");
+  opt->addUsage("  --minitrb        ................................. For files acquired with the miniTRB");
   opt->setFlag("help", 'h');
+  opt->setFlag("minitrb");
   opt->setFlag("verbose", 'v');
   opt->setFlag("pdf");
   opt->setFlag("fast");
 
-  opt->setOption("version");
   opt->setOption("output");
   opt->setOption("cn");
 
@@ -408,34 +406,6 @@ int main(int argc, char *argv[])
     return 2;
   }
 
-  if (!opt->getValue("version"))
-  {
-    std::cout << "ERROR: no miniTRB version provided" << std::endl;
-    return 2;
-  }
-
-  if (atoi(opt->getValue("version")) == 1212)
-  {
-    NChannels = 384;
-    NVas = 6;
-  }
-  else if (atoi(opt->getValue("version")) == 1313)
-  {
-    NChannels = 640;
-    NVas = 10;
-  }
-  else if (atoi(opt->getValue("version")) == 2020)
-  {
-    NChannels = 640;
-    NVas = 10;
-    newDAQ = true;
-  }
-  else
-  {
-    std::cout << "ERROR: invalid DAQ version" << std::endl;
-    return 2;
-  }
-
   if (opt->getFlag("help") || opt->getFlag('h'))
     opt->printUsage();
 
@@ -444,6 +414,12 @@ int main(int argc, char *argv[])
 
   if (opt->getValue("cn"))
     cntype = atoi(opt->getValue("cn"));
+
+  if (opt->getValue("minitrb"))
+  {
+    newDAQ = false;
+    std::cout << "\nminiTRB flag activated" << std::endl;
+  }
 
   if (opt->getValue("pdf"))
   {
@@ -481,13 +457,20 @@ int main(int argc, char *argv[])
     chain->Add(opt->getArgv(ii));
   }
 
+  std::vector<unsigned int> *raw_event = 0;
+  TBranch *RAW = 0;
+  chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+  chain->GetEntry(0);
+  NChannels = raw_event->size();
+  NVas = NChannels / 64;
+
   if (!newDAQ)
   {
     compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode);
   }
   else
   {
-    std::cout << "\nFOOT DAQ FILE" << std::endl;
+    std::cout << "\nNEW DAQ FILE" << std::endl;
 
     TFile tempfile(opt->getArgv(0));
     TIter list(tempfile.GetListOfKeys());

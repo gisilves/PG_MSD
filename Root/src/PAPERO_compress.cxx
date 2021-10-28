@@ -37,6 +37,23 @@ std::vector<T> reorder(std::vector<T> const &v)
     return reordered_vec;
 }
 
+template <typename T>
+std::vector<T> reorder_DAMPE(std::vector<T> const &v)
+{
+    std::vector<T> reordered_vec(v.size());
+    int j = 0;
+    constexpr int order[] = {1, 0};
+    for (int ch = 0; ch < 192; ch++)
+    {
+        for (int adc : order)
+        {
+            reordered_vec.at(adc * 192 + ch) = v.at(j);
+            j++;
+        }
+    }
+    return reordered_vec;
+}
+
 AnyOption *opt; //Handle the option input
 
 int main(int argc, char *argv[])
@@ -145,6 +162,7 @@ int main(int argc, char *argv[])
     bool is_good = false;
     int evtnum = 0;
     int boards = 0;
+    unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_id = -1;
     int evt_size = 0;
@@ -172,65 +190,75 @@ int main(int argc, char *argv[])
         {
             boards_read++;
             evt_size = std::get<1>(evt_retValues);
+            fw_version = std::get<2>(evt_retValues);
             //evtnum = std::get<3>(evt_retValues);
             board_id = std::get<4>(evt_retValues);
             timestamp = std::get<5>(evt_retValues);
             trigger_id = std::get<6>(evt_retValues);
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
-            raw_event_buffer = reorder(read_event(file, offset, evt_size));
+
+            if (fw_version == 0xffffffff9fd68b40)
+            {
+                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size));
+            }
+            else
+            {
+                raw_event_buffer = reorder(read_event(file, offset, evt_size));
+            }
 
             if (verbose)
             {
                 std::cout << "\tBoard ID " << board_id << std::endl;
                 std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
                 std::cout << "\t\tTrigger ID " << trigger_id << std::endl;
+                std::cout << "FW version is: " << std::hex << fw_version << std::dec << std::endl;
             }
 
             if (board_id == 0)
             {
-                raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                raw_event = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_B = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events->Fill();
                 raw_events_B->Fill();
             }
             else if (board_id == 1)
             {
-                raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                raw_event_C = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_D = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_C->Fill();
                 raw_events_D->Fill();
             }
             else if (board_id == 2)
             {
-                raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_E->Fill();
                 raw_events_F->Fill();
             }
             else if (board_id == 3)
             {
-                raw_event_G = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                raw_event_H = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                raw_event_G = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_H = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_G->Fill();
                 raw_events_H->Fill();
             }
             else if (board_id == 4)
             {
-                raw_event_I = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                raw_event_J = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                raw_event_I = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_J = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_I->Fill();
                 raw_events_J->Fill();
             }
             else if (board_id == 5)
             {
-                raw_event_K = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 640);
-                raw_event_L = std::vector<unsigned int>(raw_event_buffer.begin() + 640, raw_event_buffer.end());
+                raw_event_K = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_L = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_K->Fill();
                 raw_events_L->Fill();
             }
 
-            if(boards_read == boards)
+            if (boards_read == boards)
             {
                 boards_read = 0;
                 evtnum++;
