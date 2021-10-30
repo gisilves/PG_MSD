@@ -22,12 +22,12 @@ class MyMainFrame
   RQ_OBJECT("MyMainFrame")
 private:
   TGMainFrame *fMain;
-  TGNumberEntry *fPORT;
+  TGNumberEntry *fPORT, *fVOLT, *fID;
   TGTextEntry *fIP;
-  TGHorizontalFrame *fHor0, *fHor0b, *fHor1, *fHor2, *fHor3;
+  TGHorizontalFrame *fHor0, *fHor0b, *fHor1, *fHor1b, *fHor2, *fHor3;
   TGVerticalFrame *fVer0, *fVer1;
-  TGTextButton *fExit, *fPing, *fClear, *fStatus, *fBiasON, *fBiasOFF, *fBiasUP, *fBiasDWN;
-  TGLabel *portLabel, *ipLabel;
+  TGTextButton *fExit, *fPing, *fClear, *fStatus, *fBiasON, *fBiasOFF, *fBiasUPall, *fBiasDWNall, *fSetBias;
+  TGLabel *portLabel, *ipLabel, *idLabel, *voltageLabel;
   TGTextView *fStatusBar;
 
 public:
@@ -37,9 +37,10 @@ public:
   void DoPing();
   void DoClear();
   void DoBiasON();
+  void DoSetBias();
   void DoBiasOFF();
-  void DoBiasUP();
-  void DoBiasDWN();
+  void DoBiasUPall();
+  void DoBiasDWNall();
   void DoClose();
   ClassDef(MyMainFrame, 0)
 };
