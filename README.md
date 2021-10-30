@@ -3,7 +3,7 @@ Software for FOOT MSD data analysis
 
 ###### Root 6 with C++14 support needed (to compile, *make + executable name* or *make all*):
 
-**miniTRB_compress and FOOT_compress:** to compress binary raw data into rootfiles
+**miniTRB_compress, FOOT_compress and PAPERO_compress:** to compress binary raw data into rootfiles
 
 **raw_clusterize:** to find clusters from compressed data
 
