@@ -400,6 +400,81 @@ int main(int argc, char *argv[])
     }
     chain->AddFriend(chain2);
   }
+  else if (board == 3)
+  {
+    chain->SetName("raw_events_G");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_H");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
+  else if (board == 4)
+  {
+    chain->SetName("raw_events_I");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_J");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
+  else if (board == 5)
+  {
+    chain->SetName("raw_events_K");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_L");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
+  else if (board == 6)
+  {
+    chain->SetName("raw_events_M");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_N");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
+  else if (board == 7)
+  {
+    chain->SetName("raw_events_O");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+      chain->Add(opt->getArgv(ii));
+    }
+    chain2->SetName("raw_events_P");
+    for (int ii = 0; ii < opt->getArgc(); ii++)
+    {
+      chain2->Add(opt->getArgv(ii));
+    }
+    chain->AddFriend(chain2);
+  }
 
   int entries = chain->GetEntries();
   if (entries == 0)
@@ -454,6 +529,51 @@ int main(int argc, char *argv[])
     if (side == 1)
     {
       chain->SetBranchAddress("RAW Event F", &raw_event, &RAW);
+    }
+  }
+  else if (board == 3)
+  {
+    chain->SetBranchAddress("RAW Event G", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event H", &raw_event, &RAW);
+    }
+  }
+  else if (board == 4)
+  {
+    chain->SetBranchAddress("RAW Event I", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event J", &raw_event, &RAW);
+    }
+  }
+  else if (board == 5)
+  {
+    chain->SetBranchAddress("RAW Event K", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event L", &raw_event, &RAW);
+    }
+  }
+  else if (board == 6)
+  {
+    chain->SetBranchAddress("RAW Event M", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event N", &raw_event, &RAW);
+    }
+  }
+  else if (board == 7)
+  {
+    chain->SetBranchAddress("RAW Event O", &raw_event, &RAW);
+
+    if (side == 1)
+    {
+      chain->SetBranchAddress("RAW Event P", &raw_event, &RAW);
     }
   }
 

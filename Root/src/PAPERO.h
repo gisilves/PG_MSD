@@ -55,7 +55,7 @@ int seek_run_header(std::fstream &file, int offset)
   }
 }
 
-std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> read_de10_header(std::fstream &file, int offset)
+std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, int offset)
 {
   unsigned char buffer[4];
 
@@ -65,36 +65,41 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   unsigned long board_id = -1;
   unsigned long trigger_id = -1;
   unsigned long timestamp = -1;
-  unsigned long val;
+  unsigned long val = 0;
+  bool found = false;
+
+  unsigned long header = 0xffffffffbaba1a9a;
 
   if (verbose)
   {
     std::cout << "\t\nStarting from offset " << offset << std::endl;
   }
 
-  //file.seekg(offset + 4);
+  file.seekg(offset);
 
   if (file.peek() != EOF)
   {
-    file.seekg(offset + 8);
-    file.read(reinterpret_cast<char *>(&buffer), 4);
-    val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-    evt_lenght = val - 10;
+    while (!found && !file.eof())
+    {
+      file.seekg(offset+4);
+      file.read(reinterpret_cast<char *>(&buffer), 4);
+      val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+      //std::cout << std::hex << val << std::endl;
+      //sleep(1);
 
-    file.read(reinterpret_cast<char *>(&buffer), 4);
-    fw_version = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-
-    file.read(reinterpret_cast<char *>(&buffer), 4);
-    trigger = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-
-    file.read(reinterpret_cast<char *>(&buffer), 4);
-    board_id = buffer[2] | buffer[3] << 8;
-    trigger_id = buffer[0] | buffer[1] << 8;
-
-    file.read(reinterpret_cast<char *>(&buffer), 4);
-    timestamp = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-
-    return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, trigger_id);
+      if (val == header)
+      {
+        found = true;
+        if (verbose)
+        {
+          std::cout << "Found DE10 header at offset " << offset << std::endl;
+        }
+      }
+      else
+      {
+        offset += 4;
+      }
+    }
   }
   else
   {
@@ -102,8 +107,38 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     {
       std::cout << "Reached EOF" << std::endl;
     }
-    return std::make_tuple(false, -1, -1, -1, -1, -1, -1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1,-1);
   }
+
+  file.seekg(offset + 8);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  evt_lenght = val - 10;
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  fw_version = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  trigger = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  board_id = buffer[2] | buffer[3] << 8;
+  trigger_id = buffer[0] | buffer[1] << 8;
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  timestamp = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+  if (verbose)
+  {
+    std::cout << "\t\tIn DE10Nano header: " << std::endl;
+    std::cout << "\t\t\tevt_lenght: " << evt_lenght << std::endl;
+    std::cout << "\t\t\tfw_version: " << std::hex << fw_version << std::endl;
+    std::cout << "\t\t\ttrigger: " << trigger << std::endl;
+    std::cout << "\t\t\tboard_id: " << board_id << std::endl;
+    std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
+  }
+
+  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, trigger_id, offset);
 }
 
 std::vector<unsigned int> read_event(std::fstream &file, int offset, int event_size)

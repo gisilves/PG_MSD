@@ -179,7 +179,7 @@ int main(int argc, char *argv[])
     unsigned short timestamp = 0;
     int boards_read = 0;
     float mean_rate = 0;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> evt_retValues;
+    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
 
 
     if (!opt->getValue("boards"))
@@ -206,6 +206,7 @@ int main(int argc, char *argv[])
             board_id = std::get<4>(evt_retValues);
             timestamp = std::get<5>(evt_retValues);
             trigger_id = std::get<6>(evt_retValues);
+            offset = std::get<7>(evt_retValues);
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
 
@@ -222,7 +223,7 @@ int main(int argc, char *argv[])
             if (fw_version == 0xffffffff9fd68b40)
             {
                 //std::cout << "\tLADDERONE!!!" << std::endl;
-                padding_offset = 1028;
+                padding_offset = 1024;
                 board_id = board_id - 300;
                 //std::cout << "\tFixed Board ID " << board_id << std::endl;
                 raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size));
