@@ -24,12 +24,33 @@
 
 AnyOption *opt; //Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, int NChannels, int NVas, float sigmaraw_cut, float sigma_cut, int board, int side, bool pdf_only, bool fast)
+int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut, float sigma_cut, int board, int side, bool pdf_only, bool fast)
 {
-  TString root_filename = output_filename + "_board-" + board + "_side-" + side + ".root";
   TFile *foutput;
-  foutput = new TFile(root_filename.Data(), "RECREATE");
-  foutput->cd();
+  if (!pdf_only)
+  {
+    TString root_filename = output_filename + "_board-" + board + "_side-" + side + ".root";
+    foutput = new TFile(root_filename.Data(), "RECREATE");
+    foutput->cd();
+  }
+
+  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
+  // Read raw event from input chain TTree
+  std::vector<unsigned int> *raw_event = 0;
+  TBranch *RAW = 0;
+
+  if (board == 0 && side == 0)
+  {
+    chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
+  }
+  else
+  {
+    chain.SetBranchAddress((TString) "RAW Event " + alphabet.at(2 * board + side), &raw_event, &RAW);
+  }
+
+  chain.GetEntry(0);
+  int NChannels = raw_event->size();
+  int NVas = NChannels / 64;
 
   //histos
   TH1D *hADC[NChannels];
@@ -148,26 +169,6 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   {
     std::cout << "\tERROR: skipping empty run" << std::endl;
     return -1;
-  }
-
-  if (entries > 5000)
-  {
-    entries = 5000;
-    std::cout << "\tThe first " << entries << " entries will be used for calibration" << std::endl;
-  }
-
-  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
-  // Read raw event from input chain TTree
-  std::vector<unsigned int> *raw_event = 0;
-  TBranch *RAW = 0;
-
-  if (board == 0 && side == 0)
-  {
-    chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
-  }
-  else
-  {
-    chain.SetBranchAddress((TString) "RAW Event " + alphabet.at(2 * board + side), &raw_event, &RAW);
   }
 
   //First half of events are used to compute pedestals and raw_sigmas
@@ -351,11 +352,11 @@ int compute_calibration(TChain &chain, TString output_filename, int NChannels, i
   if (!pdf_only)
   {
     calfile.close();
+    gr->Write();
+    gr2->Write();
+    gr3->Write();
+    foutput->Close();
   }
-  gr->Write();
-  gr2->Write();
-  gr3->Write();
-  foutput->Close();
   return 0;
 }
 
@@ -457,16 +458,9 @@ int main(int argc, char *argv[])
     chain->Add(opt->getArgv(ii));
   }
 
-  std::vector<unsigned int> *raw_event = 0;
-  TBranch *RAW = 0;
-  chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
-  chain->GetEntry(0);
-  NChannels = raw_event->size();
-  NVas = NChannels / 64;
-
   if (!newDAQ)
   {
-    compute_calibration(*chain, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode);
+    compute_calibration(*chain, output_filename, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode);
   }
   else
   {
@@ -491,11 +485,13 @@ int main(int argc, char *argv[])
       if (!strcmp(key->GetClassName(), "TTree"))
       {
         TChain *chain2 = new TChain(key->GetName());
+
         for (int ii = 0; ii < opt->getArgc(); ii++)
         {
           chain2->Add(opt->getArgv(ii));
         }
-        compute_calibration(*chain2, output_filename, NChannels, NVas, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode);
+
+        compute_calibration(*chain2, output_filename, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode);
         board_num++;
         if (ladder_side == 0)
         {

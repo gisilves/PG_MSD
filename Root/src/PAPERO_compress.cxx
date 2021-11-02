@@ -154,9 +154,19 @@ int main(int argc, char *argv[])
     raw_events_L->Branch("RAW Event L", &raw_event_L);
     raw_events_L->SetAutoSave(0);
 
+    TTree *raw_events_M = new TTree("raw_events_M", "raw_events_M");
+    std::vector<unsigned int> raw_event_M;
+    raw_events_M->Branch("RAW Event M", &raw_event_M);
+    raw_events_M->SetAutoSave(0);
+    TTree *raw_events_N = new TTree("raw_events_N", "raw_events_N");
+    std::vector<unsigned int> raw_event_N;
+    raw_events_N->Branch("RAW Event N", &raw_event_N);
+    raw_events_N->SetAutoSave(0);
+
     //Find if there is an offset before first event
     int offset = 0;
     offset = seek_run_header(file, offset);
+    int padding_offset = 0;
 
     //Read raw events and write to TTree
     bool is_good = false;
@@ -170,6 +180,7 @@ int main(int argc, char *argv[])
     int boards_read = 0;
     float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long> evt_retValues;
+
 
     if (!opt->getValue("boards"))
     {
@@ -198,21 +209,28 @@ int main(int argc, char *argv[])
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
 
-            if (fw_version == 0xffffffff9fd68b40)
-            {
-                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size));
-            }
-            else
-            {
-                raw_event_buffer = reorder(read_event(file, offset, evt_size));
-            }
 
             if (verbose)
             {
                 std::cout << "\tBoard ID " << board_id << std::endl;
                 std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
-                std::cout << "\t\tTrigger ID " << trigger_id << std::endl;
-                std::cout << "FW version is: " << std::hex << fw_version << std::dec << std::endl;
+                std::cout << "\tTrigger ID " << trigger_id << std::endl;
+                std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
+                std::cout << "\tEvt lenght: " << evt_size << std::endl;
+            }
+
+            if (fw_version == 0xffffffff9fd68b40)
+            {
+                //std::cout << "\tLADDERONE!!!" << std::endl;
+                padding_offset = 1028;
+                board_id = board_id - 300;
+                //std::cout << "\tFixed Board ID " << board_id << std::endl;
+                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size));
+            }
+            else
+            {
+                padding_offset = 0;
+                raw_event_buffer = reorder(read_event(file, offset, evt_size));
             }
 
             if (board_id == 0)
@@ -232,8 +250,8 @@ int main(int argc, char *argv[])
             else if (board_id == 2)
             {
                 raw_event_E = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_E->Fill();
+                raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                 raw_events_F->Fill();
             }
             else if (board_id == 3)
@@ -257,16 +275,23 @@ int main(int argc, char *argv[])
                 raw_events_K->Fill();
                 raw_events_L->Fill();
             }
+            else if (board_id == 6)
+            {
+                raw_event_M = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_N = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                raw_events_M->Fill();
+                raw_events_N->Fill();
+            }
 
             if (boards_read == boards)
             {
                 boards_read = 0;
                 evtnum++;
-                offset = (int)file.tellg() + 8;
+                offset = (int)file.tellg() + padding_offset + 8;
             }
             else
             {
-                offset = (int)file.tellg() + 4;
+                offset = (int)file.tellg() + padding_offset + 4;
             }
         }
         else
@@ -312,6 +337,12 @@ int main(int argc, char *argv[])
 
     if (raw_events_L->GetEntries())
         raw_events_L->Write();
+
+    if (raw_events_M->GetEntries())
+        raw_events_M->Write();
+
+    if (raw_events_N->GetEntries())
+        raw_events_N->Write();
 
     foutput->Close();
     file.close();
