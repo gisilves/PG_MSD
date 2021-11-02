@@ -78,11 +78,11 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fVOLT = new TGNumberEntry(fHor1b, 50, 10, -1, TGNumberFormat::kNESInteger, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMinMax, 20, 80);
   fHor1b->AddFrame(fVOLT, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
 
-  fBiasON = new TGTextButton(fHor2, "&Bias ON");
+  fBiasON = new TGTextButton(fHor2, "&Bias ON ALL");
   fBiasON->Connect("Clicked()", "MyMainFrame", this, "DoBiasON()");
   fHor2->AddFrame(fBiasON, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
-  fBiasOFF = new TGTextButton(fHor2, "&Bias OFF");
+  fBiasOFF = new TGTextButton(fHor2, "&Bias OFF ALL");
   fBiasOFF->Connect("Clicked()", "MyMainFrame", this, "DoBiasOFF()");
   fHor2->AddFrame(fBiasOFF, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
@@ -94,9 +94,9 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fBiasDWNall->Connect("Clicked()", "MyMainFrame", this, "DoBiasDWNall()");
   fHor2->AddFrame(fBiasDWNall, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
-  fSetBias = new TGTextButton(fHor2, "&Set Bias");
+  fSetBias = new TGTextButton(fHor1b, "&Set Bias");
   fSetBias->Connect("Clicked()", "MyMainFrame", this, "DoSetBias()");
-  fHor2->AddFrame(fSetBias, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fHor1b->AddFrame(fSetBias, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 3, 4));
 
   fVer0->AddFrame(fHor1, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 2, 2, 5, 1));
   fVer0->AddFrame(fHor1b, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 2, 2, 5, 1));
@@ -151,11 +151,35 @@ void MyMainFrame::DoStatus()
     std::time_t result = std::time(nullptr);
     fStatusBar->AddLine(std::asctime(std::localtime(&result)));
     fStatusBar->AddLine("Searching for connected PS units ...");
-    fStatusBar->AddLine(gSystem->GetFromPipe(status));
+
+
+    TString status_out = gSystem->GetFromPipe(status);
+    TString tok;
+    Ssiz_t from = 0;
+    while (status_out.Tokenize(tok, from, "[@]"))
+      {
+      fStatusBar->AddLine(tok);
+      }
+      fStatusBar->AddLine("\n");
+
+    TString voltage_out = gSystem->GetFromPipe(voltage);
+    tok.Clear();
+    from = 0;
+    while (voltage_out.Tokenize(tok, from, "[@]"))
+      {
+	fStatusBar->AddLine(tok);
+      }
     fStatusBar->AddLine("\n");
-    fStatusBar->AddLine(gSystem->GetFromPipe(voltage));
+
+    TString current_out = gSystem->GetFromPipe(current);
+    tok.Clear();
+    from=0;
+    while (current_out.Tokenize(tok, from, "[@]"))
+      {
+	fStatusBar->AddLine(tok);
+      }
     fStatusBar->AddLine("\n");
-    fStatusBar->AddLine(gSystem->GetFromPipe(current));
+
     fStatusBar->ShowBottom();
   }
   else
