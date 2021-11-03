@@ -7,11 +7,9 @@
 #include <unistd.h>
 #include <iostream>
 
-#define verbose false
-
 //for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
-int seek_run_header(std::fstream &file, int offset)
+int seek_run_header(std::fstream &file, unsigned int offset, bool verbose)
 {
   unsigned int header;
   bool found = false;
@@ -55,7 +53,7 @@ int seek_run_header(std::fstream &file, int offset)
   }
 }
 
-std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, int offset)
+std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, unsigned int offset, bool verbose)
 {
   unsigned char buffer[4];
 
@@ -141,7 +139,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, trigger_id, offset);
 }
 
-std::vector<unsigned int> read_event(std::fstream &file, int offset, int event_size)
+std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose)
 {
 
   file.seekg(offset + 40);

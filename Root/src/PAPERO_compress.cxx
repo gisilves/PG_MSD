@@ -63,10 +63,12 @@ int main(int argc, char *argv[])
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
+    opt->addUsage("  -v               ................................. Verbose ");
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
     opt->setOption("boards");
 
     opt->setFlag("help", 'h');
+    opt->setFlag("v");
 
     opt->processFile("./options.txt");
     opt->processCommandArgs(argc, argv);
@@ -80,6 +82,14 @@ int main(int argc, char *argv[])
         return 2;
     }
 
+    bool verbose = false;
+
+
+    if (opt->getValue("v"))
+    {
+        verbose = true;
+    }
+
     //Open binary data file
     std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
@@ -87,7 +97,6 @@ int main(int argc, char *argv[])
         std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
         return 2;
     }
-    int version;
 
     std::cout << " " << std::endl;
     std::cout << "Processing file " << opt->getArgv(0) << std::endl;
@@ -164,8 +173,8 @@ int main(int argc, char *argv[])
     raw_events_N->SetAutoSave(0);
 
     //Find if there is an offset before first event
-    int offset = 0;
-    offset = seek_run_header(file, offset);
+    unsigned int offset = 0;
+    offset = seek_run_header(file, offset, verbose);
     int padding_offset = 0;
 
     //Read raw events and write to TTree
@@ -194,7 +203,7 @@ int main(int argc, char *argv[])
 
     while (!file.eof())
     {
-        evt_retValues = read_de10_header(file, offset);
+        evt_retValues = read_de10_header(file, offset, verbose);
         is_good = std::get<0>(evt_retValues);
 
         if (is_good)
@@ -226,12 +235,12 @@ int main(int argc, char *argv[])
                 padding_offset = 1024;
                 board_id = board_id - 300;
                 //std::cout << "\tFixed Board ID " << board_id << std::endl;
-                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size));
+                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose));
             }
             else
             {
                 padding_offset = 0;
-                raw_event_buffer = reorder(read_event(file, offset, evt_size));
+                raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose));
             }
 
             if (board_id == 0)

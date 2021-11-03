@@ -99,6 +99,10 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   calibLabel10 = new TGLabel(fHor3, "No calibfile opened");
   calibLabel11 = new TGLabel(fHor3, "No calibfile opened");
   calibLabel12 = new TGLabel(fHor3, "No calibfile opened");
+  calibLabel13 = new TGLabel(fHor3, "No calibfile opened");
+  calibLabel14 = new TGLabel(fHor3, "No calibfile opened");
+  calibLabel15 = new TGLabel(fHor3, "No calibfile opened");
+  calibLabel16 = new TGLabel(fHor3, "No calibfile opened");
 
   TColor *color = gROOT->GetColor(26);
   color->SetRGB(0.91, 0.91, 0.91);
@@ -168,6 +172,10 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   TChain *chain10 = new TChain("raw_events_J");
   TChain *chain11 = new TChain("raw_events_K");
   TChain *chain12 = new TChain("raw_events_L");
+  TChain *chain13 = new TChain("raw_events_M");
+  TChain *chain14 = new TChain("raw_events_N");
+  TChain *chain15 = new TChain("raw_events_O");
+  TChain *chain16 = new TChain("raw_events_P");
 
   chain->Add(filename);
   if (newDAQ)
@@ -213,6 +221,22 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
       chain12->Add(filename);
       chain->AddFriend(chain11);
       chain->AddFriend(chain12);
+    }
+
+    if (boards >= 7)
+    {
+      chain13->Add(filename);
+      chain14->Add(filename);
+      chain->AddFriend(chain13);
+      chain->AddFriend(chain14);
+    }
+
+    if (boards >= 8)
+    {
+      chain15->Add(filename);
+      chain16->Add(filename);
+      chain->AddFriend(chain15);
+      chain->AddFriend(chain16);
     }
   }
   Long64_t entries = chain->GetEntries();
@@ -355,6 +379,22 @@ void MyMainFrame::DoDraw()
     {
       viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel12->GetText())->GetString(), boards);
     }
+    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 12)
+    {
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel13->GetText())->GetString(), boards);
+    }
+    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 13)
+    {
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel14->GetText())->GetString(), boards);
+    }
+    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 14)
+    {
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel15->GetText())->GetString(), boards);
+    }
+    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 15)
+    {
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel16->GetText())->GetString(), boards);
+    }
   }
 }
 
@@ -402,6 +442,16 @@ void MyMainFrame::DoOpen()
       {
         fNumber1->SetLimitValues(0, 11);
         boards = 6;
+      }
+      if (f->GetListOfKeys()->Contains("raw_events_M"))
+      {
+        fNumber1->SetLimitValues(0, 13);
+        boards = 7;
+      }
+      if (f->GetListOfKeys()->Contains("raw_events_O"))
+      {
+        fNumber1->SetLimitValues(0, 15);
+        boards = 8;
       }
     }
 
@@ -625,6 +675,66 @@ void MyMainFrame::DoOpenCalib(bool newDAQ, int boards)
       {
         //fStatusBar->Clear();
         fStatusBar->AddLine("ERROR: calibration file 12 is empty");
+        return;
+      }
+    }
+
+    if (boards >= 7)
+    {
+      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
+      if (fi.fFilename)
+      {
+        calibLabel11->SetText(fi.fFilename);
+        fStatusBar->AddLine("Calibration 13: " + TGString(calibLabel13->GetText()->GetString()));
+      }
+      else
+      {
+        //fStatusBar->Clear();
+        fStatusBar->AddLine("ERROR: calibration file 13 is empty");
+        return;
+      }
+
+      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
+      if (fi.fFilename)
+      {
+        calibLabel12->SetText(fi.fFilename);
+        fStatusBar->AddLine("Calibration 14: " + TGString(calibLabel14->GetText()->GetString()));
+      }
+      
+      else
+      {
+        //fStatusBar->Clear();
+        fStatusBar->AddLine("ERROR: calibration file 14 is empty");
+        return;
+      }
+    }
+
+    if (boards >= 8)
+    {
+      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
+      if (fi.fFilename)
+      {
+        calibLabel11->SetText(fi.fFilename);
+        fStatusBar->AddLine("Calibration 15: " + TGString(calibLabel15->GetText()->GetString()));
+      }
+      else
+      {
+        //fStatusBar->Clear();
+        fStatusBar->AddLine("ERROR: calibration file 15 is empty");
+        return;
+      }
+
+      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
+      if (fi.fFilename)
+      {
+        calibLabel12->SetText(fi.fFilename);
+        fStatusBar->AddLine("Calibration 16: " + TGString(calibLabel16->GetText()->GetString()));
+      }
+      
+      else
+      {
+        //fStatusBar->Clear();
+        fStatusBar->AddLine("ERROR: calibration file 16 is empty");
         return;
       }
     }
