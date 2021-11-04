@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
         {
             ttree_name = (TString) "raw_events_" + alphabet.at(detector);
             raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            ttree_name = (TString) "RAW event " + alphabet.at(detector);
+            ttree_name = (TString) "RAW Event " + alphabet.at(detector);
             raw_events_tree.at(detector)->Branch(ttree_name, &raw_event_vector.at(detector));
             raw_events_tree.at(detector)->SetAutoSave(0);
         }
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
     }
 
     mean_rate = evtnum / ((end_time - start_time) + 1);
-    std::cout << "\n\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum << " acquired with a mean rate of " << mean_rate << " Hz" << std::endl;
+    std::cout << "\n\nRead " << evtnum - blank_evt_num << " good events out of " << evtnum  << std::endl;
 
     for (size_t detector = 0; detector < max_detectors; detector++)
     {
