@@ -229,7 +229,10 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
         file.read(reinterpret_cast<char *>(&buffer), 4);
         val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
-        if (val == 0xbadcafe1 || val == 0xe1afdcba || val == 0xbadcafe2 || val == 0xe2afdcba || val == 0xbadcafe3 || val == 0xe3afdcba || val == 0xbadcafe4 || val == 0xe4afdcba)
+        if (val == 0xbadcafe1 || val == 0xe1afdcba || val == 0xbadcafe2 || val == 0xe2afdcba || 
+            val == 0xbadcafe3 || val == 0xe3afdcba || val == 0xbadcafe4 || val == 0xe4afdcba ||
+            val == 0xbadcafe5 || val == 0xe5afdcba || val == 0xbadcafe6 || val == 0xe6afdcba ||
+            val == 0xbadcafe7 || val == 0xe7afdcba || val == 0xbadcafe8 || val == 0xe8afdcba )
         {
           found = true;
           if (verbose)

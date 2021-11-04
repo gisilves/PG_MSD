@@ -114,6 +114,51 @@ int main(int argc, char *argv[])
     raw_events_F->Branch("RAW Event F", &raw_event_F);
     raw_events_F->SetAutoSave(0);
 
+    TTree *raw_events_G = new TTree("raw_events_G", "raw_events_G");
+    std::vector<unsigned int> raw_event_G;
+    raw_events_G->Branch("RAW Event G", &raw_event_G);
+    raw_events_G->SetAutoSave(0);
+    TTree *raw_events_H = new TTree("raw_events_H", "raw_events_H");
+    std::vector<unsigned int> raw_event_H;
+    raw_events_H->Branch("RAW Event H", &raw_event_H);
+    raw_events_H->SetAutoSave(0);
+
+    TTree *raw_events_I = new TTree("raw_events_I", "raw_events_I");
+    std::vector<unsigned int> raw_event_I;
+    raw_events_I->Branch("RAW Event I", &raw_event_I);
+    raw_events_I->SetAutoSave(0);
+    TTree *raw_events_J = new TTree("raw_events_J", "raw_events_J");
+    std::vector<unsigned int> raw_event_J;
+    raw_events_J->Branch("RAW Event J", &raw_event_J);
+    raw_events_J->SetAutoSave(0);
+
+    TTree *raw_events_K = new TTree("raw_events_K", "raw_events_K");
+    std::vector<unsigned int> raw_event_K;
+    raw_events_K->Branch("RAW Event K", &raw_event_K);
+    raw_events_K->SetAutoSave(0);
+    TTree *raw_events_L = new TTree("raw_events_L", "raw_events_L");
+    std::vector<unsigned int> raw_event_L;
+    raw_events_L->Branch("RAW Event L", &raw_event_L);
+    raw_events_L->SetAutoSave(0);
+
+    TTree *raw_events_M = new TTree("raw_events_M", "raw_events_M");
+    std::vector<unsigned int> raw_event_M;
+    raw_events_M->Branch("RAW Event M", &raw_event_M);
+    raw_events_M->SetAutoSave(0);
+    TTree *raw_events_N = new TTree("raw_events_N", "raw_events_N");
+    std::vector<unsigned int> raw_event_N;
+    raw_events_N->Branch("RAW Event N", &raw_event_N);
+    raw_events_N->SetAutoSave(0);
+
+    TTree *raw_events_O = new TTree("raw_events_O", "raw_events_O");
+    std::vector<unsigned int> raw_event_O;
+    raw_events_O->Branch("RAW Event O", &raw_event_O);
+    raw_events_O->SetAutoSave(0);
+    TTree *raw_events_P = new TTree("raw_events_P", "raw_events_P");
+    std::vector<unsigned int> raw_event_P;
+    raw_events_P->Branch("RAW Event P", &raw_event_P);
+    raw_events_P->SetAutoSave(0);
+
     bool little_endian = 0;
     int offset = 0;
 
@@ -205,7 +250,7 @@ int main(int argc, char *argv[])
                 if (is_good)
                 {
                     raw_event_buffer = reorder(read_event(file, evt_offset, board_num));
-                    
+
                     if (!gsi)
                     {
                         if (board_num == 0)
@@ -231,6 +276,46 @@ int main(int argc, char *argv[])
                             raw_event_F = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                             raw_events_E->Fill();
                             raw_events_F->Fill();
+                        }
+                        else if (board_num == 3)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_G = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_H = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                            raw_events_G->Fill();
+                            raw_events_H->Fill();
+                        }
+                        else if (board_num == 4)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_I = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_J = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                            raw_events_I->Fill();
+                            raw_events_J->Fill();
+                        }
+                        else if (board_num == 5)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_K = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_L = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                            raw_events_K->Fill();
+                            raw_events_L->Fill();
+                        }
+                        else if (board_num == 6)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_M = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_N = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                            raw_events_M->Fill();
+                            raw_events_N->Fill();
+                        }
+                        else if (board_num == 7)
+                        {
+                            //std::cout << "\nBoard number " << board_num << std::endl;
+                            raw_event_O = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                            raw_event_P = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                            raw_events_O->Fill();
+                            raw_events_P->Fill();
                         }
                     }
                     else
@@ -313,6 +398,56 @@ int main(int argc, char *argv[])
     if (raw_events_F->GetEntries())
     {
         raw_events_F->Write();
+    }
+
+    if (raw_events_G->GetEntries())
+    {
+        raw_events_G->Write();
+    }
+
+    if (raw_events_H->GetEntries())
+    {
+        raw_events_H->Write();
+    }
+
+    if (raw_events_I->GetEntries())
+    {
+        raw_events_I->Write();
+    }
+
+    if (raw_events_J->GetEntries())
+    {
+        raw_events_J->Write();
+    }
+
+    if (raw_events_K->GetEntries())
+    {
+        raw_events_K->Write();
+    }
+
+    if (raw_events_L->GetEntries())
+    {
+        raw_events_L->Write();
+    }
+
+    if (raw_events_M->GetEntries())
+    {
+        raw_events_M->Write();
+    }
+
+    if (raw_events_N->GetEntries())
+    {
+        raw_events_N->Write();
+    }
+
+    if (raw_events_O->GetEntries())
+    {
+        raw_events_O->Write();
+    }
+
+    if (raw_events_P->GetEntries())
+    {
+        raw_events_P->Write();
     }
 
     foutput->Close();
