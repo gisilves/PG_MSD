@@ -66,7 +66,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   unsigned long val = 0;
   bool found = false;
 
-  unsigned long header = 0xffffffffbaba1a9a;
+  unsigned long long header = 0xffffffffbaba1a9a;
 
   if (verbose)
   {

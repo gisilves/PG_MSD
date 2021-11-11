@@ -8,7 +8,7 @@ ANYOPTION=$(SRC)/anyoption.cpp
 
 UNAME := $(shell uname)
 
-CFLAGS += $(shell root-config --glibs) -g -fPIC -pthread -I/home/gsilvest/root6/include
+CFLAGS += $(shell root-config --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include
 OPTFLAGS += -O3
 
 default: FOOT_compress
@@ -60,3 +60,4 @@ clean:
 	rm -f ./raw_viewer
 	rm -f ./calibration
 	rm -f ./bias_control
+	rm -f ./bias_controlPI
