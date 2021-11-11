@@ -100,7 +100,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fMain->AddFrame(fHor0b, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
   fMain->SetCleanup(kDeepCleanup);
-  fMain->SetWindowName("CAEN Bias PS Control");
+  fMain->SetWindowName("CAEN Bias PS Control for RaspberryPi");
   fMain->MapSubwindows();
   fMain->Resize(fMain->GetDefaultSize());
   fMain->MapWindow();
@@ -118,14 +118,13 @@ void MyMainFrame::DoStatus()
 
   uint8_t serial = 0;
 
+  fStatusBar->AddLine("\n");
+  fStatusBar->AddLine(std::asctime(std::localtime(&result)));
+
   for (int i = 0; i < 16; i++)
   {
-    if (A7585_GetSerialNumber(iic_rasp, I2C_ADD + i, serial))
+    if (A7585_GetSerialNumber(iic_rasp, I2C_ADD + i, serial) == (I2C_ADD + i))
     {
-      fStatusBar->AddLine("\n");
-      std::time_t result = std::time(nullptr);
-      fStatusBar->AddLine(std::asctime(std::localtime(&result)));
-      fStatusBar->ShowBottom();
       fStatusBar->AddLine("Device ID " + (TString)serial + " connected");
     }
   }
