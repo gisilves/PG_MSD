@@ -8,17 +8,12 @@ ANYOPTION=$(SRC)/anyoption.cpp
 
 UNAME := $(shell uname)
 
-CFLAGS += $(shell root-config --ldflags --cflags --glibs) -g -fPIC
-OPTFLAGS += -O3 -mtune=native -march=native -w -funroll-loops -D_GLIBCXX_PARALLEL
-
-ifeq ($(shell uname -s),Linux) # LINUX
-OPTFLAGS += -fopenmp
-endif
-
+CFLAGS += $(shell root-config --glibs) -g -fPIC -pthread -I/home/gsilvest/root6/include
+OPTFLAGS += -O3
 
 default: FOOT_compress
 
-all: miniTRB_compress FOOT_compress PAPERO_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control
+all: miniTRB_compress FOOT_compress PAPERO_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI
 
 .PHONY: all
 
@@ -50,6 +45,10 @@ raw_viewer:
 bias_control: 
 	$(ROOTCLING) -f guiDict.cxx ./src/biascontrol.hh ./src/guiLinkDef.h
 	$(CXX) ./src/biascontrol.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
+
+bias_controlPI: 
+	$(ROOTCLING) -f guiDict.cxx ./src/biascontrolPI.hh ./src/guiLinkDef.h
+	$(CXX) ./src/biascontrolPI.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 clean:
 	rm -f ./miniTRB_compress
