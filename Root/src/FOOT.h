@@ -104,7 +104,6 @@ std::tuple<bool, int> chk_evt_master_header(std::fstream &file, bool little_endi
     }
     return std::make_tuple(false, run_offset);
   }
-
   return std::make_tuple(true, run_offset);
 }
 
@@ -230,14 +229,13 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
         file.read(reinterpret_cast<char *>(&buffer), 4);
         val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
-        if ((val & 0xfffffff0) == 0xbadcafe0 && (val & 0x0000000f) > 0 && (val & 0x0000000f) < 10)
+        if ( (val & 0xfffffff0) == 0xbadcafe0 && (val & 0x0000000f) > 0 && (val & 0x0000000f) < 10)
         {
           found = true;
           if (verbose)
           {
             std::cout << "Found DE10 header at position " << run_offset + 12 << std::endl;
           }
-          return std::make_tuple(true, timestamp, run_offset + 8);
         }
         else
         {
@@ -250,6 +248,7 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
         {
           std::cout << "Can't find event builder header for the event" << std::endl;
         }
+        return std::make_tuple(false, timestamp, run_offset + 8);
       }
     }
     else
@@ -264,7 +263,7 @@ std::tuple<bool, unsigned short, int> read_evt_header(std::fstream &file, bool l
     return std::make_tuple(false, timestamp, run_offset);
   }
 
-  return std::make_tuple(false, timestamp, run_offset + 8);
+  return std::make_tuple(true, timestamp, run_offset + 8);
 }
 
 std::vector<unsigned int> read_event(std::fstream &file, int offset, int board)
