@@ -4,16 +4,11 @@
 #include "TH2.h"
 #include "TTree.h"
 #include "TGraph.h"
-#include "environment.h"
 
 #include <iostream>
 
 #include "anyoption.h"
 #include "event.h"
-
-#if OMP_ == 1
-  #include "omp.h"
-#endif
 
 AnyOption *opt; //Handle the option input
 

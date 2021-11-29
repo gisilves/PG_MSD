@@ -8,7 +8,7 @@ ANYOPTION=$(SRC)/anyoption.cpp
 
 UNAME := $(shell uname)
 
-CFLAGS += $(shell root-config --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include
+CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include
 OPTFLAGS += -O3
 
 default: FOOT_compress

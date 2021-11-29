@@ -14,13 +14,8 @@
 #include "TLine.h"
 #include "TKey.h"
 
-#include "environment.h"
 #include "anyoption.h"
 #include "event.h"
-
-#if OMP_ == 1
-#include "omp.h"
-#endif
 
 AnyOption *opt; //Handle the option input
 

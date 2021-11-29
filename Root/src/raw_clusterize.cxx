@@ -6,15 +6,10 @@
 #include "TGraph.h"
 #include "TTree.h"
 #include <iostream>
-#include "environment.h"
 #include <algorithm>
 
 #include "anyoption.h"
 #include "event.h"
-
-#if OMP_ == 1
-#include "omp.h"
-#endif
 
 AnyOption *opt; //Handle the input options
 
