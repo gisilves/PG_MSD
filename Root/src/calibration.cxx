@@ -19,7 +19,7 @@
 
 AnyOption *opt; //Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut, float sigma_cut, int board, int side, bool pdf_only, bool fast)
+int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -53,11 +53,11 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   TH1D *hCN[NChannels];
   for (int ch = 0; ch < NChannels; ch++)
   {
-    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d_side_%d", ch, board, side), Form("Pedestal %d", ch), 50, 0, -1);
+    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d_side_%d", ch, board, side), Form("Pedestal %d", ch), 1000, 0, -1);
     hADC[ch]->GetXaxis()->SetTitle("ADC");
-    hSignal[ch] = new TH1D(Form("signal_channel_%d_board_%d_side_%d", ch, board, side), Form("Signal %d", ch), 50, 0, -1);
+    hSignal[ch] = new TH1D(Form("signal_channel_%d_board_%d_side_%d", ch, board, side), Form("Signal %d", ch), 1000, -50, 50);
     hSignal[ch]->GetXaxis()->SetTitle("ADC");
-    hCN[ch] = new TH1D(Form("cn_channel_%d_board_%d_side_%d", ch, board, side), Form("CN %d", ch), 50, 0, -1);
+    hCN[ch] = new TH1D(Form("cn_channel_%d_board_%d_side_%d", ch, board, side), Form("CN %d", ch), 1000, -50, 50);
     hCN[ch]->GetXaxis()->SetTitle("ADC");
   }
 
@@ -91,6 +91,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   std::vector<float> sigma[NChannels];
   float mean_sigma = 0;
   float rms_sigma = 0;
+  float max_sigma = 0;
 
   char name[100];
   char location[100];
@@ -185,12 +186,27 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
     //Fitting histos with gaus to compute ped and raw_sigma
     if (hADC[ch]->GetEntries())
     {
-      hADC[ch]->Fit("gaus", "QS");
-      fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
-      pedestals->push_back(fittedgaus->GetParameter(1));
-      rsigma->push_back(fittedgaus->GetParameter(2));
-      gr->SetPoint(ch, ch, fittedgaus->GetParameter(1));
-      gr2->SetPoint(ch, ch, fittedgaus->GetParameter(2));
+      if (fit)
+      {
+        hADC[ch]->Fit("gaus", "QS");
+        fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
+        pedestals->push_back(fittedgaus->GetParameter(1));
+        rsigma->push_back(fittedgaus->GetParameter(2));
+        gr->SetPoint(ch, ch, fittedgaus->GetParameter(1));
+        gr2->SetPoint(ch, ch, fittedgaus->GetParameter(2));
+      }
+      else
+      {
+        if (ch == 100)
+        {
+          hADC[ch]->SaveAs("test.root");
+        }
+
+        pedestals->push_back(hADC[ch]->GetMean());
+        rsigma->push_back(hADC[ch]->GetRMS());
+        gr->SetPoint(ch, ch, hADC[ch]->GetMean());
+        gr2->SetPoint(ch, ch, hADC[ch]->GetRMS());
+      }
     }
     else
     {
@@ -279,21 +295,39 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
 
   //Fitting with gaus to compute sigmas
   int va_chan = 0;
+  double sigma_value;
+
   for (int ch = 0; ch < NChannels; ch++)
   {
     bool badchan = false;
     if (hCN[ch]->GetEntries())
     {
-      hCN[ch]->Fit("gaus", "QS");
-      fittedgaus = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
-      gr3->SetPoint(ch, ch, fittedgaus->GetParameter(2));
-      sigma->push_back(fittedgaus->GetParameter(2));
-      //Flag for channels that are too noisy or dead
-      if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
+      if (fit)
       {
-        if (fittedgaus->GetParameter(2) < 1 || fittedgaus->GetParameter(2) > sigma_cut)
+        hCN[ch]->Fit("gaus", "QS");
+        fittedgaus = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
+        gr3->SetPoint(ch, ch, fittedgaus->GetParameter(2));
+        sigma->push_back(fittedgaus->GetParameter(2));
+        //Flag for channels that are too noisy or dead
+        if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
         {
-          badchan = true;
+          if (fittedgaus->GetParameter(2) < 1 || fittedgaus->GetParameter(2) > sigma_cut)
+          {
+            badchan = true;
+          }
+        }
+      }
+      else
+      {
+        gr3->SetPoint(ch, ch, hCN[ch]->GetRMS());
+        sigma->push_back(hCN[ch]->GetRMS());
+        //Flag for channels that are too noisy or dead
+        if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
+        {
+          if (hCN[ch]->GetRMS() < 1 || hCN[ch]->GetRMS() > sigma_cut)
+          {
+            badchan = true;
+          }
         }
       }
     }
@@ -306,11 +340,19 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
 
     if (!pdf_only)
     {
+      if (fit)
+      {
+        sigma_value = fittedgaus->GetParameter(2);
+      }
+      else
+      {
+        sigma_value = hCN[ch]->GetRMS();
+      }
       //Writing info in .cal file (should be backwards-compatible with miniTRB tools)
       calfile << ch << ", " << ch / 64 << ", "
               << va_chan
               << ", " << pedestals->at(ch) << ", " << rsigma->at(ch) << ", "
-              << fittedgaus->GetParameter(2)
+              << sigma_value
               << ", "
               << badchan
               << ", "
@@ -325,6 +367,16 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   }
   mean_sigma = std::accumulate(sigma->begin(), sigma->end(), 0.0) / sigma->size();
   rms_sigma = std::sqrt(std::inner_product(sigma->begin(), sigma->end(), sigma->begin(), 0.0) / sigma->size());
+  
+  if (!std::isnan(mean_sigma))
+  {
+    max_sigma = *std::max_element(sigma->begin(), sigma->end());
+  }
+  else
+  {
+    max_sigma = 0;
+  }
+
   float num_sigma = 0;
   for (int i = 0; i < sigma->size(); i++)
   {
@@ -340,9 +392,14 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   sig_info.SetTextSize(0.025);
   sig_info.SetTextAngle(90);
   sig_info.SetTextAlign(12);
-  sig_info.DrawLatex(680, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f", mean_sigma, rms_sigma));
+  sig_info.DrawLatex(680, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
   TString out_pdf_close = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf)";
   c1->Print(out_pdf_close, "pdf");
+
+  cout << "\tMean pedestal \t Mean RSigma \t Mean Sigma \t Max Sigma " << endl;
+  cout << Form("\t%f \t %f \t %f \t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << endl;
+  cout << "\tRMS pedestal \t RMS RSigma \t RMS Sigma " << endl;
+  cout << Form("\t%f \t %f \t %f", rms_pedestal, rms_rsigma, rms_sigma) << endl;
 
   if (!pdf_only)
   {
@@ -352,6 +409,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
     gr3->Write();
     foutput->Close();
   }
+
   return 0;
 }
 
@@ -361,6 +419,7 @@ int main(int argc, char *argv[])
   bool verb = false;
   bool pdf_only = false;
   bool fast_mode = false;
+  bool fit_mode = false;
 
   float sigmaraw_cut = 8;
   float sigma_cut = 5;
@@ -383,11 +442,13 @@ int main(int argc, char *argv[])
   opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
   opt->addUsage("  --fast           ................................. no info prompt");
   opt->addUsage("  --minitrb        ................................. For files acquired with the miniTRB");
+  opt->addUsage("  --fit            ................................. Compute calibration parameters with gaussian fits");
   opt->setFlag("help", 'h');
   opt->setFlag("minitrb");
   opt->setFlag("verbose", 'v');
   opt->setFlag("pdf");
   opt->setFlag("fast");
+  opt->setFlag("fit");
 
   opt->setOption("output");
   opt->setOption("cn");
@@ -429,6 +490,12 @@ int main(int argc, char *argv[])
     std::cout << "\nFast flag activated: no additional info will be written in the .cal file" << std::endl;
   }
 
+  if (opt->getFlag("fit"))
+  {
+    fit_mode = true;
+    std::cout << "\nUsing Gaussian fits to compute calibrations" << std::endl;
+  }
+
   // Create output .cal file
   TString output_filename;
   if (opt->getValue("output"))
@@ -455,7 +522,7 @@ int main(int argc, char *argv[])
 
   if (!newDAQ)
   {
-    compute_calibration(*chain, output_filename, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode);
+    compute_calibration(*chain, output_filename, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode);
   }
   else
   {
@@ -486,7 +553,7 @@ int main(int argc, char *argv[])
           chain2->Add(opt->getArgv(ii));
         }
 
-        compute_calibration(*chain2, output_filename, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode);
+        compute_calibration(*chain2, output_filename, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode, fit_mode);
         board_num++;
         if (ladder_side == 0)
         {
