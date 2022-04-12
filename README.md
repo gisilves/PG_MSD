@@ -1,5 +1,5 @@
-# FOOT_MSD
-Software for FOOT MSD data analysis
+# PG_MSD
+Software for MSD data analysis
 
 ###### Root 6 with C++14 support needed (to compile, *make + executable name* or *make all*):
 
