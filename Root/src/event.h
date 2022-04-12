@@ -9,8 +9,8 @@
 
 #define verbose false
 
-#define MIP_ADC 15 //50ADC: DAMPE 300um 15ADC:FOOT 150um
-#define maxClusters 10
+#define MIP_ADC 16 //50ADC: DAMPE 300um 15ADC:FOOT 150um
+#define maxClusters 100
 typedef struct
 {
   unsigned short address; //first strip of the cluster

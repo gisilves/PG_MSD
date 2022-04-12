@@ -84,7 +84,11 @@ int main(int argc, char *argv[])
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
   opt->addUsage("  --nevents        ................................. Number of events to process ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
+  opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB 2020 for FOOT DAQ");
+  opt->addUsage("                   ................................. 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
+  opt->addUsage("                   ................................. 2020 for FOOT DAQ");
+  opt->addUsage("                   ................................. 2021 for PAN StripX");
+  opt->addUsage("                   ................................. 2022 for PAN StripY");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
   opt->addUsage("  --dynped         ................................. Enable dynamic pedestals ");
@@ -665,7 +669,7 @@ int main(int argc, char *argv[])
 
     std::vector<float> signal(raw_event->size()); // Vector of pedestal subtracted signal
 
-    if (raw_event->size() == 384 || raw_event->size() == 640) // if the raw file was correctly processed these are the only possible values
+    if (raw_event->size() == NChannels) // if the raw file was correctly processed these is the only possible value
     {
       if (cal.ped.size() >= raw_event->size())
       {
