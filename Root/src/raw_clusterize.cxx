@@ -7,6 +7,8 @@
 #include "TTree.h"
 #include <iostream>
 #include <algorithm>
+#include <vector>
+#include <cmath>
 
 #include "anyoption.h"
 #include "event.h"
@@ -84,8 +86,8 @@ int main(int argc, char *argv[])
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
   opt->addUsage("  --nevents        ................................. Number of events to process ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB 2020 for FOOT DAQ");
-  opt->addUsage("                   ................................. 1313 for 10VA miniTRB or 2020 for FOOT DAQ");
+  opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB");
+  opt->addUsage("                   ................................. 1313 for 10VA miniTRB");
   opt->addUsage("                   ................................. 2020 for FOOT DAQ");
   opt->addUsage("                   ................................. 2021 for PAN StripX");
   opt->addUsage("                   ................................. 2022 for PAN StripY");
@@ -239,6 +241,10 @@ int main(int argc, char *argv[])
   TH1F *hADCCluster = // ADC content of all clusters
       new TH1F("hADCCluster", "hADCCluster", 2500, 0, 5000);
   hADCCluster->GetXaxis()->SetTitle("ADC");
+
+  TH1F *hHighest = // ADC of highest signal
+      new TH1F("hHighest", "hHighest", 2500, 0, 5000);
+  hHighest->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterEdge = // ADC content of all clusters
       new TH1F("hADCClusterEdge", "hADCClusterEdge", 2500, 0, 5000);
@@ -782,6 +788,11 @@ int main(int argc, char *argv[])
         maxPOS = std::distance(signal.begin(), it);
       }
 
+      if (verbose)
+        std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
+
+      hHighest->Fill(*max_element(signal.begin(), signal.end()));
+
       result = clusterize(&cal, &signal, highthreshold, lowthreshold, // clustering function
                           symmetric, symmetricwidth, absolute);
 
@@ -795,8 +806,8 @@ int main(int argc, char *argv[])
           PrintCluster(result.at(i));
         }
 
-        if (!GoodCluster(result.at(i), &cal))
-          continue;
+        // if (!GoodCluster(result.at(i), &cal))
+        //   continue;
 
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip) // cut on position on the detector in terms of strip number
         {
@@ -845,7 +856,7 @@ int main(int argc, char *argv[])
           hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
           hNstrip->Fill(GetClusterWidth(result.at(i)));
 
-          if (result.at(i).width == 2)
+          if (result.at(i).width)
           {
             hEta->Fill(GetClusterEta(result.at(i)));
             if (result.at(i).over == 1)
@@ -896,6 +907,8 @@ int main(int argc, char *argv[])
   Double_t norm = hADCCluster->GetEntries();
   hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
+
+  hHighest->Write();
 
   norm = hADCClusterEdge->GetEntries();
   hADCClusterEdge->Scale(1 / norm);

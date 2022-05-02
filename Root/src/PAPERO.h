@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <iostream>
 
-//for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
+// for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
 int seek_run_header(std::fstream &file, unsigned int offset, bool verbose)
 {
@@ -65,8 +65,11 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   unsigned long timestamp = -1;
   unsigned long val = 0;
   bool found = false;
+  unsigned int original_offset = offset;
 
   unsigned long long header = 0xffffffffbaba1a9a;
+
+  char dummy[100];
 
   if (verbose)
   {
@@ -79,20 +82,25 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   {
     while (!found && !file.eof())
     {
-      file.seekg(offset+4);
+      file.seekg(offset + 4);
       file.read(reinterpret_cast<char *>(&buffer), 4);
       val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-      //std::cout << std::hex << val << std::endl;
-      //sleep(1);
+      // std::cout << std::hex << val << std::endl;
+      // sleep(1);
 
       if (val == header)
       {
         found = true;
         if (verbose)
         {
-          std::cout << "Found DE10 header at offset " << offset << std::endl;
+          std::cout << "Found DE10 header at offset " << offset << " with delta value of " << offset - original_offset << std::endl;
+          if(offset - original_offset != 0)
+          {
+            std::cout << "WARNING: delta != 0" << std::endl;
+            std::cin >> dummy;
+          }
         }
-      }
+      } 
       else
       {
         offset += 4;
@@ -105,7 +113,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     {
       std::cout << "Reached EOF" << std::endl;
     }
-    return std::make_tuple(false, -1, -1, -1, -1, -1, -1,-1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1);
   }
 
   file.seekg(offset + 8);

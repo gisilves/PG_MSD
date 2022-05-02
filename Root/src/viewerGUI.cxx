@@ -48,9 +48,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   TGVerticalFrame *fVer1 = new TGVerticalFrame(fHor0b, 10, 10);
 
   fStatusBar = new TGTextView(fVer1, 500, 150);
-  fStatusBar->LoadBuffer("Event viewer for DAMPE/FOOT raw data .root files.");
-  fStatusBar->AddLine("");
-  fStatusBar->AddLine("Root files must have been processed by miniTRB_compress or FOOT_compress utilities");
+  fStatusBar->LoadBuffer("Event viewer for microstrip raw data .root files.");
   fStatusBar->AddLine("");
   fStatusBar->AddLine("Files must have been acquired in raw (non compressed) mode.");
   fStatusBar->AddLine("");
@@ -142,10 +140,12 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fVer1->AddFrame(fStatusBar, new TGLayoutHints(kLHintsCenterX | kLHintsBottom | kLHintsLeft | kLHintsExpandY, 5, 5, 2, 2));
 
   fMain->SetCleanup(kDeepCleanup);
-  fMain->SetWindowName("DAMPE/FOOT Raw Event Viewer");
+  fMain->SetWindowName("Microstrip Raw Event Viewer");
   fMain->MapSubwindows();
   fMain->Resize(fMain->GetDefaultSize());
   fMain->MapWindow();
+
+  fMain->SetIconPixmap("/home/gsilvest/Work/PG_MSD/Root/icon.png");
 }
 
 const char *filetypesROOT[] = {
@@ -766,7 +766,7 @@ MyMainFrame::~MyMainFrame()
 void viewerGUI()
 {
   // Popup the GUI...
-  new MyMainFrame(gClient->GetRoot(), 1000, 1000);
+  MyMainFrame *window = new MyMainFrame(gClient->GetRoot(), 1000, 1000);
 }
 
 int main(int argc, char **argv)

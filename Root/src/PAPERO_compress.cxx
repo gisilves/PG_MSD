@@ -56,7 +56,7 @@ std::vector<T> reorder_DAMPE(std::vector<T> const &v)
     return reordered_vec;
 }
 
-AnyOption *opt; //Handle the option input
+AnyOption *opt; // Handle the option input
 
 int main(int argc, char *argv[])
 {
@@ -65,12 +65,12 @@ int main(int argc, char *argv[])
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
-    opt->addUsage("  -v               ................................. Verbose ");
+    opt->addUsage("  -v, --verbose    ................................. Verbose ");
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
     opt->setOption("boards");
 
     opt->setFlag("help", 'h');
-    opt->setFlag('v');
+    opt->setFlag("verbose", 'v');
 
     opt->processFile("./options.txt");
     opt->processCommandArgs(argc, argv);
@@ -85,13 +85,10 @@ int main(int argc, char *argv[])
     }
 
     bool verbose = false;
-
-    if (opt->getValue("v"))
-    {
+    if (opt->getFlag("verbose") || opt->getFlag('v'))
         verbose = true;
-    }
 
-    //Open binary data file
+    // Open binary data file
     std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
     {
@@ -102,12 +99,12 @@ int main(int argc, char *argv[])
     std::cout << " " << std::endl;
     std::cout << "Processing file " << opt->getArgv(0) << std::endl;
 
-    //Create output ROOT file
+    // Create output ROOT file
     TString output_filename = opt->getArgv(1);
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
 
-    //Initialize TTree(s)
+    // Initialize TTree(s)
     std::vector<unsigned int> raw_event_buffer;
 
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
@@ -132,23 +129,27 @@ int main(int argc, char *argv[])
         }
     }
 
-    //Find if there is an offset before first event
+    // Find if there is an offset before first event
     unsigned int offset = 0;
     offset = seek_run_header(file, offset, verbose);
     int padding_offset = 0;
 
-    //Read raw events and write to TTree
+    // Read raw events and write to TTree
     bool is_good = false;
     int evtnum = 0;
     int boards = 0;
     unsigned long fw_version = 0;
     int board_id = -1;
+    int trigger_number = -1;
     int trigger_id = -1;
     int evt_size = 0;
     unsigned short timestamp = 0;
     int boards_read = 0;
     float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
+
+    unsigned int old_offset = 0;
+    char dummy[100];
 
     if (!opt->getValue("boards"))
     {
@@ -170,7 +171,7 @@ int main(int argc, char *argv[])
             boards_read++;
             evt_size = std::get<1>(evt_retValues);
             fw_version = std::get<2>(evt_retValues);
-            //evtnum = std::get<3>(evt_retValues);
+            trigger_number = std::get<3>(evt_retValues);
             board_id = std::get<4>(evt_retValues);
             timestamp = std::get<5>(evt_retValues);
             trigger_id = std::get<6>(evt_retValues);
@@ -189,10 +190,10 @@ int main(int argc, char *argv[])
 
             if (fw_version == 0xffffffff9fd68b40)
             {
-                //std::cout << "\tLADDERONE!!!" << std::endl;
+                // std::cout << "\tLADDERONE!!!" << std::endl;
                 padding_offset = 1024;
                 board_id = board_id - 300;
-                //std::cout << "\tFixed Board ID " << board_id << std::endl;
+                // std::cout << "\tFixed Board ID " << board_id << std::endl;
                 raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose));
             }
             else
@@ -210,11 +211,15 @@ int main(int argc, char *argv[])
             {
                 boards_read = 0;
                 evtnum++;
+                std::cout << "\r\tRead event " << evtnum << std::endl;
                 offset = (int)file.tellg() + padding_offset + 8;
             }
             else
             {
                 offset = (int)file.tellg() + padding_offset + 4;
+                if (verbose)
+                    std::cout << "WARNING: not all boards were read" << std::endl;
+                std::cin >> dummy;
             }
         }
         else
