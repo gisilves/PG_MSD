@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
     int trigger_number = -1;
     int trigger_id = -1;
     int evt_size = 0;
-    unsigned short timestamp = 0;
+    unsigned long timestamp = 0;
     int boards_read = 0;
     float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;

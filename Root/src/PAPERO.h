@@ -58,11 +58,12 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   unsigned char buffer[4];
 
   unsigned long evt_lenght = 0;
-  unsigned long fw_version = -1;
+  unsigned long fw_version = 0;
   unsigned long trigger = 0;
-  unsigned long board_id = -1;
-  unsigned long trigger_id = -1;
-  unsigned long timestamp = -1;
+  unsigned long board_id = 0;
+  unsigned long trigger_id = 0;
+  uint32_t timestamp_part = 0;
+  uint64_t timestamp = 0UL;
   unsigned long val = 0;
   bool found = false;
   unsigned int original_offset = offset;
@@ -95,7 +96,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
         {
           std::cout << "Found DE10 header at offset " << offset << " with delta value of " << offset - original_offset << std::endl;
         }
-      } 
+      }
       else
       {
         offset += 4;
@@ -127,9 +128,11 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   trigger_id = buffer[0] | buffer[1] << 8;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  timestamp = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  timestamp = 0x0000000000000000 | ((uint64_t)timestamp_part << 32UL);
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  timestamp = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24 | timestamp << 32;
+  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  timestamp |= (uint64_t)timestamp_part;
 
   if (verbose)
   {
@@ -167,8 +170,8 @@ std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, in
     val1 = buffer[0] | buffer[1] << 8;
     val2 = buffer[2] | buffer[3] << 8;
 
-    event.push_back(val1/4);
-    event.push_back(val2/4);
+    event.push_back(val1 / 4);
+    event.push_back(val2 / 4);
   }
 
   return event;
