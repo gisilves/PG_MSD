@@ -94,11 +94,6 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
         if (verbose)
         {
           std::cout << "Found DE10 header at offset " << offset << " with delta value of " << offset - original_offset << std::endl;
-          if(offset - original_offset != 0)
-          {
-            std::cout << "WARNING: delta != 0" << std::endl;
-            std::cin >> dummy;
-          }
         }
       } 
       else
@@ -162,16 +157,16 @@ std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, in
   unsigned int val1;
   unsigned int val2;
 
-  std::vector<unsigned int> event(event_size);
+  std::vector<unsigned int> event;
 
-  for (int i = 0; i < event.size(); i = i + 2)
+  for (size_t i = 0; i < event_size; i = i + 2)
   {
     file.read(reinterpret_cast<char *>(&buffer), 4);
     val1 = buffer[0] | buffer[1] << 8;
     val2 = buffer[2] | buffer[3] << 8;
 
-    event.at(i) = val1 / 4;
-    event.at(i + 1) = val2 / 4;
+    event.push_back(val1/4);
+    event.push_back(val2/4);
   }
 
   return event;
