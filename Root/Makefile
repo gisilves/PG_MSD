@@ -13,7 +13,7 @@ OPTFLAGS += -O3
 
 default: FOOT_compress
 
-all: miniTRB_compress FOOT_compress PAPERO_compress raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI
+all: miniTRB_compress FOOT_compress PAPERO_compress PAPERO_info raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI
 
 .PHONY: all
 
@@ -25,6 +25,9 @@ FOOT_compress: ./src/FOOT_compress.cxx
 
 PAPERO_compress: ./src/PAPERO_compress.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+PAPERO_info: ./src/PAPERO_info.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
 
 raw_clusterize: ./src/raw_clusterize.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
