@@ -128,6 +128,8 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
   timestamp = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  timestamp = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24 | timestamp << 32;
 
   if (verbose)
   {

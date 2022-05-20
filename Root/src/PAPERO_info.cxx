@@ -65,24 +65,22 @@ int main(int argc, char *argv[])
     offset = seek_run_header(file, offset, verbose);
     int padding_offset = 0;
 
-    // Read raw events and write to TTree
+    // Read raw events and boards headers info
     bool is_good = false;
     int evtnum = 0;
     int evt_to_read = -1;
     int boards = 0;
-    unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
     int trigger_id = -1;
     int evt_size = 0;
-    unsigned short timestamp = 0;
-    unsigned short first_timestamp = 0;
     int boards_read = 0;
+    unsigned int old_offset = 0;
+    unsigned long fw_version = 0;
+    unsigned long timestamp = 0;
+    unsigned long first_timestamp = 0;
     float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
-
-    unsigned int old_offset = 0;
-    char dummy[100];
 
     if (!opt->getValue("boards"))
     {
@@ -98,7 +96,6 @@ int main(int argc, char *argv[])
     TGraph *g_trigger_number[boards];
     TGraph *g_trigger_id[boards];
     TGraph *g_timestamp[boards];
-
     TGraph *g_timestamp_delta[boards - 1];
 
     for (int i = 0; i < boards; i++)
@@ -172,7 +169,7 @@ int main(int argc, char *argv[])
             {
                 std::cout << "\tBoard ID " << board_id << std::endl;
                 std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
-                std::cout << "\tTimesamp " << timestamp << std::endl;
+                std::cout << "\tTimestamp " << std::dec << timestamp << std::endl;
                 std::cout << "\tTrigger ID " << trigger_id << std::endl;
                 std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
                 std::cout << "\tEvt lenght: " << evt_size << std::endl;
