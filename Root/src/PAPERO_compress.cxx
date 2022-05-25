@@ -225,9 +225,9 @@ int main(int argc, char *argv[])
             }
 
             raw_event_vector.at(2 * board_id).clear();
-            raw_event_vector.at(2 * board_id) = subvector(raw_event_buffer, 0, raw_event_buffer.size() / 2);
-            raw_event_vector.at(2 * board_id + 1) = subvector(raw_event_buffer, raw_event_buffer.size() / 2, raw_event_buffer.size());
-
+            raw_event_vector.at(2 * board_id + 1).clear();
+            raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+            raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
             raw_events_tree.at(2 * board_id)->Fill();
             raw_events_tree.at(2 * board_id + 1)->Fill();
 

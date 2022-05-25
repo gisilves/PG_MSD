@@ -77,8 +77,10 @@ int main(int argc, char *argv[])
     int boards_read = 0;
     unsigned int old_offset = 0;
     unsigned long fw_version = 0;
-    unsigned long timestamp = 0;
-    unsigned long first_timestamp = 0;
+    uint64_t timestamp = 0;
+    uint64_t first_timestamp = 0;
+    long long timestamp_diff = 0;
+    //uint64_t rate_timestamp[boards];
     float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
 
@@ -92,11 +94,14 @@ int main(int argc, char *argv[])
         boards = atoi(opt->getValue("boards"));
     }
 
+    std::vector<uint64_t> rate_timestamp(boards,0);
+
     // Initialize TGraphs for each board
     TGraph *g_trigger_number[boards];
     TGraph *g_trigger_id[boards];
     TGraph *g_timestamp[boards];
     TGraph *g_timestamp_delta[boards - 1];
+    TH1F   *h_timestamp_rate[boards];
 
     for (int i = 0; i < boards; i++)
     {
@@ -115,13 +120,18 @@ int main(int argc, char *argv[])
         g_timestamp[i]->SetTitle(TString::Format("Timestamp for board %d", i));
         g_timestamp[i]->GetXaxis()->SetTitle("Event read number");
         g_timestamp[i]->GetYaxis()->SetTitle("Timestamp");
+        h_timestamp_rate[i] = new TH1F("","",10000,499900,500100);
+        h_timestamp_rate[i]->SetName(TString::Format("g_timestamp_rate_board_%d", i));
+        h_timestamp_rate[i]->SetTitle(TString::Format("Timestamp rate for board %d", i));
+        h_timestamp_rate[i]->GetXaxis()->SetTitle("Timestamp rate");
+        h_timestamp_rate[i]->GetYaxis()->SetTitle("Entries");
     }
 
     for (int i = 0; i < boards - 1; i++)
     {
         g_timestamp_delta[i] = new TGraph();
-        g_timestamp_delta[i]->SetName(TString::Format("g_timestamp_delta_board_%d", i+1));
-        g_timestamp_delta[i]->SetTitle(TString::Format("Timestamp delta for board %d", i+1));
+        g_timestamp_delta[i]->SetName(TString::Format("g_timestamp_delta_board_%d", i + 1));
+        g_timestamp_delta[i]->SetTitle(TString::Format("Timestamp delta for board %d", i + 1));
         g_timestamp_delta[i]->GetXaxis()->SetTitle("Event read number");
         g_timestamp_delta[i]->GetYaxis()->SetTitle("Timestamp delta");
     }
@@ -156,13 +166,17 @@ int main(int argc, char *argv[])
             g_trigger_id[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_id);
             g_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, timestamp);
 
+            h_timestamp_rate[boards_read-1]->Fill(timestamp - rate_timestamp.at(boards_read-1));
+            rate_timestamp[boards_read-1] = timestamp;
+
             if (boards_read == 1)
             {
                 first_timestamp = timestamp;
             }
             else
             {
-                g_timestamp_delta[boards_read - 2]->SetPoint(evtnum, evtnum, timestamp - first_timestamp);
+                timestamp_diff = first_timestamp - timestamp;
+                g_timestamp_delta[boards_read - 2]->SetPoint(evtnum, evtnum, timestamp_diff);
             }
 
             if (verbose)
@@ -215,6 +229,7 @@ int main(int argc, char *argv[])
         g_trigger_number[i]->Write();
         g_trigger_id[i]->Write();
         g_timestamp[i]->Write();
+        h_timestamp_rate[i]->Write();
     }
 
     for (int i = 0; i < boards - 1; i++)

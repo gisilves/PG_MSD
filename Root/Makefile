@@ -57,6 +57,7 @@ clean:
 	rm -f ./miniTRB_compress
 	rm -f ./FOOT_compress
 	rm -f ./PAPERO_compress
+	rm -f ./PAPERO_info
 	rm -f ./raw_clusterize
 	rm -f ./raw_cn
 	rm -f ./raw_threshold_scan
