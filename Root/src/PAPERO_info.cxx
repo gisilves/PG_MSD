@@ -42,8 +42,10 @@ int main(int argc, char *argv[])
 
     bool verbose = false;
     if (opt->getFlag("verbose") || opt->getFlag('v'))
+    {
         verbose = true;
-
+        cout << "@@@@@@@@ VERBOSE MODE @@@@@@@@" << endl;
+    }
     // Open binary data file
     std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
@@ -78,11 +80,15 @@ int main(int argc, char *argv[])
     unsigned int old_offset = 0;
     unsigned long fw_version = 0;
     uint64_t timestamp = 0;
+    uint64_t ext_timestamp = 0;
     uint64_t first_timestamp = 0;
+    uint64_t first_ext_timestamp = 0;
     long long timestamp_diff = 0;
+    long long ext_timestamp_diff = 0;
     //uint64_t rate_timestamp[boards];
     float mean_rate = 0;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
+    float ext_mean_rate = 0;
+    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
 
     if (!opt->getValue("boards"))
     {
@@ -94,14 +100,18 @@ int main(int argc, char *argv[])
         boards = atoi(opt->getValue("boards"));
     }
 
-    std::vector<uint64_t> rate_timestamp(boards,0);
+    std::vector<uint64_t> rate_timestamp(boards, 0);
+    std::vector<uint64_t> ext_rate_timestamp(boards, 0);
 
     // Initialize TGraphs for each board
     TGraph *g_trigger_number[boards];
     TGraph *g_trigger_id[boards];
     TGraph *g_timestamp[boards];
     TGraph *g_timestamp_delta[boards - 1];
-    TH1F   *h_timestamp_rate[boards];
+    TH1F *h_timestamp_rate[boards];
+    TGraph *g_ext_timestamp[boards];
+    TGraph *g_ext_timestamp_delta[boards - 1];
+    TH1F *h_ext_timestamp_rate[boards];
 
     for (int i = 0; i < boards; i++)
     {
@@ -120,11 +130,21 @@ int main(int argc, char *argv[])
         g_timestamp[i]->SetTitle(TString::Format("Timestamp for board %d", i));
         g_timestamp[i]->GetXaxis()->SetTitle("Event read number");
         g_timestamp[i]->GetYaxis()->SetTitle("Timestamp");
-        h_timestamp_rate[i] = new TH1F("","",10000,499900,500100);
+        g_ext_timestamp[i] = new TGraph();
+        g_ext_timestamp[i]->SetName(TString::Format("g_ext_timestamp_board_%d", i));
+        g_ext_timestamp[i]->SetTitle(TString::Format("Ext Timestamp for board %d", i));
+        g_ext_timestamp[i]->GetXaxis()->SetTitle("Event read number");
+        g_ext_timestamp[i]->GetYaxis()->SetTitle("Ext Timestamp");
+        h_timestamp_rate[i] = new TH1F("", "", 10000, 499900, 1e6);
         h_timestamp_rate[i]->SetName(TString::Format("g_timestamp_rate_board_%d", i));
         h_timestamp_rate[i]->SetTitle(TString::Format("Timestamp rate for board %d", i));
         h_timestamp_rate[i]->GetXaxis()->SetTitle("Timestamp rate");
         h_timestamp_rate[i]->GetYaxis()->SetTitle("Entries");
+        h_ext_timestamp_rate[i] = new TH1F("", "", 10000, 499900, 1e6);
+        h_ext_timestamp_rate[i]->SetName(TString::Format("g_ext_timestamp_rate_board_%d", i));
+        h_ext_timestamp_rate[i]->SetTitle(TString::Format("Ext Timestamp rate for board %d", i));
+        h_ext_timestamp_rate[i]->GetXaxis()->SetTitle("Ext Timestamp rate");
+        h_ext_timestamp_rate[i]->GetYaxis()->SetTitle("Entries");
     }
 
     for (int i = 0; i < boards - 1; i++)
@@ -134,6 +154,11 @@ int main(int argc, char *argv[])
         g_timestamp_delta[i]->SetTitle(TString::Format("Timestamp delta for board %d", i + 1));
         g_timestamp_delta[i]->GetXaxis()->SetTitle("Event read number");
         g_timestamp_delta[i]->GetYaxis()->SetTitle("Timestamp delta");
+        g_ext_timestamp_delta[i] = new TGraph();
+        g_ext_timestamp_delta[i]->SetName(TString::Format("g_ext_timestamp_delta_board_%d", i + 1));
+        g_ext_timestamp_delta[i]->SetTitle(TString::Format("Ext Timestamp delta for board %d", i + 1));
+        g_ext_timestamp_delta[i]->GetXaxis()->SetTitle("Event read number");
+        g_ext_timestamp_delta[i]->GetYaxis()->SetTitle("Ext Timestamp delta");
     }
 
     if (opt->getValue("nevents"))
@@ -157,33 +182,41 @@ int main(int argc, char *argv[])
             trigger_number = std::get<3>(evt_retValues);
             board_id = std::get<4>(evt_retValues);
             timestamp = std::get<5>(evt_retValues);
-            trigger_id = std::get<6>(evt_retValues);
-            offset = std::get<7>(evt_retValues);
+            ext_timestamp = std::get<6>(evt_retValues);
+            trigger_id = std::get<7>(evt_retValues);
+            offset = std::get<8>(evt_retValues);
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
 
             g_trigger_number[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_number);
             g_trigger_id[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_id);
             g_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, timestamp);
+            g_ext_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, ext_timestamp);
 
-            h_timestamp_rate[boards_read-1]->Fill(timestamp - rate_timestamp.at(boards_read-1));
-            rate_timestamp[boards_read-1] = timestamp;
+            h_timestamp_rate[boards_read - 1]->Fill(timestamp - rate_timestamp.at(boards_read - 1));
+            h_ext_timestamp_rate[boards_read - 1]->Fill(ext_timestamp - ext_rate_timestamp.at(boards_read - 1));
+            rate_timestamp[boards_read - 1] = timestamp;
+            ext_rate_timestamp[boards_read - 1] = ext_timestamp;
 
             if (boards_read == 1)
             {
                 first_timestamp = timestamp;
+                first_ext_timestamp = ext_timestamp;
             }
             else
             {
                 timestamp_diff = first_timestamp - timestamp;
+                ext_timestamp_diff = first_ext_timestamp - ext_timestamp;
                 g_timestamp_delta[boards_read - 2]->SetPoint(evtnum, evtnum, timestamp_diff);
+                g_ext_timestamp_delta[boards_read - 2]->SetPoint(evtnum, evtnum, ext_timestamp_diff);
             }
 
             if (verbose)
             {
                 std::cout << "\tBoard ID " << board_id << std::endl;
                 std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
-                std::cout << "\tTimestamp " << std::dec << timestamp << std::endl;
+                std::cout << "\tInternal Timestamp " << std::dec << timestamp << std::endl;
+                std::cout << "\tExternal Timestamp " << std::dec << ext_timestamp << std::endl;
                 std::cout << "\tTrigger ID " << trigger_id << std::endl;
                 std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
                 std::cout << "\tEvt lenght: " << evt_size << std::endl;
@@ -229,12 +262,15 @@ int main(int argc, char *argv[])
         g_trigger_number[i]->Write();
         g_trigger_id[i]->Write();
         g_timestamp[i]->Write();
+        g_ext_timestamp[i]->Write();
         h_timestamp_rate[i]->Write();
+        h_ext_timestamp_rate[i]->Write();
     }
 
     for (int i = 0; i < boards - 1; i++)
     {
         g_timestamp_delta[i]->Write();
+        g_ext_timestamp_delta[i]->Write();
     }
 
     foutput->Close();

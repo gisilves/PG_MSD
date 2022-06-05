@@ -53,7 +53,7 @@ int seek_run_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, unsigned int offset, bool verbose)
+std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, unsigned int offset, bool verbose)
 {
   unsigned char buffer[4];
 
@@ -64,6 +64,8 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   unsigned long trigger_id = 0;
   uint32_t timestamp_part = 0;
   uint64_t timestamp = 0UL;
+  uint32_t ext_timestamp_part = 0;
+  uint64_t ext_timestamp = 0UL;
   unsigned long val = 0;
   bool found = false;
   unsigned int original_offset = offset;
@@ -109,7 +111,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     {
       std::cout << "Reached EOF" << std::endl;
     }
-    return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1);
   }
 
   file.seekg(offset + 8);
@@ -134,6 +136,13 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   timestamp |= (uint64_t)timestamp_part;
 
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  ext_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  ext_timestamp = 0x0000000000000000 | ((uint64_t)ext_timestamp_part << 32UL);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  ext_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  ext_timestamp |= (uint64_t)ext_timestamp_part;
+
   if (verbose)
   {
     std::cout << "\t\tIn DE10Nano header: " << std::endl;
@@ -142,9 +151,11 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     std::cout << "\t\t\ttrigger: " << trigger << std::endl;
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
+    std::cout << "\t\t\tinternal timestamp: " << timestamp << std::endl;
+    std::cout << "\t\t\texternal timestamp: " << ext_timestamp << std::endl;
   }
 
-  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, trigger_id, offset);
+  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);
 }
 
 std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose)

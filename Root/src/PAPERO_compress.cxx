@@ -156,9 +156,10 @@ int main(int argc, char *argv[])
     int trigger_id = -1;
     int evt_size = 0;
     unsigned long timestamp = 0;
+    unsigned long ext_timestamp = 0;
     int boards_read = 0;
     float mean_rate = 0;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
+    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
 
     unsigned int old_offset = 0;
     char dummy[100];
@@ -194,8 +195,9 @@ int main(int argc, char *argv[])
             trigger_number = std::get<3>(evt_retValues);
             board_id = std::get<4>(evt_retValues);
             timestamp = std::get<5>(evt_retValues);
-            trigger_id = std::get<6>(evt_retValues);
-            offset = std::get<7>(evt_retValues);
+            ext_timestamp = std::get<6>(evt_retValues);
+            trigger_id = std::get<7>(evt_retValues);
+            offset = std::get<8>(evt_retValues);
 
             std::cout << "\r\tReading event " << evtnum << std::flush;
 
