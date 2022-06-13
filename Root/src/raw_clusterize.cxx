@@ -58,7 +58,7 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 
 int main(int argc, char *argv[])
 {
-  //generating shared library for cluster saving
+  // generating shared library for cluster saving
   TString command = TString(".L ") + gSystem->pwd() + TString("/src/types.C+");
   gROOT->ProcessLine(command);
 
@@ -247,31 +247,31 @@ int main(int argc, char *argv[])
   //////////////////Histos//////////////////
 
   TH1F *hADCCluster = // ADC content of all clusters
-      new TH1F("hADCCluster", "hADCCluster", 2500, 0, 5000);
+      new TH1F("hADCCluster", "hADCCluster", 1000, 0, 500);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hHighest = // ADC of highest signal
-      new TH1F("hHighest", "hHighest", 2500, 0, 5000);
+      new TH1F("hHighest", "hHighest", 1000, 0, 500);
   hHighest->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterEdge = // ADC content of all clusters
-      new TH1F("hADCClusterEdge", "hADCClusterEdge", 2500, 0, 5000);
+      new TH1F("hADCClusterEdge", "hADCClusterEdge", 1000, 0, 500);
   hADCClusterEdge->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster1Strip = // ADC content of clusters with a single strips
-      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 2500, 0, 5000);
+      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 1000, 0, 500);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster2Strip = // ADC content of clusters with 2 strips
-      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 2500, 0, 5000);
+      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 1000, 0, 500);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterManyStrip = new TH1F( // ADC content of clusters with more than 2 strips
-      "hADCClusterManyStrip", "hADCClusterManyStrip", 2500, 0, 5000);
+      "hADCClusterManyStrip", "hADCClusterManyStrip", 1000, 0, 500);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterSeed = // ADC content of the "seed strip"
-      new TH1F("hADCClusterSeed", "hADCClusterSeed", 2500, 0, 5000);
+      new TH1F("hADCClusterSeed", "hADCClusterSeed", 1000, 0, 500);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed = // percentage of the "seed strip" wrt the whole cluster
@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
   TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 2500, 0, 5000); // cluster S/N
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 1000, 0, 500); // cluster S/N
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 2000, 0, 5000); // seed S/N
@@ -313,8 +313,8 @@ int main(int argc, char *argv[])
   TH1F *hNstripSeed = new TH1F("hNstripSeed", "hNstripSeed", 10, -0.5, 9.5);
   hNstripSeed->GetXaxis()->SetTitle("n strips over seed threshold");
 
-  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 2500, 0, 5000, // cluster ADC vs seed ADC
-                              2500, 0, 5000);
+  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 1000, 0, 500, // cluster ADC vs seed ADC
+                              1000, 0, 500);
   hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
   hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
 
@@ -331,12 +331,12 @@ int main(int argc, char *argv[])
   hDifference->GetXaxis()->SetTitle("(ADC_0-ADC_1)/(ADC_0+ADC_1)");
 
   TH2F *hADCvsWidth = // cluster ADC vs cluster width
-      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 2500, 0, 5000);
+      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 500);
   hADCvsWidth->GetXaxis()->SetTitle("# of strips");
   hADCvsWidth->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, // cluster ADC vs cog
-                             2500, 0, 5000);
+                             1000, 0, 500);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
@@ -371,11 +371,13 @@ int main(int argc, char *argv[])
   hCommonNoiseVsVA->GetXaxis()->SetTitle("ADC");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("Eta");
 
-  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 2500, 0, 5000, 2500, 0, 5000); // ADc of first strip vs ADC of second strip for clusters with 2 strips
+  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 1000, 0, 500, 1000, 0, 500); // ADc of first strip vs ADC of second strip for clusters with 2 strips
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
   TGraph *nclus_event = new TGraph(); // number of clusters as a function of event number
+  nclus_event->SetName("nclus_event");
+  nclus_event->SetTitle("nclus_event");
 
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain();  // TChain for the first detector TTree (we read 2 detectors with each board on the new DAQ and 1 with the miniTRB)
@@ -635,8 +637,9 @@ int main(int argc, char *argv[])
 
   std::vector<cluster> result; // Vector of resulting clusters
 
-  // add t_clusters TTree to output file
-  TTree *t_clusters = new TTree("t_clusters", "t_clusters");
+  // add t_clusters TTree to output file with name containing board and side
+  TString tree_name = "t_clusters_board_" + std::to_string(board) + "_side_" + std::to_string(side);
+  TTree *t_clusters = new TTree(tree_name, tree_name);
   t_clusters->Branch("clusters", &result);
 
   // Read Calibration file
@@ -648,6 +651,21 @@ int main(int argc, char *argv[])
 
   calib cal; // calibration struct
   read_calib(opt->getValue("calibration"), &cal);
+
+  std::vector<std::pair<float, bool>> alignment_params = read_alignment("./config/alignment.dat");
+  if (verbose)
+  {
+    std::cout << "============================================================" << std::endl;
+    std::cout << "Reading alignment file ./config/alignment.dat" << std::endl;
+    cout << "Size of alignment_params: " << alignment_params.size() << endl;
+    // print all alignment parameters
+    for (int i = 0; i < alignment_params.size(); i++)
+    {
+      cout << "Alignment parameter " << i << ": " << alignment_params[i].first << " " << alignment_params[i].second << endl;
+    }
+    std::cout << "============================================================" << std::endl;
+  }
+
 
   // histos for dynamic calibration
   TH1D *hADC[NChannels];
