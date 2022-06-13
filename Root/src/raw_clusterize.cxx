@@ -1,3 +1,5 @@
+#include "TROOT.h"
+#include "TSystem.h"
 #include "TChain.h"
 #include "TFile.h"
 #include "TF1.h"
@@ -56,6 +58,10 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 
 int main(int argc, char *argv[])
 {
+  //generating shared library for cluster saving
+  TString command = TString(".L ") + gSystem->pwd() + TString("/src/types.C+");
+  gROOT->ProcessLine(command);
+
   gErrorIgnoreLevel = kWarning;
   bool symmetric = false;
   bool absolute = false;
@@ -629,7 +635,6 @@ int main(int argc, char *argv[])
 
   std::vector<cluster> result; // Vector of resulting clusters
 
-  gInterpreter->GenerateDictionary("vector<cluster>", "vector");
   // add t_clusters TTree to output file
   TTree *t_clusters = new TTree("t_clusters", "t_clusters");
   t_clusters->Branch("clusters", &result);
@@ -815,8 +820,8 @@ int main(int argc, char *argv[])
       result = clusterize(&cal, &signal, highthreshold, lowthreshold, // clustering function
                           symmetric, symmetricwidth, absolute);
 
-      // // save result cluster in TTree
-      // t_clusters->Fill();
+      // save result cluster in TTree
+      t_clusters->Fill();
 
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
 
@@ -986,6 +991,8 @@ int main(int argc, char *argv[])
   nclus_event->SetMarkerSize(0.5);
   nclus_event->Draw("*lSAME");
   nclus_event->Write();
+
+  t_clusters->Write();
 
   foutput->Close();
   return 0;
