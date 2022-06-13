@@ -339,11 +339,14 @@ bool GoodCluster(cluster clus, calib *cal) // cluster is good if all the strips 
   return good;
 }
 
-int read_calib(const char *calib_file, calib *cal) // read ASCII calib file: based on DaMPE calibration files
+bool read_calib(const char *calib_file, calib *cal) // read ASCII calib file: based on DaMPE calibration files
 {
 
   std::ifstream in;
   in.open(calib_file);
+
+  if (!in.is_open())
+    return 0;
 
   char comma;
 
@@ -372,7 +375,7 @@ int read_calib(const char *calib_file, calib *cal) // read ASCII calib file: bas
     }
   }
   in.close();
-  return 0;
+  return 1;
 }
 
 std::vector<std::pair<float, bool>> read_alignment(const char *alignment_file) // read ASCII alignment file

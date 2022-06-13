@@ -79,6 +79,8 @@ int main(int argc, char *argv[])
   int NVas = 6;
   int minStrip = 0;
   int maxStrip = 383;
+  int minADC_h = 0;
+  int maxADC_h = 500;
   float sensor_pitch = 0.150;
 
   bool newDAQ = false;
@@ -110,6 +112,9 @@ int main(int argc, char *argv[])
   opt->addUsage("  --maxcn          ................................. Max CN for a good event");
   opt->addUsage("  --minstrip       ................................. Minimun strip number to analyze");
   opt->addUsage("  --maxstrip       ................................. Maximum strip number to analyze");
+  opt->addUsage("  --min_histo_ADC  ................................. Minimun ADC value on histo axis");
+  opt->addUsage("  --max_histo_ADC  ................................. Maximum ADC value on histo axis");
+
   opt->addUsage("  --board          ................................. ADC board to analyze (0, 1, 2)");
   opt->addUsage("  --side           ................................. Sensor side for new FOOT DAQ (0, 1)");
   opt->addUsage("  --invert         ................................. To search for negative signal peaks (prototype ADC board)");
@@ -135,6 +140,8 @@ int main(int argc, char *argv[])
   opt->setOption("maxstrip");
   opt->setOption("side");
   opt->setOption("board");
+  opt->setOption("min_histo_ADC");
+  opt->setOption("max_histo_ADC");
 
   opt->processFile("./options.txt");
   opt->processCommandArgs(argc, argv);
@@ -238,6 +245,12 @@ int main(int argc, char *argv[])
   if (opt->getValue("maxstrip"))
     maxStrip = atoi(opt->getValue("maxstrip"));
 
+  if (opt->getValue("min_ADC_histo"))
+    minADC_h = atoi(opt->getValue("min_histo_ADC"));
+
+  if (opt->getValue("max_histo_ADC"))
+    maxADC_h = atoi(opt->getValue("max_histo_ADC"));
+
   if (opt->getValue("side"))
     side = atoi(opt->getValue("side"));
 
@@ -247,31 +260,31 @@ int main(int argc, char *argv[])
   //////////////////Histos//////////////////
 
   TH1F *hADCCluster = // ADC content of all clusters
-      new TH1F("hADCCluster", "hADCCluster", 1000, 0, 500);
+      new TH1F("hADCCluster", "hADCCluster", 2500, minADC_h, maxADC_h);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hHighest = // ADC of highest signal
-      new TH1F("hHighest", "hHighest", 1000, 0, 500);
+      new TH1F("hHighest", "hHighest", 2500, minADC_h, maxADC_h);
   hHighest->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterEdge = // ADC content of all clusters
-      new TH1F("hADCClusterEdge", "hADCClusterEdge", 1000, 0, 500);
+      new TH1F("hADCClusterEdge", "hADCClusterEdge", 2500, minADC_h, maxADC_h);
   hADCClusterEdge->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster1Strip = // ADC content of clusters with a single strips
-      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 1000, 0, 500);
+      new TH1F("hADCCluster1Strip", "hADCCluster1Strip", 2500, minADC_h, maxADC_h);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster2Strip = // ADC content of clusters with 2 strips
-      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 1000, 0, 500);
+      new TH1F("hADCCluster2Strip", "hADCCluster2Strip", 2500, minADC_h, maxADC_h);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterManyStrip = new TH1F( // ADC content of clusters with more than 2 strips
-      "hADCClusterManyStrip", "hADCClusterManyStrip", 1000, 0, 500);
+      "hADCClusterManyStrip", "hADCClusterManyStrip", 2500, minADC_h, maxADC_h);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterSeed = // ADC content of the "seed strip"
-      new TH1F("hADCClusterSeed", "hADCClusterSeed", 1000, 0, 500);
+      new TH1F("hADCClusterSeed", "hADCClusterSeed", 2500, minADC_h, maxADC_h);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed = // percentage of the "seed strip" wrt the whole cluster
@@ -289,10 +302,10 @@ int main(int argc, char *argv[])
   TH1F *hSeedCharge = new TH1F("hSeedCharge", "hSeedCharge", 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 1000, 0, 500); // cluster S/N
+  TH1F *hClusterSN = new TH1F("hClusterSN", "hClusterSN", 2500, minADC_h, maxADC_h); // cluster S/N
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 2000, 0, 5000); // seed S/N
+  TH1F *hSeedSN = new TH1F("hSeedSN", "hSeedSN", 2000, minADC_h, maxADC_h); // seed S/N
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hClusterCog = new TH1F("hClusterCog", "hClusterCog", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5); // clusters center of gravity in terms of strip number
@@ -313,39 +326,15 @@ int main(int argc, char *argv[])
   TH1F *hNstripSeed = new TH1F("hNstripSeed", "hNstripSeed", 10, -0.5, 9.5);
   hNstripSeed->GetXaxis()->SetTitle("n strips over seed threshold");
 
-  TH2F *hADCvsSeed = new TH2F("hADCvsSeed", "hADCvsSeed", 1000, 0, 500, // cluster ADC vs seed ADC
-                              1000, 0, 500);
-  hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
-  hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
-
-  TH1F *hEta = new TH1F("hEta", "hEta", 100, 0, 1); // not the real eta function, ignore
-  hEta->GetXaxis()->SetTitle("Eta");
-
-  TH1F *hEta1 = new TH1F("hEta1", "hEta1", 100, 0, 1); // not the real eta function, ignore
-  hEta1->GetXaxis()->SetTitle("Eta (one seed)");
-
-  TH1F *hEta2 = new TH1F("hEta2", "hEta2", 100, 0, 1); // not the real eta function, ignore
-  hEta2->GetXaxis()->SetTitle("Eta (two seed)");
-
-  TH1F *hDifference = new TH1F("hDifference", "hDifference", 200, -5, 5); // relative difference for clusters with 2 strips
-  hDifference->GetXaxis()->SetTitle("(ADC_0-ADC_1)/(ADC_0+ADC_1)");
-
-  TH2F *hADCvsWidth = // cluster ADC vs cluster width
-      new TH2F("hADCvsWidth", "hADCvsWidth", 10, -0.5, 9.5, 1000, 0, 500);
-  hADCvsWidth->GetXaxis()->SetTitle("# of strips");
-  hADCvsWidth->GetYaxis()->SetTitle("ADC");
-
-  TH2F *hADCvsPos = new TH2F("hADCvsPos", "hADCvsPos", (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, // cluster ADC vs cog
-                             1000, 0, 500);
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta = // ignore
-      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 2000, 0, 5000);
+      new TH2F("hADCvsEta", "hADCvsEta", 200, 0, 1, 2000, minADC_h, maxADC_h);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 2000, 0, 2500, 2000, 0, 5000);
+  TH2F *hADCvsSN = new TH2F("hADCvsSN", "hADCvsSN", 2000, 0, 2500, 2000, minADC_h, maxADC_h);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
@@ -367,11 +356,11 @@ int main(int argc, char *argv[])
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
 
-  TH2F *hEtaVsADC = new TH2F("hEtaVsADC", "hEtaVsADC", 100, 0, 1, 1000, 0, 250);
+  TH2F *hEtaVsADC = new TH2F("hEtaVsADC", "hEtaVsADC", 100, 0, 1, 1000, minADC_h, maxADC_h);
   hCommonNoiseVsVA->GetXaxis()->SetTitle("ADC");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("Eta");
 
-  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 1000, 0, 500, 1000, 0, 500); // ADc of first strip vs ADC of second strip for clusters with 2 strips
+  TH2F *hADC0vsADC1 = new TH2F("hADC0vsADC1", "hADC0vsADC1", 2500, minADC_h, maxADC_h, 2500, minADC_h, maxADC_h); // ADC of first strip vs ADC of second strip for clusters with 2 strips
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
@@ -385,19 +374,11 @@ int main(int argc, char *argv[])
 
   if (board == 0) // TTree name depends on DAQ board
   {
-    chain->SetName("raw_events"); // simply called raw_events for retrocompatibility with old files from the prototype
-    for (int ii = 0; ii < opt->getArgc(); ii++)
-    {
       std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-      chain->Add(opt->getArgv(ii));
     }
     if (newDAQ)
     {
-      chain2->SetName("raw_events_B");
-      for (int ii = 0; ii < opt->getArgc(); ii++)
-      {
         chain2->Add(opt->getArgv(ii));
-      }
       chain->AddFriend(chain2);
     }
   }
@@ -436,19 +417,7 @@ int main(int argc, char *argv[])
     chain->SetName("raw_events_G");
     for (int ii = 0; ii < opt->getArgc(); ii++)
     {
-      std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-      chain->Add(opt->getArgv(ii));
-    }
-    chain2->SetName("raw_events_H");
-    for (int ii = 0; ii < opt->getArgc(); ii++)
-    {
-      chain2->Add(opt->getArgv(ii));
-    }
-    chain->AddFriend(chain2);
-  }
-  else if (board == 4)
   {
-    chain->SetName("raw_events_I");
     for (int ii = 0; ii < opt->getArgc(); ii++)
     {
       std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
@@ -650,7 +619,14 @@ int main(int argc, char *argv[])
   }
 
   calib cal; // calibration struct
-  read_calib(opt->getValue("calibration"), &cal);
+  bool is_calib = false;
+  is_calib = read_calib(opt->getValue("calibration"), &cal);
+
+  if (!is_calib)
+  {
+    std::cout << "ERROR: no calibration file found" << endl;
+    return 2;
+  }
 
   std::vector<std::pair<float, bool>> alignment_params = read_alignment("./config/alignment.dat");
   if (verbose)
