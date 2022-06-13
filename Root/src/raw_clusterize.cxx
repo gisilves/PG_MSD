@@ -1,3 +1,5 @@
+#include "TROOT.h"
+#include "TSystem.h"
 #include "TChain.h"
 #include "TFile.h"
 #include "TF1.h"
@@ -56,6 +58,10 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 
 int main(int argc, char *argv[])
 {
+  //generating shared library for cluster saving
+  TString command = TString(".L ") + gSystem->pwd() + TString("/src/types.C+");
+  gROOT->ProcessLine(command);
+
   gErrorIgnoreLevel = kWarning;
   bool symmetric = false;
   bool absolute = false;
@@ -88,6 +94,7 @@ int main(int argc, char *argv[])
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
   opt->addUsage("  --nevents        ................................. Number of events to process ");
+  opt->addUsage("  --first          ................................. First event to process ");
   opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB");
   opt->addUsage("                   ................................. 1313 for 10VA miniTRB");
   opt->addUsage("                   ................................. 2020 for FOOT DAQ");
@@ -121,6 +128,7 @@ int main(int argc, char *argv[])
 
   opt->setOption("version");
   opt->setOption("nevents");
+  opt->setOption("first");
   opt->setOption("output");
   opt->setOption("calibration");
   opt->setOption("highthreshold");
@@ -511,12 +519,20 @@ int main(int argc, char *argv[])
   }
 
   int entries = chain->GetEntries();
+  int first_event = 0;
+
   if (entries == 0)
   {
     std::cout << "Error: no file or empty file" << std::endl;
     return 2;
   }
   std::cout << "This run has " << entries << " entries" << std::endl;
+
+  if (first_event > entries)
+  {
+    std::cout << "Error: first event is greater than the number of entries" << std::endl;
+    return 2;
+  }
 
   if (opt->getValue("nevents")) // to process only the first "nevents" events in the chain
   {
@@ -526,7 +542,11 @@ int main(int argc, char *argv[])
       entries = temp_entries;
     }
   }
-  std::cout << "Processing " << entries << " entries" << std::endl;
+  if (opt->getValue("first_event")) // to choose the first event to process
+  {
+    first_event = atoi(opt->getValue("first_event"));
+  }
+  std::cout << "Processing " << entries << " entries, starting from event " << first_event << std::endl;
 
   // Read raw event from input chain TTree
   if (side && !newDAQ)
@@ -626,6 +646,12 @@ int main(int argc, char *argv[])
   TFile *foutput = new TFile(output_filename + "_board_" + board + "_side_" + side + ".root", "RECREATE");
   foutput->cd();
 
+  std::vector<cluster> result; // Vector of resulting clusters
+
+  // add t_clusters TTree to output file
+  TTree *t_clusters = new TTree("t_clusters", "t_clusters");
+  t_clusters->Branch("clusters", &result);
+
   // Read Calibration file
   if (!opt->getValue("calibration"))
   {
@@ -659,8 +685,6 @@ int main(int argc, char *argv[])
   int maxADC = 0; // max ADC in all the events, to set proper graph/histo limits
   int maxEVT = 0; // event where maxADC was found
   int maxPOS = 0; // position of the strip with value maxADC
-
-  std::vector<cluster> result; // Vector of resulting clusters
 
   for (int index_event = 0; index_event < entries; index_event++) // looping on the events
   {
@@ -815,6 +839,9 @@ int main(int argc, char *argv[])
 
       result = clusterize(&cal, &signal, highthreshold, lowthreshold, // clustering function
                           symmetric, symmetricwidth, absolute);
+
+      // save result cluster in TTree
+      t_clusters->Fill();
 
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
 
@@ -984,6 +1011,8 @@ int main(int argc, char *argv[])
   nclus_event->SetMarkerSize(0.5);
   nclus_event->Draw("*lSAME");
   nclus_event->Write();
+
+  t_clusters->Write();
 
   foutput->Close();
   return 0;
