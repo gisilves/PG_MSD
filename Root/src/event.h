@@ -19,6 +19,8 @@ typedef struct
   int width;              // width of the cluster
   int over;               // Number of strips over high threshold
   std::vector<float> ADC; // ADC content
+  int board;              // board number
+  int side;               // side number
 } cluster;                // Cluster structure
 
 typedef struct calib
@@ -37,6 +39,8 @@ int PrintCluster(cluster clus)
   std::cout << "Width: " << clus.width << std::endl;
   std::cout << "Strips over seed threshold: " << clus.over << std::endl;
   std::cout << "ADC content: " << std::endl;
+  std::cout << "Board: " << clus.board << std::endl;
+  std::cout << "Side: " << clus.side << std::endl;
   for (int idx = 0; idx < clus.width; idx++)
   {
     std::cout << "\t" << idx << ": " << clus.ADC.at(idx) << std::endl;
@@ -49,6 +53,9 @@ int PrintCluster(cluster clus)
 
 int GetClusterAddress(cluster clus) { return clus.address; }
 int GetClusterWidth(cluster clus) { return clus.width; }
+int GetClusterOver(cluster clus) { return clus.over; }
+int GetClusterBoard(cluster clus) { return clus.board; }
+int GetClusterSide(cluster clus) { return clus.side; }
 std::vector<float> GetClusterADC(cluster clus) { return clus.ADC; }
 
 float GetClusterSignal(cluster clus) // ADC of whole cluster
@@ -373,6 +380,42 @@ bool read_calib(const char *calib_file, calib *cal) // read ASCII calib file: ba
       cal->status.push_back(status);
       nlines++;
     }
+  }  
+  in.close();
+  return 1;
+}
+
+bool read_calib_single(const char *calib_file, calib *cal, int NChannels) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
+{
+  // open calib file
+  std::ifstream in;
+  in.open(calib_file);
+
+  if (!in.is_open())
+    return 0;
+
+  Float_t strip, va, vachannel, ped, rawsigma, sigma, status, not_used;
+  std::string bufferLine;
+  int read_channels = 0;
+
+  // read lines not beginning with #
+  while (in.good() && read_channels < NChannels)
+  {
+    getline(in, bufferLine);
+    if (bufferLine[0] != '#' && bufferLine.size() != 0)
+    {
+      std::stringstream ss(bufferLine);
+      ss >> strip >> va >> vachannel >> ped >> rawsigma >> sigma >> status >> not_used;
+
+      if (strip >= 0)
+      {
+        cal->ped.push_back(ped);
+        cal->rsig.push_back(rawsigma);
+        cal->sig.push_back(sigma);
+        cal->status.push_back(status);
+        read_channels++;
+      }
+    }
   }
   in.close();
   return 1;
@@ -390,7 +433,7 @@ std::vector<std::pair<float, bool>> read_alignment(const char *alignment_file) /
 
   std::string bufferLine;
 
-  //read lines not beginning with #
+  // read lines not beginning with #
   while (in.good())
   {
     getline(in, bufferLine);
@@ -399,17 +442,19 @@ std::vector<std::pair<float, bool>> read_alignment(const char *alignment_file) /
       std::stringstream ss(bufferLine);
       ss >> dummy >> parameters.first >> parameters.second;
       alignment.push_back(parameters);
-    } 
+    }
   }
 
   in.close();
   return alignment;
 }
 
-std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
+std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
                                 float highThresh, float lowThresh,
                                 bool symmetric, int symmetric_width,
-                                bool absoluteThresholds = false)
+                                bool absoluteThresholds = false,
+                                int board = 0,
+                                int side = 0)
 {
   int nclust = 0;
   std::vector<cluster> clusters; // Vector returned with all found clusters
@@ -504,6 +549,8 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
             new_cluster.width = 2 * symmetric_width + 1;
             new_cluster.ADC = clusterADC;
             new_cluster.over = -999;
+            new_cluster.board = board;
+            new_cluster.side = side;
             clusters.push_back(new_cluster);
           }
         }
@@ -616,6 +663,8 @@ std::vector<cluster> clusterize(calib *cal, std::vector<float> *signal,
           new_cluster.width = (R + L) + 1;
           new_cluster.ADC = clusterADC;
           new_cluster.over = overSEED;
+          new_cluster.board = board;
+          new_cluster.side = side;
           clusters.push_back(new_cluster); // adding new cluster to cluster result vector
 
           nclust++;
