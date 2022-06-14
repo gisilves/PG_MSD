@@ -17,15 +17,23 @@
 #include "anyoption.h"
 #include "event.h"
 
-AnyOption *opt; //Handle the option input
+AnyOption *opt; // Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false)
+int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = false)
 {
   TFile *foutput;
   if (!pdf_only)
   {
-    TString root_filename = output_filename + "_board-" + board + "_side-" + side + ".root";
-    foutput = new TFile(root_filename.Data(), "RECREATE");
+    TString root_filename;
+    if (!single_file)
+    {
+      root_filename = output_filename + "_board-" + board + "_side-" + side + ".root";
+    }
+    else
+    {
+      root_filename = output_filename + ".root";
+    }
+    foutput = new TFile(root_filename.Data(), "UPDATE");
     foutput->cd();
   }
 
@@ -47,7 +55,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   int NChannels = raw_event->size();
   int NVas = NChannels / 64;
 
-  //histos
+  // histos
   TH1D *hADC[NChannels];
   TH1D *hSignal[NChannels];
   TH1D *hCN[NChannels];
@@ -67,17 +75,17 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   c1->SetGrid();
 
   TGraph *gr = new TGraph(NChannels);
-  gr->SetName("Pedestals");
+  gr->SetName((TString) "Pedestals" + "_board-" + board + "_side-" + side);
   gr->SetTitle("Pedestals for file " + output_filename + "_" + Form("%d_%d", board, side));
 
   TGraph *gr2 = new TGraph(NChannels);
-  gr2->SetName("RawSigma");
+  gr2->SetName((TString) "RawSigma" + "_board-" + board + "_side-" + side);
   gr2->SetTitle("Raw Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
-  gr3->SetName("Sigma");
+  gr3->SetName((TString) "Sigma" + "_board-" + board + "_side-" + side);
   gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
@@ -125,7 +133,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
     }
     else
     {
-      strcpy(name, "nd ");
+      strcpy(name, (TString) "Board_" + board + (TString) "_Side_" + side);
       strcpy(location, "nd ");
       strcpy(bias, "nd ");
       strcpy(leak, "nd ");
@@ -136,25 +144,33 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
 
     std::time_t result = std::time(nullptr);
 
-    calfile.open(output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".cal");
-    calfile << "temp_SN= NC\n";
-    calfile << "temp_SN= NC\n";
-    calfile << "name= " << name << "\n";
-    calfile << "location= " << location << "\n";
-    calfile << "bias_volt= " << bias << "V\n";
-    calfile << "leak_curr= " << leak << "uA\n";
-    calfile << "6v_curr= " << curr6v << "mA\n";
-    calfile << "3v_curr= " << curr3v << "mA\n";
-    calfile << "starting_time= " << std::asctime(std::localtime(&result));
-    calfile << "temp_right= NC\n";
-    calfile << "temp_left= NC\n";
-    calfile << "hold_delay= " << delay << "\n";
-    calfile << "sigmaraw_cut= " << sigmaraw_cut << "\n";
-    calfile << "sigmaraw_noise_cut= NC\n";
-    calfile << "sigma_cut= " << sigma_cut << "\n";
-    calfile << "sigma_noise_cut= NC\n";
-    calfile << "sigma_k= NC\n";
-    calfile << "occupancy_k= NC\n";
+    if (!single_file)
+    {
+      calfile.open(output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".cal");
+    }
+    else
+    {
+      calfile.open(output_filename + ".cal", std::ofstream::out | std::ofstream::app);
+    }
+
+    calfile << "#temp_SN= NC\n";
+    calfile << "#temp_SN= NC\n";
+    calfile << "#name= " << name << "\n";
+    calfile << "#location= " << location << "\n";
+    calfile << "#bias_volt= " << bias << "V\n";
+    calfile << "#leak_curr= " << leak << "uA\n";
+    calfile << "#6v_curr= " << curr6v << "mA\n";
+    calfile << "#3v_curr= " << curr3v << "mA\n";
+    calfile << "#starting_time= " << std::asctime(std::localtime(&result));
+    calfile << "#temp_right= NC\n";
+    calfile << "#temp_left= NC\n";
+    calfile << "#hold_delay= " << delay << "\n";
+    calfile << "#sigmaraw_cut= " << sigmaraw_cut << "\n";
+    calfile << "#sigmaraw_noise_cut= NC\n";
+    calfile << "#sigma_cut= " << sigma_cut << "\n";
+    calfile << "#sigma_noise_cut= NC\n";
+    calfile << "#sigma_k= NC\n";
+    calfile << "#occupancy_k= NC\n";
   }
 
   std::cout << "\nProcessing data for detector on board " << board << " on side " << side << std::endl;
@@ -167,7 +183,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
     return -1;
   }
 
-  //First half of events are used to compute pedestals and raw_sigmas
+  // First half of events are used to compute pedestals and raw_sigmas
   for (int index_event = 1; index_event < entries / 2; index_event++)
   {
     chain.GetEntry(index_event);
@@ -175,7 +191,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
     {
       for (int k = 0; k < raw_event->size(); k++)
       {
-        //Filling histos for each channel for Gaussian Fit
+        // Filling histos for each channel for Gaussian Fit
         hADC[k]->Fill(raw_event->at(k));
       }
     }
@@ -183,7 +199,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
 
   for (int ch = 0; ch < NChannels; ch++)
   {
-    //Fitting histos with gaus to compute ped and raw_sigma
+    // Fitting histos with gaus to compute ped and raw_sigma
     if (hADC[ch]->GetEntries())
     {
       if (fit)
@@ -260,20 +276,20 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   TString out_pdf = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf";
   c1->Print(out_pdf, "pdf");
 
-  //Like before, but this time we correct for common noise
+  // Like before, but this time we correct for common noise
   for (int index_event = entries / 2; index_event < entries; index_event++)
   {
     chain.GetEntry(index_event);
 
     if (raw_event->size() == pedestals->size())
     {
-      //Pedestal subtraction
+      // Pedestal subtraction
       std::vector<float> signal;
       std::transform(raw_event->begin(), raw_event->end(), pedestals->begin(), std::back_inserter(signal), [&](double raw, double ped)
                      { return raw - ped; });
 
-      //Chip-wise CN subtraction before filling the histos
-      for (int va = 0; va < NVas; va++) //Loop on VA
+      // Chip-wise CN subtraction before filling the histos
+      for (int va = 0; va < NVas; va++) // Loop on VA
       {
         float cn = GetCN(&signal, va, 0);
         if (cn != -999)
@@ -293,7 +309,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
     }
   }
 
-  //Fitting with gaus to compute sigmas
+  // Fitting with gaus to compute sigmas
   int va_chan = 0;
   double sigma_value;
 
@@ -308,7 +324,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
         fittedgaus = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
         gr3->SetPoint(ch, ch, fittedgaus->GetParameter(2));
         sigma->push_back(fittedgaus->GetParameter(2));
-        //Flag for channels that are too noisy or dead
+        // Flag for channels that are too noisy or dead
         if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
         {
           if (fittedgaus->GetParameter(2) < 1 || fittedgaus->GetParameter(2) > sigma_cut)
@@ -321,7 +337,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
       {
         gr3->SetPoint(ch, ch, hCN[ch]->GetRMS());
         sigma->push_back(hCN[ch]->GetRMS());
-        //Flag for channels that are too noisy or dead
+        // Flag for channels that are too noisy or dead
         if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
         {
           if (hCN[ch]->GetRMS() < 1 || hCN[ch]->GetRMS() > sigma_cut)
@@ -348,7 +364,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
       {
         sigma_value = hCN[ch]->GetRMS();
       }
-      //Writing info in .cal file (should be backwards-compatible with miniTRB tools)
+      // Writing info in .cal file (should be backwards-compatible with miniTRB tools)
       calfile << ch << ", " << ch / 64 << ", "
               << va_chan
               << ", " << pedestals->at(ch) << ", " << rsigma->at(ch) << ", "
@@ -367,7 +383,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   }
   mean_sigma = std::accumulate(sigma->begin(), sigma->end(), 0.0) / sigma->size();
   rms_sigma = std::sqrt(std::inner_product(sigma->begin(), sigma->end(), sigma->begin(), 0.0) / sigma->size());
-  
+
   if (!std::isnan(mean_sigma))
   {
     max_sigma = *std::max_element(sigma->begin(), sigma->end());
@@ -420,6 +436,7 @@ int main(int argc, char *argv[])
   bool pdf_only = false;
   bool fast_mode = false;
   bool fit_mode = false;
+  bool single_file = false;
 
   float sigmaraw_cut = 8;
   float sigma_cut = 5;
@@ -437,6 +454,7 @@ int main(int argc, char *argv[])
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
+  opt->addUsage("  -s, --single     ................................. Save calibrations in a single file");
   opt->addUsage("  --output         ................................. Output .cal file ");
   opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
   opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
@@ -446,6 +464,7 @@ int main(int argc, char *argv[])
   opt->setFlag("help", 'h');
   opt->setFlag("minitrb");
   opt->setFlag("verbose", 'v');
+  opt->setFlag("single");
   opt->setFlag("pdf");
   opt->setFlag("fast");
   opt->setFlag("fit");
@@ -469,6 +488,11 @@ int main(int argc, char *argv[])
   if (opt->getFlag("verbose") || opt->getFlag('v'))
     verb = true;
 
+  if (opt->getFlag("single") || opt->getFlag('s'))
+  {
+    single_file = true;
+  }
+
   if (opt->getValue("cn"))
     cntype = atoi(opt->getValue("cn"));
 
@@ -488,6 +512,11 @@ int main(int argc, char *argv[])
   {
     fast_mode = true;
     std::cout << "\nFast flag activated: no additional info will be written in the .cal file" << std::endl;
+  }
+
+  if (opt->getFlag("single"))
+  {
+    std::cout << "\nSingle file flag activated: only one .cal file will be written on disk" << std::endl;
   }
 
   if (opt->getFlag("fit"))
@@ -513,16 +542,21 @@ int main(int argc, char *argv[])
   int ladder_side = 0;
 
   // Join ROOTfiles in a single chain
-  TChain *chain = new TChain("raw_events"); //Chain input rootfiles
+  TChain *chain = new TChain("raw_events"); // Chain input rootfiles
   for (int ii = 0; ii < opt->getArgc(); ii++)
   {
     std::cout << "\nAdding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
     chain->Add(opt->getArgv(ii));
   }
 
+  if (single_file && std::ifstream(output_filename+".cal"))
+  {
+    remove(output_filename+".cal");
+  }
+
   if (!newDAQ)
   {
-    compute_calibration(*chain, output_filename, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode);
+    compute_calibration(*chain, output_filename, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file);
   }
   else
   {
@@ -553,7 +587,7 @@ int main(int argc, char *argv[])
           chain2->Add(opt->getArgv(ii));
         }
 
-        compute_calibration(*chain2, output_filename, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode, fit_mode);
+        compute_calibration(*chain2, output_filename, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file);
         board_num++;
         if (ladder_side == 0)
         {
