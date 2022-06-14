@@ -394,7 +394,7 @@ std::vector<std::pair<float, bool>> read_alignment(const char *alignment_file) /
   while (in.good())
   {
     getline(in, bufferLine);
-    if (bufferLine[0] != '#')
+    if (bufferLine[0] != '#' && bufferLine.size() != 0)
     {
       std::stringstream ss(bufferLine);
       ss >> dummy >> parameters.first >> parameters.second;

@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
 
   TH1F *hADCCluster = // ADC content of all clusters
       new TH1F("hADCCluster", "hADCCluster", 2500, minADC_h, maxADC_h);
+
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hHighest = // ADC of highest signal
@@ -395,7 +396,7 @@ int main(int argc, char *argv[])
 
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain();  // TChain for the first detector TTree (we read 2 detectors with each board on the new DAQ and 1 with the miniTRB)
-  TChain *chain2 = new TChain(); // TChain for the second detectoe TTree
+  TChain *chain2 = new TChain(); // TChain for the second detector TTree
 
   if (board == 0) // TTree name depends on DAQ board
   {
@@ -674,7 +675,7 @@ int main(int argc, char *argv[])
   }
 
   std::vector<std::pair<float, bool>> alignment_params = read_alignment("./config/alignment.dat");
-  if (verbose)
+  if (verb)
   {
     std::cout << "============================================================" << std::endl;
     std::cout << "Reading alignment file ./config/alignment.dat" << std::endl;
