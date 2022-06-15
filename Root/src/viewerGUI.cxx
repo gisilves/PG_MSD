@@ -20,6 +20,8 @@
 #include <TGClient.h>
 #include "TH1.h"
 #include <TGMsgBox.h>
+#include "TGTab.h"
+#include <TGPicture.h>
 
 #include "viewerGUI.hh"
 #include "event.h"
@@ -37,12 +39,20 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fMain->Connect("CloseWindow()", "MyMainFrame", this, "DoClose()");
   fMain->DontCallClose();
 
+  //--------- create the Tab widget
+  TGTab *fTab = new TGTab(fMain, 300, 300);
+  TGLayoutHints *fL3 = new TGLayoutHints(kLHintsTop | kLHintsLeft, 5, 5, 5, 5);
+
+  //--------- create an empty tab element
+  TGCompositeFrame *tf = fTab->AddTab("Data from file");
+
   // Create canvas widget
   fEcanvas = new TRootEmbeddedCanvas("Ecanvas", fMain, 1024, 500);
   fMain->AddFrame(fEcanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 10, 10, 10, 1));
+  fMain->AddFrame(fTab, new TGLayoutHints(kLHintsBottom | kLHintsExpandX, 2, 2, 5, 1));
 
-  fHor0 = new TGHorizontalFrame(fMain, 1024, 20);
-  fHor0b = new TGHorizontalFrame(fMain, 1024, 20);
+  fHor0 = new TGHorizontalFrame(tf, 1024, 20);
+  fHor0b = new TGHorizontalFrame(tf, 1024, 20);
 
   TGVerticalFrame *fVer0 = new TGVerticalFrame(fHor0b, 10, 10);
   TGVerticalFrame *fVer1 = new TGVerticalFrame(fHor0b, 10, 10);
@@ -102,14 +112,57 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fHor0b->AddFrame(fVer0, new TGLayoutHints(kLHintsCenterX | kLHintsExpandX | kLHintsExpandY, 2, 2, 5, 1));
   fHor0b->AddFrame(fVer1, new TGLayoutHints(kLHintsCenterX | kLHintsExpandX | kLHintsExpandY, 2, 2, 5, 1));
 
-  fMain->AddFrame(fHor0, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
-  fMain->AddFrame(fHor0b, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor0, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor0b, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
   fVer0->AddFrame(fHor1, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 2, 2, 5, 1));
   fVer0->AddFrame(fHor4, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 2, 2, 5, 1));
   fMain->AddFrame(fHor3, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
   fVer1->AddFrame(fStatusBar, new TGLayoutHints(kLHintsCenterX | kLHintsBottom | kLHintsLeft | kLHintsExpandY, 5, 5, 2, 2));
+
+  tf = fTab->AddTab("Realtime data");
+  fHor0c = new TGHorizontalFrame(tf, 1024, 20);
+
+  fOpenCalib = new TGTextButton(fHor0c, "&Open Calib");
+  fOpenCalib->Connect("Clicked()", "MyMainFrame", this, "DoOpenCalibOnly()");
+  fHor0c->AddFrame(fOpenCalib, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+
+  fHor0d = new TGHorizontalFrame(tf, 1024, 20);
+
+  boardsLabel = new TGLabel(fHor0d, "Number of boards:");
+  fHor0d->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber2 = new TGNumberEntry(fHor0d, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
+  fHor0d->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+
+  detectorLabel2 = new TGLabel(fHor0d, "Sensor number:");
+  fHor0d->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber3 = new TGNumberEntry(fHor0d, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
+  fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
+  fHor0d->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+
+  fStart = new TGPictureButton(fHor0c,
+                           gClient->GetPicture("h1_s.xpm"), 22);
+  //fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
+  fHor0c->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fStop = new TGTextButton(fHor0c, "&Stop");
+  //fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
+  fHor0c->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+
+  fExit2 = new TGTextButton(fHor0c, "&Exit");
+  fExit2->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
+  fHor0c->AddFrame(fExit2, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+
+  fHor0e = new TGHorizontalFrame(tf, 1024, 20);
+
+  fStatusBar2 = new TGTextView(fHor0e, 500, 150);
+  fStatusBar2->LoadBuffer("Template for realtime data plotting via UDP");
+
+  fHor0e->AddFrame(fStatusBar2, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
+
+  tf->AddFrame(fHor0c, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor0d, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor0e, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
   fMain->SetCleanup(kDeepCleanup);
   fMain->SetWindowName("Microstrip Raw Event Viewer");
@@ -461,6 +514,11 @@ void MyMainFrame::DoOpen()
     }
   }
   dir = fi.fIniDir;
+}
+
+void MyMainFrame::DoOpenCalibOnly()
+{
+  DoOpenCalib(true, 4);
 }
 
 void MyMainFrame::DoOpenCalib(bool newDAQ, int boards)

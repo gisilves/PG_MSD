@@ -15,6 +15,7 @@ class TGLayout;
 class TGFrame;
 class TGFileDialog;
 class TGCheckButton;
+class TGPictureButton;
 
 class MyMainFrame
 {
@@ -22,13 +23,14 @@ class MyMainFrame
 private:
   TGMainFrame *fMain;
   TRootEmbeddedCanvas *fEcanvas;
-  TGNumberEntry *fNumber, *fNumber1;
-  TGHorizontalFrame *fHor0, *fHor0b, *fHor1, *fHor3, *fHor4;
+  TGNumberEntry *fNumber, *fNumber1, *fNumber2, *fNumber3;
+  TGHorizontalFrame *fHor0, *fHor0b, *fHor0c, *fHor0d, *fHor0e, *fHor1, *fHor3, *fHor4;
   TGVerticalFrame *fVer0, *fVer1;
-  TGTextButton *fExit, *fDraw, *fOpen, *fSave;
-  TGLabel *evtLabel, *fileLabel, *pedLabel, *detectorLabel;
+  TGTextButton *fExit, *fExit2, *fDraw, *fOpen, *fSave, *fOpenCalib, *fStop;
+  TGPictureButton *fStart;
+  TGLabel *evtLabel, *fileLabel, *pedLabel, *detectorLabel, *detectorLabel2, *boardsLabel;
   TGLabel *calibLabel;
-  TGTextView *fStatusBar;
+  TGTextView *fStatusBar, *fStatusBar2;
   TGCheckButton *fPed;
   TGraph *gr_event = new TGraph();
   bool newDAQ = false;
@@ -41,6 +43,7 @@ public:
   void DoOpen();
   void DoClose();
   void DoOpenCalib(bool newDAQ, int boards);
+  void DoOpenCalibOnly();
   void PrintCode(Int_t code);
   void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);
   ClassDef(MyMainFrame, 0)
