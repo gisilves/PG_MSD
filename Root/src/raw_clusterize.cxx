@@ -65,7 +65,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
                         int sensor_pitch)
 {
   //////////////////Histos//////////////////
-
   TH1F *hADCCluster = // ADC content of all clusters
       new TH1F((TString) "hADCCluster_board_" + board + "_side_" + side, (TString) "hADCCluster_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
   hADCCluster->GetXaxis()->SetTitle("ADC");
@@ -947,14 +946,20 @@ int main(int argc, char *argv[])
   TFile *foutput = new TFile(output_filename + ".root", "RECREATE");
   foutput->cd();
 
+  TDirectory *doutput;
+
   for (int i = 0; i < detectors / 2; i++)
   {
+    doutput = foutput->mkdir((TString)"board_" + i + "_side_0");
+    doutput->cd();
     clusterize_detector(i, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
                         newDAQ, first_event, NChannels, verb, dynped,
                         invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                         symmetric, symmetricwidth,
                         sensor_pitch);
 
+    doutput = foutput->mkdir((TString)"board_" + i + "_side_1");
+    doutput->cd();
     clusterize_detector(i, 1, minADC_h, maxADC_h, minStrip, maxStrip, opt,
                         newDAQ, first_event, NChannels, verb, dynped,
                         invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
