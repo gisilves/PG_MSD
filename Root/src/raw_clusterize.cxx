@@ -293,7 +293,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   calib cal; // calibration struct
   bool is_calib = false;
 
-  is_calib = read_calib_single(opt->getValue("calibration"), &cal, NChannels, board, side);
+  is_calib = read_calib(opt->getValue("calibration"), &cal, NChannels, 2 * board + side, verb);
 
   if (!is_calib)
   {
@@ -464,13 +464,13 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
         maxPOS = std::distance(signal.begin(), it);
       }
 
-      if (verbose)
+      if (verb)
         std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
 
       hHighest->Fill(*max_element(signal.begin(), signal.end()));
 
       result = clusterize_event(&cal, &signal, highthreshold, lowthreshold, // clustering function
-                                symmetric, symmetricwidth, absolute, board, side);
+                                symmetric, symmetricwidth, absolute, board, side, verb);
 
       // save result cluster in TTree
       t_clusters->Fill();

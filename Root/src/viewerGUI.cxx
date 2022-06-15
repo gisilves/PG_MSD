@@ -63,7 +63,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fDraw = new TGTextButton(fHor0, "&Draw");
   fDraw->Connect("Clicked()", "MyMainFrame", this, "DoDraw()");
 
-  //fExit = new TGTextButton(fHor0, "&Exit", "gApplication->Terminate(0)");
+  // fExit = new TGTextButton(fHor0, "&Exit", "gApplication->Terminate(0)");
   fExit = new TGTextButton(fHor0, "&Exit");
   fExit->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
 
@@ -80,46 +80,18 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fHor1->AddFrame(fNumber1, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   fPed = new TGCheckButton(fHor4, "Pedestal subtraction");
-  //fPed->SetOn();
+  // fPed->SetOn();
   fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
   fileLabel = new TGLabel(fHor3, "No rootfile opened");
   calibLabel = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel2 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel3 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel4 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel5 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel6 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel6 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel7 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel8 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel9 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel10 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel11 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel12 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel13 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel14 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel15 = new TGLabel(fHor3, "No calibfile opened");
-  calibLabel16 = new TGLabel(fHor3, "No calibfile opened");
 
   TColor *color = gROOT->GetColor(26);
   color->SetRGB(0.91, 0.91, 0.91);
   calibLabel->SetTextColor(color);
-  calibLabel2->SetTextColor(color);
-  calibLabel3->SetTextColor(color);
-  calibLabel4->SetTextColor(color);
-  calibLabel5->SetTextColor(color);
-  calibLabel6->SetTextColor(color);
-  calibLabel7->SetTextColor(color);
-  calibLabel8->SetTextColor(color);
-  calibLabel9->SetTextColor(color);
-  calibLabel10->SetTextColor(color);
-  calibLabel11->SetTextColor(color);
-  calibLabel12->SetTextColor(color);
 
   fHor3->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fHor3->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fHor3->AddFrame(calibLabel2, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
   fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
@@ -245,23 +217,24 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   fStatusBar->AddLine("Event: " + TGString(evt) + " of: " + TGString(entries - 1) + " for detector: " + TGString(detector));
   fStatusBar->ShowBottom();
 
-  //Read Calibration file
-  calib cal;
-  read_calib(calibfile, &cal);
-
   std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  if(detector == 0)
+  if (detector == 0)
   {
     chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
-  } 
+  }
   else
   {
-    chain->SetBranchAddress((TString)"RAW Event "+alphabet.at(detector), &raw_event, &RAW);
+    chain->SetBranchAddress((TString) "RAW Event " + alphabet.at(detector), &raw_event, &RAW);
   }
+
+  chain->GetEntry(0);
+  // Read Calibration file
+  calib cal;
+  read_calib(calibfile, &cal, raw_event->size(), detector, false);
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
@@ -271,7 +244,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 
   if (newDAQ)
   {
-    fStatusBar->AddLine("Opened FOOT raw file from DE10nano");
+    fStatusBar->AddLine("Opened FOOT/PAPERO raw file from DE10nano");
   }
   else
   {
@@ -337,63 +310,63 @@ void MyMainFrame::DoDraw()
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 1)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel2->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 2)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel3->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 3)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel4->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 4)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel5->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 5)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel6->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 6)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel7->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 7)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel8->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 8)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel9->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 9)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel10->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 10)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel11->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 11)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel12->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 12)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel13->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 13)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel14->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 14)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel15->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
     else if (fNumber1->GetNumberEntry()->GetIntNumber() == 15)
     {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel16->GetText())->GetString(), boards);
+      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
     }
   }
 }
@@ -468,7 +441,7 @@ void MyMainFrame::DoOpen()
       Int_t retval;
 
       new TGMsgBox(gClient->GetRoot(), fMain,
-                   "Calib?", "Do you want to load the calibration files?",
+                   "Calib?", "Do you want to load the calibration file?",
                    kMBIconQuestion, buttons, &retval);
       if (retval == kMBYes)
       {
@@ -503,242 +476,17 @@ void MyMainFrame::DoOpenCalib(bool newDAQ, int boards)
     calibLabel->SetText(fi.fFilename);
     fStatusBar->LoadBuffer("Run: " + TGString(fileLabel->GetText()->GetString()));
     fStatusBar->AddLine("");
-    fStatusBar->AddLine("Calibration 1: " + TGString(calibLabel->GetText()->GetString()));
-    //DoDraw();
+    fStatusBar->AddLine("Calibration: " + TGString(calibLabel->GetText()->GetString()));
+    // DoDraw();
   }
   else
   {
-    //fStatusBar->Clear();
+    // fStatusBar->Clear();
     fStatusBar->AddLine("ERROR: calibration file is empty");
     return;
   }
 
   dir = fi.fIniDir;
-
-  if (newDAQ)
-  {
-    new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-    if (fi.fFilename)
-    {
-      calibLabel2->SetText(fi.fFilename);
-      fStatusBar->AddLine("Calibration 2: " + TGString(calibLabel2->GetText()->GetString()));
-    }
-    else
-    {
-      //fStatusBar->Clear();
-      fStatusBar->AddLine("ERROR: calibration file 2 is empty");
-      return;
-    }
-
-    if (boards >= 2)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel3->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 3: " + TGString(calibLabel3->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 3 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel4->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 4: " + TGString(calibLabel4->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 4 is empty");
-        return;
-      }
-    }
-
-    if (boards >= 3)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel5->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 5: " + TGString(calibLabel5->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 5 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel6->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 6: " + TGString(calibLabel6->GetText()->GetString()));
-      }
-      
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 6 is empty");
-        return;
-      }
-    }
-
-    if (boards >= 4)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel7->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 7: " + TGString(calibLabel7->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 7 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel8->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 8: " + TGString(calibLabel8->GetText()->GetString()));
-      }
-      
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 8 is empty");
-        return;
-      }
-    }
-
-    if (boards >= 5)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel9->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 9: " + TGString(calibLabel9->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 9 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel10->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 10: " + TGString(calibLabel10->GetText()->GetString()));
-      }
-      
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 10 is empty");
-        return;
-      }
-    }
-
-    if (boards >= 6)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel11->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 11: " + TGString(calibLabel11->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 11 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel12->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 12: " + TGString(calibLabel12->GetText()->GetString()));
-      }
-      
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 12 is empty");
-        return;
-      }
-    }
-
-    if (boards >= 7)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel11->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 13: " + TGString(calibLabel13->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 13 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel12->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 14: " + TGString(calibLabel14->GetText()->GetString()));
-      }
-      
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 14 is empty");
-        return;
-      }
-    }
-
-    if (boards >= 8)
-    {
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel11->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 15: " + TGString(calibLabel15->GetText()->GetString()));
-      }
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 15 is empty");
-        return;
-      }
-
-      new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-      if (fi.fFilename)
-      {
-        calibLabel12->SetText(fi.fFilename);
-        fStatusBar->AddLine("Calibration 16: " + TGString(calibLabel16->GetText()->GetString()));
-      }
-      
-      else
-      {
-        //fStatusBar->Clear();
-        fStatusBar->AddLine("ERROR: calibration file 16 is empty");
-        return;
-      }
-    }
-  }
 }
 
 void MyMainFrame::DoClose()

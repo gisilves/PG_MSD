@@ -8,8 +8,6 @@
 #include <numeric>
 #include <sstream>
 
-#define verbose false
-
 #define MIP_ADC 16 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
 #define maxClusters 100
 
@@ -346,45 +344,7 @@ bool GoodCluster(cluster clus, calib *cal) // cluster is good if all the strips 
   return good;
 }
 
-bool read_calib(const char *calib_file, calib *cal) // read ASCII calib file: based on DaMPE calibration files
-{
-  std::ifstream in;
-  in.open(calib_file);
-
-  if (!in.is_open())
-    return 0;
-
-  char comma;
-
-  Float_t strip, va, vachannel, ped, rawsigma, sigma, status, not_used;
-  Int_t nlines = 0;
-
-  std::string dummyLine;
-
-  for (int k = 0; k < 18; k++)
-  {
-    getline(in, dummyLine);
-  }
-
-  while (in.good())
-  {
-    in >> strip >> comma >> va >> comma >> vachannel >> comma >> ped >> comma >>
-        rawsigma >> comma >> sigma >> comma >> status >> comma >> not_used;
-
-    if (strip >= 0)
-    {
-      cal->ped.push_back(ped);
-      cal->rsig.push_back(rawsigma);
-      cal->sig.push_back(sigma);
-      cal->status.push_back(status);
-      nlines++;
-    }
-  }
-  in.close();
-  return 1;
-}
-
-bool read_calib_single(const char *calib_file, calib *cal, int NChannels, int board, int side) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
+bool read_calib(const char *calib_file, calib *cal, int NChannels, int detector, bool verb) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
 {
   std::ifstream in;
   in.open(calib_file);
@@ -398,10 +358,10 @@ bool read_calib_single(const char *calib_file, calib *cal, int NChannels, int bo
   Float_t strip, va, vachannel, ped, rawsigma, sigma, status, not_used;
   Int_t read_channels = 0;
 
-  if (board + side != 0)
+  if (detector != 0)
   {
     // skip to line of desired detector
-    for (int k = 0; k < (18 + NChannels) * (2 * board + side); k++)
+    for (int k = 0; k < (18 + NChannels) * detector; k++)
     {
       getline(in, dummyLine);
     }
@@ -411,8 +371,8 @@ bool read_calib_single(const char *calib_file, calib *cal, int NChannels, int bo
   for (int k = 0; k < 18; k++)
   {
     getline(in, dummyLine);
-    if (k == 2)
-      cout << dummyLine << endl;
+    if (k == 2 && verb)
+      std::cout << dummyLine << std::endl;
   }
 
   // read NChannels
@@ -431,8 +391,11 @@ bool read_calib_single(const char *calib_file, calib *cal, int NChannels, int bo
     }
   }
 
-  cout << "Read " << read_channels << " channels from calib file" << endl;
-  cout << "Last line: " << strip << " " << va << " " << vachannel << " " << ped << " " << rawsigma << " " << sigma << " " << status << " " << not_used << endl;
+  if (verb)
+  {
+    std::cout << "Read " << read_channels << " channels from calib file" << std::endl;
+    std::cout << "Last line: " << strip << " " << va << " " << vachannel << " " << ped << " " << rawsigma << " " << sigma << " " << status << " " << not_used << std::endl;
+  }
   in.close();
   return 1;
 }
@@ -470,7 +433,8 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
                                       bool symmetric, int symmetric_width,
                                       bool absoluteThresholds = false,
                                       int board = 0,
-                                      int side = 0)
+                                      int side = 0,
+                                      bool verbose = false)
 {
   int nclust = 0;
   std::vector<cluster> clusters; // Vector returned with all found clusters

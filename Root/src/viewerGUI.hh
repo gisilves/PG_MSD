@@ -27,9 +27,7 @@ private:
   TGVerticalFrame *fVer0, *fVer1;
   TGTextButton *fExit, *fDraw, *fOpen, *fSave;
   TGLabel *evtLabel, *fileLabel, *pedLabel, *detectorLabel;
-  TGLabel *calibLabel, *calibLabel2, *calibLabel3, *calibLabel4, *calibLabel5, *calibLabel6; 
-  TGLabel *calibLabel7, *calibLabel8, *calibLabel9, *calibLabel10, *calibLabel11, *calibLabel12;
-  TGLabel *calibLabel13, *calibLabel14, *calibLabel15, *calibLabel16;
+  TGLabel *calibLabel;
   TGTextView *fStatusBar;
   TGCheckButton *fPed;
   TGraph *gr_event = new TGraph();
