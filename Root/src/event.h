@@ -348,7 +348,6 @@ bool GoodCluster(cluster clus, calib *cal) // cluster is good if all the strips 
 
 bool read_calib(const char *calib_file, calib *cal) // read ASCII calib file: based on DaMPE calibration files
 {
-
   std::ifstream in;
   in.open(calib_file);
 
@@ -380,43 +379,60 @@ bool read_calib(const char *calib_file, calib *cal) // read ASCII calib file: ba
       cal->status.push_back(status);
       nlines++;
     }
-  }  
+  }
   in.close();
   return 1;
 }
 
-bool read_calib_single(const char *calib_file, calib *cal, int NChannels) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
+bool read_calib_single(const char *calib_file, calib *cal, int NChannels, int board, int side) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
 {
-  // open calib file
   std::ifstream in;
   in.open(calib_file);
 
   if (!in.is_open())
     return 0;
 
+  char comma;
+  std::string dummyLine;
+
   Float_t strip, va, vachannel, ped, rawsigma, sigma, status, not_used;
-  std::string bufferLine;
-  int read_channels = 0;
+  Int_t read_channels = 0;
 
-  // read lines not beginning with #
-  while (in.good() && read_channels < NChannels)
+  if (board + side != 0)
   {
-    getline(in, bufferLine);
-    if (bufferLine[0] != '#' && bufferLine.size() != 0)
+    // skip to line of desired detector
+    for (int k = 0; k < (18 + NChannels) * (2 * board + side); k++)
     {
-      std::stringstream ss(bufferLine);
-      ss >> strip >> va >> vachannel >> ped >> rawsigma >> sigma >> status >> not_used;
-
-      if (strip >= 0)
-      {
-        cal->ped.push_back(ped);
-        cal->rsig.push_back(rawsigma);
-        cal->sig.push_back(sigma);
-        cal->status.push_back(status);
-        read_channels++;
-      }
+      getline(in, dummyLine);
     }
   }
+
+  // skip header
+  for (int k = 0; k < 18; k++)
+  {
+    getline(in, dummyLine);
+    if (k == 2)
+      cout << dummyLine << endl;
+  }
+
+  // read NChannels
+  while (in.good() && read_channels < NChannels)
+  {
+    in >> strip >> comma >> va >> comma >> vachannel >> comma >> ped >> comma >>
+        rawsigma >> comma >> sigma >> comma >> status >> comma >> not_used;
+
+    if (strip >= 0)
+    {
+      cal->ped.push_back(ped);
+      cal->rsig.push_back(rawsigma);
+      cal->sig.push_back(sigma);
+      cal->status.push_back(status);
+      read_channels++;
+    }
+  }
+
+  cout << "Read " << read_channels << " channels from calib file" << endl;
+  cout << "Last line: " << strip << " " << va << " " << vachannel << " " << ped << " " << rawsigma << " " << sigma << " " << status << " " << not_used << endl;
   in.close();
   return 1;
 }
@@ -450,11 +466,11 @@ std::vector<std::pair<float, bool>> read_alignment(const char *alignment_file) /
 }
 
 std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
-                                float highThresh, float lowThresh,
-                                bool symmetric, int symmetric_width,
-                                bool absoluteThresholds = false,
-                                int board = 0,
-                                int side = 0)
+                                      float highThresh, float lowThresh,
+                                      bool symmetric, int symmetric_width,
+                                      bool absoluteThresholds = false,
+                                      int board = 0,
+                                      int side = 0)
 {
   int nclust = 0;
   std::vector<cluster> clusters; // Vector returned with all found clusters

@@ -19,7 +19,7 @@
 
 AnyOption *opt; // Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = false)
+int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -436,7 +436,7 @@ int main(int argc, char *argv[])
   bool pdf_only = false;
   bool fast_mode = false;
   bool fit_mode = false;
-  bool single_file = false;
+  bool single_file = true;
 
   float sigmaraw_cut = 8;
   float sigma_cut = 5;
@@ -454,7 +454,7 @@ int main(int argc, char *argv[])
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  -s, --single     ................................. Save calibrations in a single file");
+  opt->addUsage("  -m, --multiple   ................................. Save calibrations in multiple .cal files (one for each detector)");
   opt->addUsage("  --output         ................................. Output .cal file ");
   opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
   opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
@@ -488,9 +488,9 @@ int main(int argc, char *argv[])
   if (opt->getFlag("verbose") || opt->getFlag('v'))
     verb = true;
 
-  if (opt->getFlag("single") || opt->getFlag('s'))
+  if (opt->getFlag("multiple") || opt->getFlag('m'))
   {
-    single_file = true;
+    single_file = false;
   }
 
   if (opt->getValue("cn"))
