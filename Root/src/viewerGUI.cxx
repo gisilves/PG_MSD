@@ -25,6 +25,7 @@
 
 #include "viewerGUI.hh"
 #include "event.h"
+#include "PAPERO.h"
 
 #include <iostream>
 #include <fstream>
@@ -32,6 +33,9 @@
 
 MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 {
+  // On-line monitor with UDP server
+  omServer = new udpServer(kUdpAddr, kUdpPort);
+
   newDAQ = false;
   boards = 1;
   // Create a main frame
@@ -141,13 +145,12 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
   fHor0d->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
-  fStart = new TGPictureButton(fHor0c,
-                           gClient->GetPicture("h1_s.xpm"), 22);
-  //fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
+  fStart = new TGTextButton(fHor0c, "&Get Event");
+  fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
   fHor0c->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  fStop = new TGTextButton(fHor0c, "&Stop");
-  //fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
-  fHor0c->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  // fStop = new TGTextButton(fHor0c, "&Stop");
+  //  fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
+  // fHor0c->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
   fExit2 = new TGTextButton(fHor0c, "&Exit");
   fExit2->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
@@ -351,6 +354,64 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   fCanvas->Update();
   delete chain;
   delete chain2;
+}
+
+void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::vector<uint32_t> evt)
+{
+  fStatusBar2->AddLine("");
+  fStatusBar2->AddLine("Event: " + TGString(evtnum) + " for detector: " + TGString(detector));
+  fStatusBar2->ShowBottom();
+
+  gr_event->SetMarkerColor(kRed + 1);
+  gr_event->SetLineColor(kRed + 1);
+
+  gr_event->SetMarkerStyle(23);
+  gr_event->GetXaxis()->SetNdivisions(evt.size() - 10 / 64, false);
+
+  int maxadc = -999;
+  int minadc = 0;
+
+  calib cal;
+  read_calib(calibfile, &cal, evt.size() - 10, detector, false);
+
+  gr_event->Set(0);
+  double signal;
+
+  for (int chan = 0; chan < evt.size() - 10; chan++)
+  {
+    if (fPed->IsOn())
+    {
+      signal = evt[chan+10] - cal.ped[chan];
+    }
+    else
+    {
+      signal = evt[chan+10];
+    }
+
+    if (signal > maxadc)
+      maxadc = signal;
+    if (signal < minadc)
+      minadc = signal;
+
+    gr_event->SetPoint(gr_event->GetN(), chan, signal);
+  }
+
+  TH1F *frame = gPad->DrawFrame(0, minadc - 20, evt.size() - 10, maxadc + 20);
+
+  int nVAs = evt.size() / 64;
+
+  frame->SetTitle("Event number " + TString::Format("%0d", (int)evtnum) + " Detector: " + TString::Format("%0d", (int)detector));
+  frame->GetXaxis()->SetNdivisions(-nVAs);
+  frame->GetXaxis()->SetTitle("Strip number");
+  frame->GetYaxis()->SetTitle("ADC");
+
+  gr_event->SetMarkerSize(0.5);
+  gr_event->Draw("*lSAME");
+  gr_event->Draw();
+  TCanvas *fCanvas = fEcanvas->GetCanvas();
+  fCanvas->SetGrid();
+  fCanvas->cd();
+  fCanvas->Update();
 }
 
 void MyMainFrame::DoDraw()
@@ -559,6 +620,36 @@ void MyMainFrame::DoClose()
   if (retval == kMBYes)
   {
     gApplication->Terminate(0);
+  }
+}
+
+void MyMainFrame::DoStart()
+{
+  uint32_t header;
+  omServer->Rx(&header, sizeof(header));
+  cout << "header: " << hex << header << endl;
+
+  std::vector<uint32_t> evt(650);
+  omServer->Rx(&evt[0], sizeof(evt));
+
+  DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), evt);
+}
+
+void MyMainFrame::DoStop()
+{
+  udp_run = false;
+}
+
+void MyMainFrame::DoLoop()
+{
+  while (udp_run)
+  {
+    cout << "Running" << endl;
+  }
+
+  if (!udp_run)
+  {
+    cout << "Stopped" << endl;
   }
 }
 
