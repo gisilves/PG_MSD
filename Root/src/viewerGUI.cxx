@@ -31,6 +31,23 @@
 #include <fstream>
 #include <string>
 
+template <typename T>
+std::vector<T> reorder(std::vector<T> const &v)
+{
+  std::vector<T> reordered_vec(v.size());
+  int j = 0;
+  constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
+  for (int ch = 0; ch < 128; ch++)
+  {
+    for (int adc : order)
+    {
+      reordered_vec.at(adc * 128 + ch) = v.at(j);
+      j++;
+    }
+  }
+  return reordered_vec;
+}
+
 MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 {
   // On-line monitor with UDP server
@@ -377,23 +394,26 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
   gr_event->Set(0);
   double signal;
 
-  for (int chan = 0; chan < evt.size() - 10; chan++)
+  for (int chan = 0; chan < evt.size(); chan++)
   {
-    if (fPed->IsOn())
-    {
-      signal = evt[chan+10] - cal.ped[chan];
-    }
-    else
-    {
-      signal = evt[chan+10];
-    }
+    // if (fPed->IsOn())
+    // {
+    //   signal = evt[chan + 10] - cal.ped[chan];
+    // }
+    // else
+    // {
+    //   signal = evt[chan + 10];
+    // }
 
-    if (signal > maxadc)
-      maxadc = signal;
-    if (signal < minadc)
-      minadc = signal;
+    // if (signal > maxadc)
+    //   maxadc = signal;
+    // if (signal < minadc)
+    //   minadc = signal;
 
-    gr_event->SetPoint(gr_event->GetN(), chan, signal);
+    if (chan < 20)
+      cout << "signal " << chan << " is " << hex << evt.at(chan) << endl;
+
+    gr_event->SetPoint(gr_event->GetN(), chan, evt.at(chan));
   }
 
   TH1F *frame = gPad->DrawFrame(0, minadc - 20, evt.size() - 10, maxadc + 20);
@@ -629,10 +649,25 @@ void MyMainFrame::DoStart()
   omServer->Rx(&header, sizeof(header));
   cout << "header: " << hex << header << endl;
 
-  std::vector<uint32_t> evt(650);
-  omServer->Rx(&evt[0], sizeof(evt));
+  std::vector<uint32_t> evt(649);
+  omServer->Rx(evt.data(), 2596);
 
-  DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), evt);
+  std::vector<uint32_t> detJ5(640);
+  std::vector<uint32_t> detJ7(640);
+
+  for (size_t i = 0; i < evt.size() - 10; i++)
+  {
+    detJ5.at(i) = evt.at(i + 9) % (0x10000);
+    detJ7.at(i) = (evt.at(i + 9) >> 16) % (0x10000);
+
+    if (i == 0)
+    {
+      std::cout << "detJ5: " << hex << detJ5.at(i) << endl;
+      std::cout << "detJ7: " << hex << detJ7.at(i) << endl;
+    }
+  }
+
+  DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
 }
 
 void MyMainFrame::DoStop()
