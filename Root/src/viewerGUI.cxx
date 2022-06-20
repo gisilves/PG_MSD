@@ -157,7 +157,10 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fHor_Pedestal_OM = new TGHorizontalFrame(tf, 1280, 20);
 
   fPed2 = new TGCheckButton(fHor_Pedestal_OM, "Pedestal subtraction");
-  fHor_Pedestal_OM->AddFrame(fPed2, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fHor_Pedestal_OM->AddFrame(fPed2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+
+  fShowAll = new TGCheckButton(fHor_Pedestal_OM, "Show both sensors");
+  fHor_Pedestal_OM->AddFrame(fShowAll, new TGLayoutHints(kLHintsRight | kLHintsCenterY, 5, 2, 2, 2));
 
   fStart = new TGTextButton(fHor_OM_Buttons, "&Get Event");
   fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
@@ -426,10 +429,6 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
   gr_event->SetMarkerSize(0.5);
   gr_event->Draw("*lSAME");
   gr_event->Draw();
-  TCanvas *fCanvas = fEcanvas->GetCanvas();
-  fCanvas->SetGrid();
-  fCanvas->cd();
-  fCanvas->Update();
 }
 
 void MyMainFrame::DoDraw()
@@ -611,13 +610,37 @@ void MyMainFrame::DoLoop()
     std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
     std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
 
-    if (fNumber3->GetNumberEntry()->GetIntNumber())
+    TCanvas *fCanvas = fEcanvas->GetCanvas();
+    if (fShowAll->IsOn())
     {
+      fCanvas->cd();
+      fCanvas->Clear();
+      fCanvas->Divide(2, 1);
+      fCanvas->cd(1);
+      DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+      fCanvas->SetGrid();
+      fCanvas->Update();
+      fCanvas->cd(2);
       DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
+      fCanvas->SetGrid();
+      fCanvas->Update();
     }
     else
     {
-      DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+      fCanvas->cd();
+      fCanvas->Clear();
+      if (fNumber3->GetNumberEntry()->GetIntNumber())
+      {
+        DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
+        fCanvas->SetGrid();
+        fCanvas->Update();
+      }
+      else
+      {
+        DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+        fCanvas->SetGrid();
+        fCanvas->Update();
+      }
     }
     sleep(1);
     count++;

@@ -35,6 +35,7 @@ private:
   TGLabel *calibLabel;
   TGTextView *fStatusBar, *fStatusBar2;
   TGCheckButton *fPed, *fPed2;
+  TGCheckButton *fShowAll;
   TGraph *gr_event = new TGraph();
   bool newDAQ = false;
   int boards = 1;
@@ -56,7 +57,6 @@ public:
   void DoLoop();
   void DoOpenCalib(bool newDAQ, int boards);
   void DoOpenCalibOnly();
-  void PrintCode(Int_t code);
   void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);
   ClassDef(MyMainFrame, 0)
 };
