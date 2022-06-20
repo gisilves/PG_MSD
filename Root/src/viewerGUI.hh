@@ -17,6 +17,7 @@ class TGFrame;
 class TGFileDialog;
 class TGCheckButton;
 class TGPictureButton;
+class TThread;
 
 class MyMainFrame
 {
@@ -45,6 +46,8 @@ private:
   int kUdpPort = 8890;                //!< UDP server port
   udpServer *omServer;
 
+  TThread *th1 = 0;
+
 public:
   MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h);
   virtual ~MyMainFrame();
@@ -54,7 +57,8 @@ public:
   void DoClose();
   void DoStart();
   void DoStop();
-  void DoLoop();
+  void DoGetUDP();
+  static void *JobThread(void *arg);
   void DoOpenCalib(bool newDAQ, int boards);
   void DoOpenCalibOnly();
   void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);

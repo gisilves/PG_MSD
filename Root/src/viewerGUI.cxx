@@ -3,7 +3,12 @@
 #include "TGraph.h"
 #include "TLine.h"
 #include "TROOT.h"
-#include <TApplication.h>
+#include "TH1.h"
+#include "TGTab.h"
+#include "TApplication.h"
+#include "TSystem.h"
+#include "TThread.h"
+
 #include <TCanvas.h>
 #include <TColor.h>
 #include <TString.h>
@@ -18,17 +23,13 @@
 #include <TGFrame.h>
 #include <TGFileDialog.h>
 #include <TGClient.h>
-#include "TH1.h"
 #include <TGMsgBox.h>
-#include "TGTab.h"
 #include <TGPicture.h>
 
 #include "viewerGUI.hh"
 #include "event.h"
-#include "PAPERO.h"
 
 #include <iostream>
-#include <future> // std::async, std::future
 #include <fstream>
 #include <string>
 
@@ -49,10 +50,14 @@ std::vector<T> reorder(std::vector<T> const &v)
   return reordered_vec;
 }
 
+const char symb[] = {'|', '/', '-', '\\', 0};
+
 MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 {
   // On-line monitor with UDP server
   omServer = new udpServer(kUdpAddr, kUdpPort);
+  // create the thread for the job
+  th1 = new TThread("th1", JobThread, this);
 
   newDAQ = false;
   boards = 1;
@@ -69,9 +74,9 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   TGCompositeFrame *tf = fTab->AddTab("Data from file");
 
   // Create canvas widget
-  fEcanvas = new TRootEmbeddedCanvas("Ecanvas", fMain, 1024, 500);
+  fEcanvas = new TRootEmbeddedCanvas("Ecanvas", fMain, 1024, 800);
   fMain->AddFrame(fEcanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 10, 10, 10, 1));
-  fMain->AddFrame(fTab, new TGLayoutHints(kLHintsBottom | kLHintsExpandX, 2, 2, 5, 1));
+  fMain->AddFrame(fTab, new TGLayoutHints(kLHintsExpandX, 2, 2, 5, 1));
 
   fHor_Buttons = new TGHorizontalFrame(tf, 1024, 20);
   fHor_Numbers = new TGHorizontalFrame(tf, 1024, 20);
@@ -146,13 +151,13 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   boardsLabel = new TGLabel(fHor_Numbers_OM, "Board:");
   fHor_Numbers_OM->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fNumber2 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
-  fHor_Numbers_OM->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Numbers_OM->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
 
   detectorLabel2 = new TGLabel(fHor_Numbers_OM, "Sensor:");
   fHor_Numbers_OM->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fNumber3 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
   fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor_Numbers_OM->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Numbers_OM->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
 
   fHor_Pedestal_OM = new TGHorizontalFrame(tf, 1280, 20);
 
@@ -162,12 +167,12 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fShowAll = new TGCheckButton(fHor_Pedestal_OM, "Show both sensors");
   fHor_Pedestal_OM->AddFrame(fShowAll, new TGLayoutHints(kLHintsRight | kLHintsCenterY, 5, 2, 2, 2));
 
-  fStart = new TGTextButton(fHor_OM_Buttons, "&Get Event");
+  fStart = new TGTextButton(fHor_OM_Buttons, "&Start");
   fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
   fHor_OM_Buttons->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  // fStop = new TGTextButton(fHor_OM_Buttons, "&Stop");
-  // fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
-  // fHor_OM_Buttons->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fStop = new TGTextButton(fHor_OM_Buttons, "&Stop");
+  fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
+  fHor_OM_Buttons->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
   fExit2 = new TGTextButton(fHor_OM_Buttons, "&Exit");
   fExit2->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
@@ -175,13 +180,13 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   fHor_Status_OM = new TGHorizontalFrame(tf, 1024, 20);
 
-  fStatusBar2 = new TGTextView(fHor_Status_OM, 500, 150);
-  fStatusBar2->LoadBuffer("Template for realtime data plotting via UDP");
+  fStatusBar2 = new TGTextView(fHor_Status_OM, 500, 50);
+  fStatusBar2->LoadBuffer("Online monitoring data plotting via UDP");
 
   fHor_Status_OM->AddFrame(fStatusBar2, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
 
-  tf->AddFrame(fHor_OM_Buttons, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor_Numbers_OM, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_OM_Buttons, new TGLayoutHints(kLHintsExpandY | kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Numbers_OM, new TGLayoutHints(kLHintsExpandY | kLHintsCenterX, 2, 2, 5, 1));
   tf->AddFrame(fHor_Pedestal_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
   tf->AddFrame(fHor_Status_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
@@ -376,10 +381,9 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 
 void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::vector<uint32_t> evt)
 {
-  fStatusBar2->AddLine("");
-  fStatusBar2->AddLine("Event: " + TGString(evtnum) + " for detector: " + TGString(detector));
+  fStatusBar2->Clear();
+  fStatusBar2->AddLine("Event: " + TGString(evtnum));
   fStatusBar2->AddLine("Read " + TGString(evt.size()) + " channels");
-  fStatusBar2->ShowBottom();
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
@@ -579,72 +583,91 @@ void MyMainFrame::DoClose()
 
 void MyMainFrame::DoStart()
 {
-  DoLoop();
+  // if the thread has been created and is not running, start it
+  if (th1 && th1->GetState() != TThread::kRunningState)
+    th1->Run();
 }
 
 void MyMainFrame::DoStop()
 {
+  // if the thread has been created and is running, kill it
+  if (th1 && th1->GetState() == TThread::kRunningState)
+    th1->Kill();
 }
 
-void MyMainFrame::DoLoop()
+void MyMainFrame::DoGetUDP()
 {
-  uint count = 0;
-  while (count < 11)
+  uint32_t header;
+  omServer->Rx(&header, sizeof(header));
+  cout << "header: " << hex << header << endl;
+  if (header != 0xfa4af1ca)
   {
-    uint32_t header;
-    omServer->Rx(&header, sizeof(header));
-    cout << "header: " << hex << header << endl;
+    cout << "ERROR: header is not correct" << endl;
+    return;
+  }
 
-    std::vector<uint32_t> evt(650);
-    omServer->Rx(evt.data(), 2600);
+  std::vector<uint32_t> evt(650);
+  omServer->Rx(evt.data(), 2600);
 
-    std::vector<uint32_t> evt_buffer;
+  std::vector<uint32_t> evt_buffer;
 
-    for (size_t i = 0; i < evt.size() - 10; i++)
+  for (size_t i = 0; i < evt.size() - 10; i++)
+  {
+    evt_buffer.push_back((evt.at(i + 9) % (0x10000)) / 4);
+    evt_buffer.push_back(((evt.at(i + 9) >> 16) % (0x10000)) / 4);
+  }
+
+  evt_buffer = reorder(evt_buffer);
+  std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
+  std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
+
+  TCanvas *fCanvas = fEcanvas->GetCanvas();
+  if (fShowAll->IsOn())
+  {
+    fCanvas->cd();
+    fCanvas->Clear();
+    fCanvas->Divide(2, 1);
+    fCanvas->cd(1);
+    DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+    fCanvas->SetGrid();
+    fCanvas->Update();
+    fCanvas->cd(2);
+    DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
+    fCanvas->SetGrid();
+    fCanvas->Update();
+  }
+  else
+  {
+    fCanvas->cd();
+    fCanvas->Clear();
+    if (fNumber3->GetNumberEntry()->GetIntNumber())
     {
-      evt_buffer.push_back((evt.at(i + 9) % (0x10000)) / 4);
-      evt_buffer.push_back(((evt.at(i + 9) >> 16) % (0x10000)) / 4);
-    }
-
-    evt_buffer = reorder(evt_buffer);
-    std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
-    std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
-
-    TCanvas *fCanvas = fEcanvas->GetCanvas();
-    if (fShowAll->IsOn())
-    {
-      fCanvas->cd();
-      fCanvas->Clear();
-      fCanvas->Divide(2, 1);
-      fCanvas->cd(1);
-      DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-      fCanvas->SetGrid();
-      fCanvas->Update();
-      fCanvas->cd(2);
       DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
       fCanvas->SetGrid();
       fCanvas->Update();
     }
     else
     {
-      fCanvas->cd();
-      fCanvas->Clear();
-      if (fNumber3->GetNumberEntry()->GetIntNumber())
-      {
-        DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-        fCanvas->SetGrid();
-        fCanvas->Update();
-      }
-      else
-      {
-        DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-        fCanvas->SetGrid();
-        fCanvas->Update();
-      }
+      DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+      fCanvas->SetGrid();
+      fCanvas->Update();
     }
-    sleep(1);
-    count++;
   }
+}
+
+void *MyMainFrame::JobThread(void *arg)
+{
+  TThread::SetCancelOn(); // to allow to terminate (kill) the thread
+  MyMainFrame *fMain = (MyMainFrame *)arg;
+  int i = 0;
+  while (1)
+  {
+    TThread::Sleep(1, 0);
+    fMain->DoGetUDP();
+    i++;
+    cout << "Just read " << dec << i << " events" << endl;
+  }
+  return 0;
 }
 
 MyMainFrame::~MyMainFrame()
