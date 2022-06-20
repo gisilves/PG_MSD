@@ -25,17 +25,19 @@ private:
   TGMainFrame *fMain;
   TRootEmbeddedCanvas *fEcanvas;
   TGNumberEntry *fNumber, *fNumber1, *fNumber2, *fNumber3;
-  TGHorizontalFrame *fHor0, *fHor0b, *fHor0c, *fHor0d, *fHor0e, *fHor1, *fHor3, *fHor4;
-  TGVerticalFrame *fVer0, *fVer1;
+  TGHorizontalFrame *fHor_Buttons, *fHor_OM_Buttons;
+  TGHorizontalFrame *fHor_Numbers, *fHor_Numbers_OM;
+  TGHorizontalFrame *fHor_Pedestal, *fHor_Pedestal_OM;
+  TGHorizontalFrame *fHor_Status, *fHor_Status_OM;
+  TGHorizontalFrame *fHor_Files;
   TGTextButton *fExit, *fExit2, *fDraw, *fOpen, *fSave, *fOpenCalib, *fStart, *fStop;
   TGLabel *evtLabel, *fileLabel, *pedLabel, *detectorLabel, *detectorLabel2, *boardsLabel;
   TGLabel *calibLabel;
   TGTextView *fStatusBar, *fStatusBar2;
-  TGCheckButton *fPed;
+  TGCheckButton *fPed, *fPed2;
   TGraph *gr_event = new TGraph();
   bool newDAQ = false;
   int boards = 1;
-  bool udp_run = false;
 
   // UDP server to on-line monitor
   std::string kUdpAddr = "localhost"; //!< UDP Server address (x.x.x.x format)

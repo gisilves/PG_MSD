@@ -28,6 +28,7 @@
 #include "PAPERO.h"
 
 #include <iostream>
+#include <future> // std::async, std::future
 #include <fstream>
 #include <string>
 
@@ -72,117 +73,114 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fMain->AddFrame(fEcanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 10, 10, 10, 1));
   fMain->AddFrame(fTab, new TGLayoutHints(kLHintsBottom | kLHintsExpandX, 2, 2, 5, 1));
 
-  fHor0 = new TGHorizontalFrame(tf, 1024, 20);
-  fHor0b = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_Buttons = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_Numbers = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_Pedestal = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_Status = new TGHorizontalFrame(tf, 1024, 20);
 
-  TGVerticalFrame *fVer0 = new TGVerticalFrame(fHor0b, 10, 10);
-  TGVerticalFrame *fVer1 = new TGVerticalFrame(fHor0b, 10, 10);
-
-  fStatusBar = new TGTextView(fVer1, 500, 150);
+  fStatusBar = new TGTextView(fHor_Status, 500, 150);
   fStatusBar->LoadBuffer("Event viewer for microstrip raw data .root files.");
   fStatusBar->AddLine("");
   fStatusBar->AddLine("Files must have been acquired in raw (non compressed) mode.");
   fStatusBar->AddLine("");
 
-  fHor1 = new TGHorizontalFrame(fVer0, 1024, 20);
-  fHor3 = new TGHorizontalFrame(fMain, 1024, 20);
-  fHor4 = new TGHorizontalFrame(fVer0, 1024, 20);
+  fHor_Status->AddFrame(fStatusBar, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
 
-  fOpen = new TGTextButton(fHor0, "&Open");
+  fHor_Files = new TGHorizontalFrame(fMain, 1024, 20);
+
+  fOpen = new TGTextButton(fHor_Buttons, "&Open");
   fOpen->Connect("Clicked()", "MyMainFrame", this, "DoOpen()");
 
-  fDraw = new TGTextButton(fHor0, "&Draw");
+  fDraw = new TGTextButton(fHor_Buttons, "&Draw");
   fDraw->Connect("Clicked()", "MyMainFrame", this, "DoDraw()");
 
-  // fExit = new TGTextButton(fHor0, "&Exit", "gApplication->Terminate(0)");
-  fExit = new TGTextButton(fHor0, "&Exit");
+  // fExit = new TGTextButton(fHor_Buttons, "&Exit", "gApplication->Terminate(0)");
+  fExit = new TGTextButton(fHor_Buttons, "&Exit");
   fExit->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
 
-  evtLabel = new TGLabel(fHor1, "Event Number:");
-  fHor1->AddFrame(evtLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber = new TGNumberEntry(fHor1, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
+  evtLabel = new TGLabel(fHor_Numbers, "Event Number:");
+  fHor_Numbers->AddFrame(evtLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
   fNumber->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor1->AddFrame(fNumber, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Numbers->AddFrame(fNumber, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
-  detectorLabel = new TGLabel(fHor1, "Sensor number:");
-  fHor1->AddFrame(detectorLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber1 = new TGNumberEntry(fHor1, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 6);
+  detectorLabel = new TGLabel(fHor_Numbers, "Sensor number:");
+  fHor_Numbers->AddFrame(detectorLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber1 = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 6);
   fNumber1->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor1->AddFrame(fNumber1, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Numbers->AddFrame(fNumber1, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
-  fPed = new TGCheckButton(fHor4, "Pedestal subtraction");
-  // fPed->SetOn();
-  fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fPed = new TGCheckButton(fHor_Pedestal, "Pedestal subtraction");
+  fHor_Pedestal->AddFrame(fPed, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
-  fileLabel = new TGLabel(fHor3, "No rootfile opened");
-  calibLabel = new TGLabel(fHor3, "No calibfile opened");
+  fileLabel = new TGLabel(fHor_Files, "No rootfile opened");
+  calibLabel = new TGLabel(fHor_Files, "No calibfile opened");
 
   TColor *color = gROOT->GetColor(26);
   color->SetRGB(0.91, 0.91, 0.91);
   calibLabel->SetTextColor(color);
 
-  fHor3->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fHor3->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fHor_Files->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fHor_Files->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
-  fHor4->AddFrame(fPed, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Buttons->AddFrame(fOpen, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fHor_Buttons->AddFrame(fDraw, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fHor_Buttons->AddFrame(fExit, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
-  fHor0->AddFrame(fOpen, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  fHor0->AddFrame(fDraw, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  fHor0->AddFrame(fExit, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  tf->AddFrame(fHor_Buttons, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Numbers, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Pedestal, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Status, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
-  fHor0b->AddFrame(fVer0, new TGLayoutHints(kLHintsCenterX | kLHintsExpandX | kLHintsExpandY, 2, 2, 5, 1));
-  fHor0b->AddFrame(fVer1, new TGLayoutHints(kLHintsCenterX | kLHintsExpandX | kLHintsExpandY, 2, 2, 5, 1));
-
-  tf->AddFrame(fHor0, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor0b, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
-
-  fVer0->AddFrame(fHor1, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 2, 2, 5, 1));
-  fVer0->AddFrame(fHor4, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 2, 2, 5, 1));
-  fMain->AddFrame(fHor3, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
-
-  fVer1->AddFrame(fStatusBar, new TGLayoutHints(kLHintsCenterX | kLHintsBottom | kLHintsLeft | kLHintsExpandY, 5, 5, 2, 2));
+  fMain->AddFrame(fHor_Files, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
   tf = fTab->AddTab("Realtime data");
-  fHor0c = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_OM_Buttons = new TGHorizontalFrame(tf, 1280, 20);
 
-  fOpenCalib = new TGTextButton(fHor0c, "&Open Calib");
+  fOpenCalib = new TGTextButton(fHor_OM_Buttons, "&Open Calib");
   fOpenCalib->Connect("Clicked()", "MyMainFrame", this, "DoOpenCalibOnly()");
-  fHor0c->AddFrame(fOpenCalib, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fHor_OM_Buttons->AddFrame(fOpenCalib, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
-  fHor0d = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_Numbers_OM = new TGHorizontalFrame(tf, 1280, 20);
 
-  boardsLabel = new TGLabel(fHor0d, "Number of boards:");
-  fHor0d->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber2 = new TGNumberEntry(fHor0d, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
-  fHor0d->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  boardsLabel = new TGLabel(fHor_Numbers_OM, "Board:");
+  fHor_Numbers_OM->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber2 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
+  fHor_Numbers_OM->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
-  detectorLabel2 = new TGLabel(fHor0d, "Sensor number:");
-  fHor0d->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber3 = new TGNumberEntry(fHor0d, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
+  detectorLabel2 = new TGLabel(fHor_Numbers_OM, "Sensor:");
+  fHor_Numbers_OM->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fNumber3 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
   fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor0d->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Numbers_OM->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
-  fStart = new TGTextButton(fHor0c, "&Get Event");
+  fHor_Pedestal_OM = new TGHorizontalFrame(tf, 1280, 20);
+
+  fPed2 = new TGCheckButton(fHor_Pedestal_OM, "Pedestal subtraction");
+  fHor_Pedestal_OM->AddFrame(fPed2, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+
+  fStart = new TGTextButton(fHor_OM_Buttons, "&Get Event");
   fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
-  fHor0c->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  // fStop = new TGTextButton(fHor0c, "&Stop");
-  //  fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
-  // fHor0c->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fHor_OM_Buttons->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  // fStop = new TGTextButton(fHor_OM_Buttons, "&Stop");
+  // fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
+  // fHor_OM_Buttons->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
-  fExit2 = new TGTextButton(fHor0c, "&Exit");
+  fExit2 = new TGTextButton(fHor_OM_Buttons, "&Exit");
   fExit2->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
-  fHor0c->AddFrame(fExit2, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
+  fHor_OM_Buttons->AddFrame(fExit2, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
-  fHor0e = new TGHorizontalFrame(tf, 1024, 20);
+  fHor_Status_OM = new TGHorizontalFrame(tf, 1024, 20);
 
-  fStatusBar2 = new TGTextView(fHor0e, 500, 150);
+  fStatusBar2 = new TGTextView(fHor_Status_OM, 500, 150);
   fStatusBar2->LoadBuffer("Template for realtime data plotting via UDP");
 
-  fHor0e->AddFrame(fStatusBar2, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
+  fHor_Status_OM->AddFrame(fStatusBar2, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
 
-  tf->AddFrame(fHor0c, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor0d, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor0e, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_OM_Buttons, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Numbers_OM, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Pedestal_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Status_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
   fMain->SetCleanup(kDeepCleanup);
   fMain->SetWindowName("Microstrip Raw Event Viewer");
@@ -377,46 +375,46 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
 {
   fStatusBar2->AddLine("");
   fStatusBar2->AddLine("Event: " + TGString(evtnum) + " for detector: " + TGString(detector));
+  fStatusBar2->AddLine("Read " + TGString(evt.size()) + " channels");
   fStatusBar2->ShowBottom();
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
 
   gr_event->SetMarkerStyle(23);
-  gr_event->GetXaxis()->SetNdivisions(evt.size() - 10 / 64, false);
+  gr_event->GetXaxis()->SetNdivisions(evt.size() / 64, false);
 
   int maxadc = -999;
   int minadc = 0;
 
   calib cal;
-  read_calib(calibfile, &cal, evt.size() - 10, detector, false);
+  bool good_calib = false;
+
+  good_calib = read_calib(calibfile, &cal, evt.size(), detector, false);
 
   gr_event->Set(0);
   double signal;
 
   for (int chan = 0; chan < evt.size(); chan++)
   {
-    // if (fPed->IsOn())
-    // {
-    //   signal = evt[chan + 10] - cal.ped[chan];
-    // }
-    // else
-    // {
-    //   signal = evt[chan + 10];
-    // }
+    if (fPed2->IsOn() && good_calib)
+    {
+      signal = evt[chan] - cal.ped[chan];
+    }
+    else
+    {
+      signal = evt[chan];
+    }
 
-    // if (signal > maxadc)
-    //   maxadc = signal;
-    // if (signal < minadc)
-    //   minadc = signal;
-
-    if (chan < 20)
-      cout << "signal " << chan << " is " << hex << evt.at(chan) << endl;
+    if (signal > maxadc)
+      maxadc = signal;
+    if (signal < minadc)
+      minadc = signal;
 
     gr_event->SetPoint(gr_event->GetN(), chan, evt.at(chan));
   }
 
-  TH1F *frame = gPad->DrawFrame(0, minadc - 20, evt.size() - 10, maxadc + 20);
+  TH1F *frame = gPad->DrawFrame(0, minadc - 20, evt.size(), maxadc + 20);
 
   int nVAs = evt.size() / 64;
 
@@ -438,70 +436,7 @@ void MyMainFrame::DoDraw()
 {
   if (gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()))
   {
-    if (fNumber1->GetNumberEntry()->GetIntNumber() == 0)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 1)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 2)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 3)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 4)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 5)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 6)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 7)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 8)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 9)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 10)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 11)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 12)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 13)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 14)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
-    else if (fNumber1->GetNumberEntry()->GetIntNumber() == 15)
-    {
-      viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
-    }
+    viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
   }
 }
 
@@ -645,46 +580,47 @@ void MyMainFrame::DoClose()
 
 void MyMainFrame::DoStart()
 {
-  uint32_t header;
-  omServer->Rx(&header, sizeof(header));
-  cout << "header: " << hex << header << endl;
-
-  std::vector<uint32_t> evt(649);
-  omServer->Rx(evt.data(), 2596);
-
-  std::vector<uint32_t> detJ5(640);
-  std::vector<uint32_t> detJ7(640);
-
-  for (size_t i = 0; i < evt.size() - 10; i++)
-  {
-    detJ5.at(i) = evt.at(i + 9) % (0x10000);
-    detJ7.at(i) = (evt.at(i + 9) >> 16) % (0x10000);
-
-    if (i == 0)
-    {
-      std::cout << "detJ5: " << hex << detJ5.at(i) << endl;
-      std::cout << "detJ7: " << hex << detJ7.at(i) << endl;
-    }
-  }
-
-  DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+  DoLoop();
 }
 
 void MyMainFrame::DoStop()
 {
-  udp_run = false;
 }
 
 void MyMainFrame::DoLoop()
 {
-  while (udp_run)
+  uint count = 0;
+  while (count < 11)
   {
-    cout << "Running" << endl;
-  }
+    uint32_t header;
+    omServer->Rx(&header, sizeof(header));
+    cout << "header: " << hex << header << endl;
 
-  if (!udp_run)
-  {
-    cout << "Stopped" << endl;
+    std::vector<uint32_t> evt(650);
+    omServer->Rx(evt.data(), 2600);
+
+    std::vector<uint32_t> evt_buffer;
+
+    for (size_t i = 0; i < evt.size() - 10; i++)
+    {
+      evt_buffer.push_back((evt.at(i + 9) % (0x10000)) / 4);
+      evt_buffer.push_back(((evt.at(i + 9) >> 16) % (0x10000)) / 4);
+    }
+
+    evt_buffer = reorder(evt_buffer);
+    std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
+    std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
+
+    if (fNumber3->GetNumberEntry()->GetIntNumber())
+    {
+      DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
+    }
+    else
+    {
+      DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
+    }
+    sleep(1);
+    count++;
   }
 }
 
