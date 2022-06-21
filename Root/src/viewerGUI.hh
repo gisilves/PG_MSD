@@ -37,7 +37,7 @@ private:
   TGTextView *fStatusBar, *fStatusBar2;
   TGCheckButton *fPed, *fPed2;
   TGCheckButton *fShowAll;
-  TGraph *gr_event = new TGraph();
+  TGraph *gr_event;
   bool newDAQ = false;
   int boards = 1;
 

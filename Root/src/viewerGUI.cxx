@@ -54,10 +54,12 @@ const char symb[] = {'|', '/', '-', '\\', 0};
 
 MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 {
+  gROOT->ProcessLine("gErrorIgnoreLevel = 2022;");
   // On-line monitor with UDP server
   omServer = new udpServer(kUdpAddr, kUdpPort);
   // create the thread for the job
   th1 = new TThread("th1", JobThread, this);
+  gr_event = new TGraph();
 
   newDAQ = false;
   boards = 1;
@@ -69,8 +71,6 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   //--------- create the Tab widget
   TGTab *fTab = new TGTab(fMain, 300, 300);
   TGLayoutHints *fL3 = new TGLayoutHints(kLHintsTop | kLHintsLeft, 5, 5, 5, 5);
-
-  //--------- create an empty tab element
   TGCompositeFrame *tf = fTab->AddTab("Data from file");
 
   // Create canvas widget
@@ -319,7 +319,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   gr_event->SetLineColor(kRed + 1);
 
   gr_event->SetMarkerStyle(23);
-  gr_event->GetXaxis()->SetNdivisions(raw_event->size() / 64, false);
+  gr_event->GetXaxis()->SetNdivisions(-raw_event->size() / 64, false);
 
   if (newDAQ)
   {
@@ -385,11 +385,18 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
   fStatusBar2->AddLine("Event: " + TGString(evtnum));
   fStatusBar2->AddLine("Read " + TGString(evt.size()) + " channels");
 
+  gr_event->SetName("Event " + TGString(evtnum) + " Detector " + TGString(detector));
+  gr_event->SetTitle("Event number " + TString::Format("%0d", (int)evtnum) + " Detector: " + TString::Format("%0d", (int)detector));
+  gr_event->GetXaxis()->SetTitle("Strip number");
+  gr_event->GetYaxis()->SetTitle("ADC");
+  gr_event->GetYaxis()->SetTitleOffset(1.5);
+  gr_event->GetXaxis()->SetTitleFont(62);
+  gr_event->GetYaxis()->SetTitleFont(62);
+
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
-
   gr_event->SetMarkerStyle(23);
-  gr_event->GetXaxis()->SetNdivisions(evt.size() / 64, false);
+  gr_event->SetMarkerSize(0.5);
 
   int maxadc = -999;
   int minadc = 0;
@@ -420,18 +427,9 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
 
     gr_event->SetPoint(gr_event->GetN(), chan, evt.at(chan));
   }
-
-  TH1F *frame = gPad->DrawFrame(0, minadc - 20, evt.size(), maxadc + 20);
-
-  int nVAs = evt.size() / 64;
-
-  frame->SetTitle("Event number " + TString::Format("%0d", (int)evtnum) + " Detector: " + TString::Format("%0d", (int)detector));
-  frame->GetXaxis()->SetNdivisions(-nVAs);
-  frame->GetXaxis()->SetTitle("Strip number");
-  frame->GetYaxis()->SetTitle("ADC");
-  gPad->SetGrid();
-
-  gr_event->SetMarkerSize(0.5);
+  gr_event->GetXaxis()->SetNdivisions(evt.size() / 64, false);
+  gr_event->GetXaxis()->SetRangeUser(0, evt.size() - 1);
+  gr_event->GetYaxis()->SetRangeUser(minadc - 20, maxadc + 20);
   gr_event->Draw("*lSAME");
   gr_event->Draw();
 }
@@ -555,11 +553,9 @@ void MyMainFrame::DoOpenCalib(bool newDAQ, int boards)
     fStatusBar->LoadBuffer("Run: " + TGString(fileLabel->GetText()->GetString()));
     fStatusBar->AddLine("");
     fStatusBar->AddLine("Calibration: " + TGString(calibLabel->GetText()->GetString()));
-    // DoDraw();
   }
   else
   {
-    // fStatusBar->Clear();
     fStatusBar->AddLine("ERROR: calibration file is empty");
     return;
   }
@@ -600,10 +596,10 @@ void MyMainFrame::DoGetUDP()
 {
   uint32_t header;
   omServer->Rx(&header, sizeof(header));
-  std::cout << "header: " << std::hex << header << std::endl;
+  // std::cout << "header: " << std::hex << header << std::endl;
   if (header != 0xfa4af1ca)
   {
-    std::cout << "ERROR: header is not correct" << std::endl;
+    std::cout << "ERROR: header is not correct, skipping packet" << std::endl;
     return;
   }
 
@@ -630,25 +626,27 @@ void MyMainFrame::DoGetUDP()
     fCanvas->Divide(2, 1);
     fCanvas->cd(1);
     DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-    fCanvas->Update();
+    gPad->SetGrid();
     fCanvas->cd(2);
     DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-    fCanvas->Update();
+    gPad->SetGrid();
+    gPad->Modified();
+    gPad->Update();
   }
   else
   {
     fCanvas->cd();
-    fCanvas->Clear();
     if (fNumber3->GetNumberEntry()->GetIntNumber())
     {
       DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-      fCanvas->Update();
     }
     else
     {
       DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-      fCanvas->Update();
     }
+    gPad->SetGrid();
+    gPad->Modified();
+    gPad->Update();
   }
 }
 
