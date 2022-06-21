@@ -109,7 +109,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fNumber->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
   fHor_Numbers->AddFrame(fNumber, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
-  detectorLabel = new TGLabel(fHor_Numbers, "Sensor number:");
+  detectorLabel = new TGLabel(fHor_Numbers, "Detector number:");
   fHor_Numbers->AddFrame(detectorLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fNumber1 = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 6);
   fNumber1->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
@@ -121,9 +121,9 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fileLabel = new TGLabel(fHor_Files, "No rootfile opened");
   calibLabel = new TGLabel(fHor_Files, "No calibfile opened");
 
-  TColor *color = gROOT->GetColor(26);
-  color->SetRGB(0.91, 0.91, 0.91);
-  calibLabel->SetTextColor(color);
+  // TColor *color = gROOT->GetColor(26);
+  // color->SetRGB(0.91, 0.91, 0.91);
+  // calibLabel->SetTextColor(color);
 
   fHor_Files->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fHor_Files->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
@@ -148,12 +148,12 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   fHor_Numbers_OM = new TGHorizontalFrame(tf, 1280, 20);
 
-  boardsLabel = new TGLabel(fHor_Numbers_OM, "Board:");
+  boardsLabel = new TGLabel(fHor_Numbers_OM, "Board number:");
   fHor_Numbers_OM->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fNumber2 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
   fHor_Numbers_OM->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
 
-  detectorLabel2 = new TGLabel(fHor_Numbers_OM, "Sensor:");
+  detectorLabel2 = new TGLabel(fHor_Numbers_OM, "Detector number:");
   fHor_Numbers_OM->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fNumber3 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
   fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
@@ -164,7 +164,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fPed2 = new TGCheckButton(fHor_Pedestal_OM, "Pedestal subtraction");
   fHor_Pedestal_OM->AddFrame(fPed2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
-  fShowAll = new TGCheckButton(fHor_Pedestal_OM, "Show both sensors");
+  fShowAll = new TGCheckButton(fHor_Pedestal_OM, "Show both detectors on the board");
   fHor_Pedestal_OM->AddFrame(fShowAll, new TGLayoutHints(kLHintsRight | kLHintsCenterY, 5, 2, 2, 2));
 
   fStart = new TGTextButton(fHor_OM_Buttons, "&Start");
@@ -180,7 +180,7 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   fHor_Status_OM = new TGHorizontalFrame(tf, 1024, 20);
 
-  fStatusBar2 = new TGTextView(fHor_Status_OM, 500, 50);
+  fStatusBar2 = new TGTextView(fHor_Status_OM, 500, 25);
   fStatusBar2->LoadBuffer("Online monitoring data plotting via UDP");
 
   fHor_Status_OM->AddFrame(fStatusBar2, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
@@ -317,7 +317,6 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
-
   gr_event->SetMarkerStyle(23);
   gr_event->GetXaxis()->SetNdivisions(-raw_event->size() / 64, false);
 
@@ -359,7 +358,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
     gr_event->SetPoint(gr_event->GetN(), chan, signal);
   }
 
-  TH1F *frame = gPad->DrawFrame(0, minadc - 20, raw_event->size(), maxadc + 20);
+  TH1F *frame = gPad->DrawFrame(0, minadc - 100, raw_event->size(), maxadc + 100);
 
   int nVAs = raw_event->size() / 64;
 
@@ -382,8 +381,9 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::vector<uint32_t> evt)
 {
   fStatusBar2->Clear();
-  fStatusBar2->AddLine("Event: " + TGString(evtnum));
-  fStatusBar2->AddLine("Read " + TGString(evt.size()) + " channels");
+  fStatusBar2->LoadBuffer("Online monitoring is running\t Reading event: " + TGString(evtnum) +
+                          "\tRead " + TGString(evt.size()) + " channels for detector: " + TGString(detector)+
+                          "\tCalibration file " + TGString(calib_open ? "loaded" : "not loaded"));
 
   gr_event->SetName("Event " + TGString(evtnum) + " Detector " + TGString(detector));
   gr_event->SetTitle("Event number " + TString::Format("%0d", (int)evtnum) + " Detector: " + TString::Format("%0d", (int)detector));
@@ -425,11 +425,10 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
     if (signal < minadc)
       minadc = signal;
 
-    gr_event->SetPoint(gr_event->GetN(), chan, evt.at(chan));
+    gr_event->SetPoint(gr_event->GetN(), chan, signal);
   }
-  gr_event->GetXaxis()->SetNdivisions(evt.size() / 64, false);
+  gr_event->GetXaxis()->SetNdivisions((evt.size() - 1) / 64, false);
   gr_event->GetXaxis()->SetRangeUser(0, evt.size() - 1);
-  gr_event->GetYaxis()->SetRangeUser(minadc - 20, maxadc + 20);
   gr_event->Draw("*lSAME");
   gr_event->Draw();
 }
@@ -517,7 +516,7 @@ void MyMainFrame::DoOpen()
       if (retval == kMBYes)
       {
         fPed->SetOn();
-        DoOpenCalib(newDAQ, boards);
+        DoOpenCalib();
       }
       else
       {
@@ -536,10 +535,10 @@ void MyMainFrame::DoOpen()
 
 void MyMainFrame::DoOpenCalibOnly()
 {
-  DoOpenCalib(true, 4);
+  DoOpenCalib();
 }
 
-void MyMainFrame::DoOpenCalib(bool newDAQ, int boards)
+void MyMainFrame::DoOpenCalib()
 {
   static TString dir(".");
   TGFileInfo fi;
@@ -553,6 +552,7 @@ void MyMainFrame::DoOpenCalib(bool newDAQ, int boards)
     fStatusBar->LoadBuffer("Run: " + TGString(fileLabel->GetText()->GetString()));
     fStatusBar->AddLine("");
     fStatusBar->AddLine("Calibration: " + TGString(calibLabel->GetText()->GetString()));
+    calib_open = true;
   }
   else
   {
@@ -583,6 +583,7 @@ void MyMainFrame::DoStart()
   // if the thread has been created and is not running, start it
   if (th1 && th1->GetState() != TThread::kRunningState)
     th1->Run();
+  fStart->SetState(kButtonDisabled);
 }
 
 void MyMainFrame::DoStop()
@@ -590,6 +591,8 @@ void MyMainFrame::DoStop()
   // if the thread has been created and is running, kill it
   if (th1 && th1->GetState() == TThread::kRunningState)
     th1->Kill();
+  fStatusBar2->LoadBuffer("Online monitoring stopped");
+  fStart->SetState(kButtonUp);
 }
 
 void MyMainFrame::DoGetUDP()
@@ -618,16 +621,19 @@ void MyMainFrame::DoGetUDP()
   std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
   std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
 
-  TCanvas *fCanvas = fEcanvas->GetCanvas();
   if (fShowAll->IsOn())
   {
-    fCanvas->cd();
-    fCanvas->Clear();
-    fCanvas->Divide(2, 1);
-    fCanvas->cd(1);
+    fEcanvas->GetCanvas()->cd();
+    fEcanvas->GetCanvas()->Clear();
+    fEcanvas->GetCanvas()->Divide(2, 1);
+
+    fEcanvas->GetCanvas()->cd(1);
     DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
     gPad->SetGrid();
-    fCanvas->cd(2);
+    gPad->Modified();
+    gPad->Update();
+
+    fEcanvas->GetCanvas()->cd(2);
     DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
     gPad->SetGrid();
     gPad->Modified();
@@ -635,7 +641,7 @@ void MyMainFrame::DoGetUDP()
   }
   else
   {
-    fCanvas->cd();
+    fEcanvas->GetCanvas()->cd();
     if (fNumber3->GetNumberEntry()->GetIntNumber())
     {
       DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
@@ -657,7 +663,7 @@ void *MyMainFrame::JobThread(void *arg)
   int i = 0;
   while (1)
   {
-    TThread::Sleep(0, 1e8);
+    TThread::Sleep(0, 1e7);
     fMain->DoGetUDP();
     i++;
   }

@@ -39,6 +39,7 @@ private:
   TGCheckButton *fShowAll;
   TGraph *gr_event;
   bool newDAQ = false;
+  bool calib_open = false;
   int boards = 1;
 
   // UDP server to on-line monitor
@@ -59,7 +60,7 @@ public:
   void DoStop();
   void DoGetUDP();
   static void *JobThread(void *arg);
-  void DoOpenCalib(bool newDAQ, int boards);
+  void DoOpenCalib();
   void DoOpenCalibOnly();
   void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);
   ClassDef(MyMainFrame, 0)
