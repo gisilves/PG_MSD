@@ -429,6 +429,7 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
   frame->GetXaxis()->SetNdivisions(-nVAs);
   frame->GetXaxis()->SetTitle("Strip number");
   frame->GetYaxis()->SetTitle("ADC");
+  gPad->SetGrid();
 
   gr_event->SetMarkerSize(0.5);
   gr_event->Draw("*lSAME");
@@ -629,11 +630,9 @@ void MyMainFrame::DoGetUDP()
     fCanvas->Divide(2, 1);
     fCanvas->cd(1);
     DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-    fCanvas->SetGrid();
     fCanvas->Update();
     fCanvas->cd(2);
     DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-    fCanvas->SetGrid();
     fCanvas->Update();
   }
   else
@@ -643,13 +642,11 @@ void MyMainFrame::DoGetUDP()
     if (fNumber3->GetNumberEntry()->GetIntNumber())
     {
       DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-      fCanvas->SetGrid();
       fCanvas->Update();
     }
     else
     {
       DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-      fCanvas->SetGrid();
       fCanvas->Update();
     }
   }
@@ -662,10 +659,9 @@ void *MyMainFrame::JobThread(void *arg)
   int i = 0;
   while (1)
   {
-    TThread::Sleep(1, 0);
+    TThread::Sleep(0, 1e8);
     fMain->DoGetUDP();
     i++;
-    cout << "Just read " << dec << i << " events" << endl;
   }
   return 0;
 }
