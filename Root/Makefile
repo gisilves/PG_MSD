@@ -41,11 +41,8 @@ raw_cn: ./src/raw_cn.cxx
 calibration: ./src/calibration.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-test_udp: ./src/udpSocket.h ./src/test_udp.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) 
-
 raw_viewer: 
-	$(ROOTCLING) -f guiDict.cxx ./src/viewerGUI.hh ./src/makaMerger.h ./src/udpSocket.cpp ./src/guiLinkDef.h
+	$(ROOTCLING) -f guiDict.cxx ./src/viewerGUI.hh ./src/udpSocket.cpp ./src/guiLinkDef.h
 	$(CXX) ./src/viewerGUI.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 bias_control: 

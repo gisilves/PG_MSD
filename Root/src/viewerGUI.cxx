@@ -600,10 +600,10 @@ void MyMainFrame::DoGetUDP()
 {
   uint32_t header;
   omServer->Rx(&header, sizeof(header));
-  cout << "header: " << hex << header << endl;
+  std::cout << "header: " << std::hex << header << std::endl;
   if (header != 0xfa4af1ca)
   {
-    cout << "ERROR: header is not correct" << endl;
+    std::cout << "ERROR: header is not correct" << std::endl;
     return;
   }
 

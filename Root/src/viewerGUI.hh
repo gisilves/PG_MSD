@@ -1,7 +1,7 @@
 #include <TQObject.h>
 #include <RQ_OBJECT.h>
 #include "TGraph.h"
-#include "makaMerger.h"
+#include "udpSocket.h"
 
 class TGWindow;
 class TGMainFrame;
