@@ -121,10 +121,6 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fileLabel = new TGLabel(fHor_Files, "No rootfile opened");
   calibLabel = new TGLabel(fHor_Files, "No calibfile opened");
 
-  // TColor *color = gROOT->GetColor(26);
-  // color->SetRGB(0.91, 0.91, 0.91);
-  // calibLabel->SetTextColor(color);
-
   fHor_Files->AddFrame(calibLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
   fHor_Files->AddFrame(fileLabel, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
 
@@ -168,9 +164,11 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fHor_Pedestal_OM->AddFrame(fShowAll, new TGLayoutHints(kLHintsRight | kLHintsCenterY, 5, 2, 2, 2));
 
   fStart = new TGTextButton(fHor_OM_Buttons, "&Start");
+  fStart->SetToolTipText("Start online monitoring display");
   fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
   fHor_OM_Buttons->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
   fStop = new TGTextButton(fHor_OM_Buttons, "&Stop");
+  fStop->SetToolTipText("Stop online monitoring display");
   fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
   fHor_OM_Buttons->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
 
@@ -196,7 +194,27 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   fMain->Resize(fMain->GetDefaultSize());
   fMain->MapWindow();
 
-  fMain->SetIconPixmap("/home/gsilvest/Work/PG_MSD/Root/icon.png");
+  fEcanvas->GetCanvas()->cd();
+  double x_arr[77] = {215.73, 219.69, 224.68, 228.48, 233.54, 237.34, 236.52, 237.76, 239.23, 241.1, 242.4, 243.9, 246.2, 247.04, 250.21, 251.12, 253.07, 255.16,
+                      255.82, 256.69, 259.05, 261.17, 260.93, 261.21, 262.03, 264.96, 269.82, 270.24, 276.35, 278.68, 279.1, 287.54, 287.96, 296.4, 296.82, 305.26,
+                      305.68, 314.12, 314.54, 322.98, 323.4, 328.79, 331.14, 332.26, 334.17, 335.64, 337.32, 338.28, 339.06, 340.4, 339.64, 341.12, 346.18, 349.98,
+                      355.04, 358.84, 363.9, 367.7, 372.76, 376.56, 381.62, 385.42, 390.48, 394.62, 399.34, 403.14, 408.2, 410.44, 416.52, 417.54, 420.85, 423.32,
+                      423.66, 424.81, 424.68, 425.28, 425.47};
+  double y_arr[77] = {434.64, 402.27, 455.17, 393.55, 460.92, 385.68, 172.06, 130.98, 216.79, 100.46, 471.23, 245.8, 379.93, 69.58, 271.81, 477.74, 44.57, 523.15,
+                      375.05, 438.09, 297.44, 549.03, 408.59, 27.61, 358.92, 330.34, 576.98, 9.87, 485.86, 591.58, -4.11, 598.82, -14.52, 600.04, -22.12, 597.93,
+                      -27.01, 590.53, -29.62, 576.15, -30.55, 342.74, 549.92, -29.39, 385.7, 524.8, 317.81, 416.4, 495.34, 462.78, 438.88, -26.91, 312.98, -23.01,
+                      312.79, -17.36, 314.93, -9.33, 319.96, 1.57, 327.19, 15.95, 337.01, 34.82, 349.47, 54.65, 364.1, 84.69, 118.56, 369.98, 151.17, 183.57, 341.11,
+                      212.44, 300.71, 271.46, 241.77};
+
+  TGraph *splash = new TGraph(77, x_arr, y_arr);
+  splash->SetTitle("");
+  splash->SetMarkerStyle(39);
+  splash->SetMarkerSize(2);
+  splash->GetXaxis()->SetTickLength(0.);
+  splash->GetYaxis()->SetTickLength(0.);
+  splash->GetXaxis()->SetLabelSize(0.);
+  splash->GetYaxis()->SetLabelSize(0.);
+  splash->Draw("AP");
 }
 
 const char *filetypesROOT[] = {
@@ -382,7 +400,7 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
 {
   fStatusBar2->Clear();
   fStatusBar2->LoadBuffer("Online monitoring is running\t Reading event: " + TGString(evtnum) +
-                          "\tRead " + TGString(evt.size()) + " channels for detector: " + TGString(detector)+
+                          "\tRead " + TGString(evt.size()) + " channels for detector: " + TGString(detector) +
                           "\tCalibration file " + TGString(calib_open ? "loaded" : "not loaded"));
 
   gr_event->SetName("Event " + TGString(evtnum) + " Detector " + TGString(detector));
@@ -580,6 +598,8 @@ void MyMainFrame::DoClose()
 
 void MyMainFrame::DoStart()
 {
+  fEcanvas->GetCanvas()->Clear();
+  fEcanvas->GetCanvas()->SetFrameLineColor(kBlack);
   // if the thread has been created and is not running, start it
   if (th1 && th1->GetState() != TThread::kRunningState)
     th1->Run();
@@ -623,6 +643,8 @@ void MyMainFrame::DoGetUDP()
 
   if (fShowAll->IsOn())
   {
+    fNumber2->SetState(kTRUE);
+    fNumber3->SetState(kFALSE);
     fEcanvas->GetCanvas()->cd();
     fEcanvas->GetCanvas()->Clear();
     fEcanvas->GetCanvas()->Divide(2, 1);
@@ -641,6 +663,8 @@ void MyMainFrame::DoGetUDP()
   }
   else
   {
+    fNumber2->SetState(kFALSE);
+    fNumber3->SetState(kTRUE);
     fEcanvas->GetCanvas()->cd();
     if (fNumber3->GetNumberEntry()->GetIntNumber())
     {
