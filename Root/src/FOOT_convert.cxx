@@ -44,12 +44,12 @@ AnyOption *opt; //Handle the option input
 int main(int argc, char *argv[])
 {
     opt = new AnyOption();
-    opt->addUsage("Usage: ./FOOT_compress [options] raw_data_file output_rootfile");
+    opt->addUsage("Usage: ./FOOT_convert [options] raw_data_file output_rootfile");
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
-    opt->addUsage("  --gsi            ................................. To compress data from GSI hybrids (10 ADC per detector)");
+    opt->addUsage("  --gsi            ................................. To convert data from GSI hybrids (10 ADC per detector)");
     opt->setOption("boards");
 
     opt->setFlag("help", 'h');

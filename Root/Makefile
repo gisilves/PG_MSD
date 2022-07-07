@@ -11,19 +11,22 @@ UNAME := $(shell uname)
 CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include
 OPTFLAGS += -O3
 
-default: FOOT_compress
+default: all
 
-all: miniTRB_compress FOOT_compress PAPERO_compress PAPERO_info raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI
+all: miniTRB_convert FOOT_convert PAPERO_convert PAPERO_info raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI ASTRA_convert
 
 .PHONY: all
 
-miniTRB_compress: ./src/miniTRB_compress.cxx
+miniTRB_convert: ./src/miniTRB_convert.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-FOOT_compress: ./src/FOOT_compress.cxx
+FOOT_convert: ./src/FOOT_convert.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-PAPERO_compress: ./src/PAPERO_compress.cxx
+PAPERO_convert: ./src/PAPERO_convert.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+ASTRA_convert: ./src/ASTRA_convert.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 PAPERO_info: ./src/PAPERO_info.cxx
@@ -54,10 +57,11 @@ bias_controlPI:
 	$(CXX) ./src/biascontrolPI.cxx guiDict.cxx  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 clean:
-	rm -f ./miniTRB_compress
-	rm -f ./FOOT_compress
-	rm -f ./PAPERO_compress
+	rm -f ./miniTRB_convert
+	rm -f ./FOOT_convert
+	rm -f ./PAPERO_convert
 	rm -f ./PAPERO_info
+	rm -f ./ASTRA_convert
 	rm -f ./raw_clusterize
 	rm -f ./raw_cn
 	rm -f ./raw_threshold_scan

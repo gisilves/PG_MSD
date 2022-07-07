@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     bool fixVAnumber = false;
 
     opt = new AnyOption();
-    opt->addUsage("Usage: ./miniTRB_compress [options] raw_data_file output_rootfile");
+    opt->addUsage("Usage: ./miniTRB_convert [options] raw_data_file output_rootfile");
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");

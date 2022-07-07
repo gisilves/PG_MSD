@@ -9,7 +9,7 @@
 
 // for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
-int seek_run_header(std::fstream &file, unsigned int offset, bool verbose)
+int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
 {
   unsigned int header;
   bool found = false;
@@ -53,6 +53,66 @@ int seek_run_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
+bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+{
+  unsigned int header;
+  unsigned char buffer[4];
+  unsigned int val;
+
+  header = 0xcaf14afa;
+
+  file.seekg(offset);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  val = buffer[3] | buffer[2] << 8 | buffer[1] << 16 | buffer[0] << 24;
+
+  if (val == header)
+  {
+    if (verbose)
+    {
+      std::cout << "Evt header is present " << std::endl;
+    }
+    return true;
+  }
+  else
+  {
+    if (verbose)
+    {
+      std::cout << "Can't find event header" << std::endl;
+    }
+    return false;
+  }
+}
+
+bool read_de10_footer(std::fstream &file, unsigned int offset, bool verbose)
+{
+  unsigned int footer;
+  unsigned char buffer[4];
+  unsigned int val;
+
+  footer = 0xcefaed0b;
+
+  file.seekg(offset);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  val = buffer[3] | buffer[2] << 8 | buffer[1] << 16 | buffer[0] << 24;
+
+  if (val == footer)
+  {
+    if (verbose)
+    {
+      std::cout << "DE10 footer is present " << std::endl;
+    }
+    return true;
+  }
+  else
+  {
+    if (verbose)
+    {
+      std::cout << "Can't find DE10 footer" << std::endl;
+    }
+    return false;
+  }
+}
+
 std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, unsigned int offset, bool verbose)
 {
   unsigned char buffer[4];
@@ -85,11 +145,9 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   {
     while (!found && !file.eof())
     {
-      file.seekg(offset + 4);
+      file.seekg(offset);
       file.read(reinterpret_cast<char *>(&buffer), 4);
       val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-      // std::cout << std::hex << val << std::endl;
-      // sleep(1);
 
       if (val == header)
       {
@@ -114,7 +172,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1);
   }
 
-  file.seekg(offset + 8);
+  //file.seekg(offset + 8);
   file.read(reinterpret_cast<char *>(&buffer), 4);
   val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   evt_lenght = val - 10;

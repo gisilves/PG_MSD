@@ -56,21 +56,12 @@ std::vector<T> reorder_DAMPE(std::vector<T> const &v)
     return reordered_vec;
 }
 
-template <typename T>
-std::vector<T> subvector(vector<T> const &v, int m, int n)
-{
-    auto first = v.begin() + m;
-    auto last = v.begin() + n + 1;
-    std::vector<T> vector(first, last);
-    return vector;
-}
-
 AnyOption *opt; // Handle the option input
 
 int main(int argc, char *argv[])
 {
     opt = new AnyOption();
-    opt->addUsage("Usage: ./PAPERO_compress [options] raw_data_file output_rootfile");
+    opt->addUsage("Usage: ./PAPERO_convert [options] raw_data_file output_rootfile");
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
@@ -87,7 +78,7 @@ int main(int argc, char *argv[])
     opt->processCommandArgs(argc, argv);
 
     TFile *foutput;
-
+    
     if (!opt->hasOptions())
     { /* print usage if no options */
         opt->printUsage();
@@ -114,6 +105,8 @@ int main(int argc, char *argv[])
     TString output_filename = opt->getArgv(1);
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
+    foutput->SetCompressionLevel(3);
+    foutput->SetCompressionAlgorithm(ROOT::kZLIB);
 
     // Initialize TTree(s)
     std::vector<unsigned int> raw_event_buffer;
@@ -142,7 +135,7 @@ int main(int argc, char *argv[])
 
     // Find if there is an offset before first event
     unsigned int offset = 0;
-    offset = seek_run_header(file, offset, verbose);
+    offset = seek_first_evt_header(file, offset, verbose);
     int padding_offset = 0;
 
     // Read raw events and write to TTree
@@ -181,10 +174,15 @@ int main(int argc, char *argv[])
 
     while (!file.eof())
     {
-        if (evt_to_read > 0 && evtnum == evt_to_read)
+        is_good = false;
+        if (evt_to_read > 0 && evtnum == evt_to_read) // stop reading after the number of events specified
             break;
 
-        evt_retValues = read_de10_header(file, offset, verbose);
+        if (boards_read == 0)
+            if (!read_evt_header(file, offset, verbose)) // check for event header if this is the first board
+                break;
+
+        evt_retValues = read_de10_header(file, offset, verbose); // read de10 header
         is_good = std::get<0>(evt_retValues);
 
         if (is_good)
@@ -237,8 +235,7 @@ int main(int argc, char *argv[])
             {
                 boards_read = 0;
                 evtnum++;
-                // std::cout << "\r\tRead event " << evtnum << std::endl;
-                offset = (int)file.tellg() + padding_offset + 8;
+                offset = (int)file.tellg() + padding_offset + 4;
             }
             else
             {
