@@ -338,14 +338,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   gr_event->SetMarkerStyle(23);
   gr_event->GetXaxis()->SetNdivisions(-raw_event->size() / 64, false);
 
-  if (newDAQ)
-  {
-    fStatusBar->AddLine("Opened FOOT/PAPERO raw file from DE10nano");
-  }
-  else
-  {
-    fStatusBar->AddLine("Opened DaMPE/FOOT raw file from miniTRB");
-  }
+  fStatusBar->AddLine("Opened raw file");
 
   int maxadc = -999;
   int minadc = 0;
@@ -382,6 +375,11 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 
   frame->SetTitle("Event number " + TString::Format("%0d", (int)evt) + " Detector: " + TString::Format("%0d", (int)detector));
   frame->GetXaxis()->SetNdivisions(-nVAs);
+  if (nVAs == 1)
+  {
+    frame->GetXaxis()->SetNdivisions(10);
+  }
+
   frame->GetXaxis()->SetTitle("Strip number");
   frame->GetYaxis()->SetTitle("ADC");
 

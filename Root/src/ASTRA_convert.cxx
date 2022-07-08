@@ -27,12 +27,12 @@ std::vector<T> reorder(std::vector<T> const &v)
 {
     std::vector<T> reordered_vec(v.size());
     int j = 0;
-    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
-    for (int ch = 0; ch < 128; ch++)
+    constexpr int order[] = {1, 0};
+    for (int ch = 0; ch < 32; ch++)
     {
         for (int adc : order)
         {
-            reordered_vec.at(adc * 128 + ch) = v.at(j);
+            reordered_vec.at(adc * 32 + ch) = v.at(j);
             j++;
         }
     }
@@ -191,20 +191,17 @@ int main(int argc, char *argv[])
 
             padding_offset = 0;
             raw_event_buffer.clear();
-            raw_event_buffer = (read_event(file, offset, evt_size, verbose));
+            raw_event_buffer = reorder(read_event(file, offset - 4, evt_size, verbose));
 
-            raw_event_vector.at(2 * board_id).clear();
-            raw_event_vector.at(2 * board_id + 1).clear();
-            raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-            raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
-            raw_events_tree.at(2 * board_id)->Fill();
-            raw_events_tree.at(2 * board_id + 1)->Fill();
+            raw_event_vector.at(board_id).clear();
+            raw_event_vector.at(board_id) = raw_event_buffer;
+            raw_events_tree.at(board_id)->Fill();
 
             if (boards_read == boards)
             {
                 boards_read = 0;
                 evtnum++;
-                offset = (int)file.tellg() + padding_offset + 4;
+                offset = (int)file.tellg() + padding_offset + 8;
             }
             else
             {
