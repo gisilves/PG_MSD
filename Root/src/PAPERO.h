@@ -162,6 +162,11 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
         offset += 4;
       }
     }
+    if (!found)
+    {
+      std::cout << "\n\tCan't find DE10 header, closing file ..." << std::endl;
+      return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1);
+    }
   }
   else
   {
@@ -172,7 +177,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1);
   }
 
-  //file.seekg(offset + 8);
+  // file.seekg(offset + 8);
   file.read(reinterpret_cast<char *>(&buffer), 4);
   val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   evt_lenght = val - 10;
