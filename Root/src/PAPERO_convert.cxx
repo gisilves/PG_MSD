@@ -68,17 +68,19 @@ int main(int argc, char *argv[])
     opt->addUsage("  -v, --verbose    ................................. Verbose ");
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
     opt->addUsage("  --nevents        ................................. Number of events to be read ");
+    opt->addUsage("  --gsi            ................................. To convert data from GSI hybrids (10 ADC per detector)");
     opt->setOption("boards");
     opt->setOption("nevents");
 
     opt->setFlag("help", 'h');
     opt->setFlag("verbose", 'v');
+    opt->setFlag("gsi");
 
     opt->processFile("./options.txt");
     opt->processCommandArgs(argc, argv);
 
     TFile *foutput;
-    
+
     if (!opt->hasOptions())
     { /* print usage if no options */
         opt->printUsage();
@@ -143,6 +145,7 @@ int main(int argc, char *argv[])
     int evtnum = 0;
     int evt_to_read = -1;
     int boards = 0;
+    bool gsi = false;
     unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
@@ -165,6 +168,12 @@ int main(int argc, char *argv[])
     else
     {
         boards = atoi(opt->getValue("boards"));
+    }
+
+    if (opt->getValue("gsi"))
+    {
+        gsi = true;
+        std::cout << "\tFormatting data for GSI hybrids" << std::endl;
     }
 
     if (opt->getValue("nevents"))
@@ -224,12 +233,25 @@ int main(int argc, char *argv[])
                 raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose));
             }
 
-            raw_event_vector.at(2 * board_id).clear();
-            raw_event_vector.at(2 * board_id + 1).clear();
-            raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-            raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
-            raw_events_tree.at(2 * board_id)->Fill();
-            raw_events_tree.at(2 * board_id + 1)->Fill();
+            if (!gsi)
+            {
+                raw_event_vector.at(2 * board_id).clear();
+                raw_event_vector.at(2 * board_id + 1).clear();
+                raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                raw_events_tree.at(2 * board_id)->Fill();
+                raw_events_tree.at(2 * board_id + 1)->Fill();
+            }
+            else
+            {
+                for (int hole = 1; hole <= 10; hole++)
+                {
+                    raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
+                }
+                raw_event_vector.at(2 * board_id).clear();
+                raw_event_vector.at(2 * board_id) = raw_event_buffer;
+                raw_events_tree.at(2 * board_id)->Fill();
+            }
 
             if (boards_read == boards)
             {
