@@ -235,7 +235,7 @@ int main(int argc, char *argv[])
             {
                 boards_read = 0;
                 evtnum++;
-                offset = (int)file.tellg() + padding_offset + 4;
+                offset = (int)file.tellg() + padding_offset + 8;
             }
             else
             {

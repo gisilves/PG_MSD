@@ -219,10 +219,10 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
 std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose)
 {
 
-  file.seekg(offset + 40);
+  file.seekg(offset + 36);
   if (verbose)
   {
-    std::cout << "\tReading event at position " << offset + 40 << std::endl;
+    std::cout << "\tReading event at position " << offset + 36 << std::endl;
   }
 
   event_size = event_size * 2;
