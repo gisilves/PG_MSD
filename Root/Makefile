@@ -15,7 +15,7 @@ default: all
 
 all: miniTRB_convert FOOT_convert PAPERO_convert PAPERO_info raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI ASTRA_convert
 
-.PHONY: all
+.PHONY: raw_viewer
 
 miniTRB_convert: ./src/miniTRB_convert.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)

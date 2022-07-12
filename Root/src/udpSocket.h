@@ -42,7 +42,7 @@ class udpSocket {
     bool waitForReadEvent(int _timeout);
 
   public:
-    udpSocket(const std::string &_addr, int _port);
+    udpSocket(const std::string &_addr, int _port, bool _blocking = true);
     ~udpSocket();
 
     inline int getSocket() {
@@ -91,14 +91,14 @@ class udpSocket {
 //! \brief UDP Server
 class udpServer : public udpSocket {
   public:
-    udpServer(const std::string& _addr, int _port);
+    udpServer(const std::string& _addr, int _port, bool _blocking = true);
     ~udpServer();
 };
 
 //! \brief UDP Client
 class udpClient : public udpSocket {
   public:
-    udpClient(const std::string& _addr, int _port);
+    udpClient(const std::string& _addr, int _port, bool _blocking = true);
     ~udpClient();
 };
 

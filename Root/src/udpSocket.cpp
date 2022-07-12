@@ -6,10 +6,10 @@
 #include "udpSocket.h"
 #include "utility.h"
 
-udpSocket::udpSocket(const std::string &_addr, int _port) {
+udpSocket::udpSocket(const std::string &_addr, int _port, bool _blocking) {
   kVerbosity = 0;
   kPort = _port;
-  kBlocking = true;
+  kBlocking = _blocking;
   kAddr = _addr;
 
   //Convert int port into C string port
@@ -36,14 +36,19 @@ udpSocket::udpSocket(const std::string &_addr, int _port) {
     exit(EXIT_FAILURE);
   }
 
+  kSockDesc = -1;
   //Setup the socket
   udpSocket::setup();
 
 }
 
 udpSocket::~udpSocket() {
-  freeaddrinfo(kAddrInfo);
-  close(kSockDesc);
+  printf("%s) Deleting UDP socket...\n", __METHOD_NAME__);
+  if (kSockDesc > 0) {
+    freeaddrinfo(kAddrInfo);
+    close(kSockDesc);
+  }
+  kSockDesc = -1;
 }
 
 void udpSocket::setup() {
@@ -52,7 +57,7 @@ void udpSocket::setup() {
   socklen_t optLen = sizeof(optval);
 
   //Exit, if already exists
-  if (kSockDesc >0) {
+  if (kSockDesc>0) {
     freeaddrinfo(kAddrInfo);
     printf("Socket already exists.\n");
     exit(EXIT_FAILURE);
@@ -162,8 +167,8 @@ bool udpSocket::waitForReadEvent(int _timeout) {
 }
 
 //--- UDP Server ---------------------------------------------------------------
-udpServer::udpServer(const std::string& _addr, int _port) :\
-            udpSocket::udpSocket(_addr, _port) {
+udpServer::udpServer(const std::string& _addr, int _port, bool _blocking) :\
+            udpSocket::udpSocket(_addr, _port, _blocking) {
   char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
   
   int ret = bind(kSockDesc, kAddrInfo->ai_addr, kAddrInfo->ai_addrlen);
@@ -183,9 +188,13 @@ udpServer::udpServer(const std::string& _addr, int _port) :\
   std::cout << kAddrInfo->ai_addr <<std::endl;
 }
 
+udpServer::~udpServer(){
+  printf("Deleting UDP Server...\n");
+}
+
 //--- UDP Client ---------------------------------------------------------------
-udpClient::udpClient(const std::string& _addr, int _port) :\
-            udpSocket::udpSocket(_addr, _port) {
+udpClient::udpClient(const std::string& _addr, int _port, bool _blocking) :\
+            udpSocket::udpSocket(_addr, _port, _blocking) {
   char hbuf[NI_MAXHOST], sbuf[NI_MAXSERV];
 
   //if (connect(kSockDesc, kAddrInfo->ai_addr, kAddrInfo->ai_addrlen) < 0) {
@@ -199,4 +208,8 @@ udpClient::udpClient(const std::string& _addr, int _port) :\
     printf("%s) UDP Client created and binded: host=%s, serv=%s\n",\
               __METHOD_NAME__, hbuf, sbuf);
 
+}
+
+udpClient::~udpClient(){
+  printf("Deleting UDP Client...\n");
 }
