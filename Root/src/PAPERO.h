@@ -77,7 +77,8 @@ bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
   {
     if (verbose)
     {
-      std::cout << "Can't find event header" << std::endl;
+      std::cout << "Can't find event header"
+                << " at offset " << offset << std::endl;
     }
     return false;
   }
@@ -221,7 +222,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);
 }
 
-std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose)
+std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose, bool astra)
 {
 
   file.seekg(offset + 36);
@@ -241,11 +242,23 @@ std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, in
   for (size_t i = 0; i < event_size; i = i + 2)
   {
     file.read(reinterpret_cast<char *>(&buffer), 4);
-    val1 = buffer[0] | buffer[1] << 8;
-    val2 = buffer[2] | buffer[3] << 8;
 
-    event.push_back(val1 / 4);
-    event.push_back(val2 / 4);
+    if (!astra)
+    {
+      val1 = buffer[0] | buffer[1] << 8;
+      val2 = buffer[2] | buffer[3] << 8;
+
+      event.push_back(val1 / 4);
+      event.push_back(val2 / 4);
+    }
+    else
+    {
+      val1 = buffer[0] | (buffer[1] & 0x0f) << 8;
+      val2 = buffer[2] | (buffer[3] & 0x0f) << 8;
+
+      event.push_back(val1);
+      event.push_back(val2);
+    }
   }
 
   return event;

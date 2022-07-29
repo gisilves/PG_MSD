@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
 
             padding_offset = 0;
             raw_event_buffer.clear();
-            raw_event_buffer = reorder(read_event(file, offset - 4, evt_size, verbose));
+            raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, true));
 
             raw_event_vector.at(board_id).clear();
             raw_event_vector.at(board_id) = raw_event_buffer;

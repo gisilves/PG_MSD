@@ -224,13 +224,13 @@ int main(int argc, char *argv[])
                 board_id = board_id - 300;
                 // std::cout << "\tFixed Board ID " << board_id << std::endl;
                 raw_event_buffer.clear();
-                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose));
+                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose, false));
             }
             else
             {
                 padding_offset = 0;
                 raw_event_buffer.clear();
-                raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose));
+                raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
             }
 
             if (!gsi)

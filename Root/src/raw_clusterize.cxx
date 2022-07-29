@@ -62,7 +62,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch)
+                        int sensor_pitch, bool AMSLO)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
@@ -364,7 +364,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
           {
 
             signal.at(i) = (raw_event->at(i) - cal.ped[i]);
-
             if (dynped && signal.at(i) < 10) // if dynamic pedestals are enabled and signal is below 10 (probably not signal) we save the value to recalculate the pedestal
             {
               hADC[i]->Fill(raw_event->at(i));
@@ -452,8 +451,11 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       if (!goodCN)
         continue;
 
-      if (*max_element(signal.begin(), signal.end()) > 4096) // 4096 is the maximum ADC value possible, any more than that means the event is corrupted
-        continue;
+      if (!AMSLO)
+      {
+        if (*max_element(signal.begin(), signal.end()) > 4096) // 4096 is the maximum ADC value possible, any more than that means the event is corrupted
+          continue;
+      }
 
       if (*max_element(signal.begin(), signal.end()) > maxADC) // searching for the highest ADC value
       {
@@ -741,6 +743,7 @@ int main(int argc, char *argv[])
   opt->addUsage("                   ................................. 2020 for FOOT DAQ");
   opt->addUsage("                   ................................. 2021 for PAN StripX");
   opt->addUsage("                   ................................. 2022 for PAN StripY");
+  opt->addUsage("                   ................................. 2023 for AMSL0");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
   opt->addUsage("  --dynped         ................................. Enable dynamic pedestals ");
@@ -836,6 +839,15 @@ int main(int argc, char *argv[])
     maxStrip = 127;
     sensor_pitch = 0.400;
   }
+  else if (atoi(opt->getValue("version")) == 2023) // AMSL0
+  {
+    NChannels = 1024;
+    NVas = 16;
+    minStrip = 0;
+    maxStrip = 1023;
+    sensor_pitch = 0.109;
+    maxADC_h = 30000;
+  }
   else
   {
     std::cout << "ERROR: invalid DAQ board version" << std::endl;
@@ -927,7 +939,8 @@ int main(int argc, char *argv[])
   }
 
   int detectors = 0;
-  std::cout << "\nNEW DAQ FILE" << std::endl;
+  if (newDAQ)
+    std::cout << "\nNEW DAQ FILE" << std::endl;
 
   TFile tempfile(opt->getArgv(0));
   TIter list(tempfile.GetListOfKeys());
@@ -947,24 +960,42 @@ int main(int argc, char *argv[])
   foutput->cd();
 
   TDirectory *doutput;
+  cout << "Creating output directory" << endl;
 
-  for (int i = 0; i < detectors / 2; i++)
+  if (detectors == 1)
   {
-    doutput = foutput->mkdir((TString)"board_" + i + "_side_0");
+    doutput = foutput->mkdir("detector");
     doutput->cd();
-    clusterize_detector(i, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
+    clusterize_detector(0, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
                         newDAQ, first_event, NChannels, verb, dynped,
                         invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                         symmetric, symmetricwidth,
-                        sensor_pitch);
+                        sensor_pitch,
+                        atoi(opt->getValue("version")) == 2023);
+  }
+  else
+  {
+    for (int i = 0; i < detectors / 2; i++)
+    {
+      cout << "Creating output directory " << i << endl;
+      doutput = foutput->mkdir((TString) "board_" + i + "_side_0");
+      doutput->cd();
+      clusterize_detector(i, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
+                          newDAQ, first_event, NChannels, verb, dynped,
+                          invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
+                          symmetric, symmetricwidth,
+                          sensor_pitch,
+                          atoi(opt->getValue("version")) == 2023);
 
-    doutput = foutput->mkdir((TString)"board_" + i + "_side_1");
-    doutput->cd();
-    clusterize_detector(i, 1, minADC_h, maxADC_h, minStrip, maxStrip, opt,
-                        newDAQ, first_event, NChannels, verb, dynped,
-                        invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
-                        symmetric, symmetricwidth,
-                        sensor_pitch);
+      doutput = foutput->mkdir((TString) "board_" + i + "_side_1");
+      doutput->cd();
+      clusterize_detector(i, 1, minADC_h, maxADC_h, minStrip, maxStrip, opt,
+                          newDAQ, first_event, NChannels, verb, dynped,
+                          invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
+                          symmetric, symmetricwidth,
+                          sensor_pitch,
+                          atoi(opt->getValue("version")) == 2023);
+    }
   }
 
   foutput->Close();
