@@ -6,23 +6,180 @@
 #include <iostream>
 #include <iomanip>
 
+#include "anyoption.h"
 #include "event.h"
+
+AnyOption *opt; // Handle the input options
 
 #define verbose false
 
 int main(int argc, char *argv[])
 {
-  if (argc < 11)
+  opt = new AnyOption();
+
+  int NChannels = 384;
+  int NVas = 6;
+  int minStrip = 0;
+  int maxStrip = 383;
+  bool absolute = false;
+  bool verb = false;
+  int commonNoiseType = 0;
+  int steps = 0;
+  float low_min = 0;
+  float low_max = 0;
+  float high_min = 0;
+  float high_max = 0;
+
+  bool newDAQ = false;
+  int side = 0;
+  int board = 0;
+
+  opt->addUsage("Usage: raw_threshold_scan [OPTIONS]");
+  opt->addUsage("");
+  opt->addUsage("Options: ");
+  opt->addUsage("  -h, --help       ................................. Print this help ");
+  opt->addUsage("  -v, --verbose    ................................. Verbose ");
+  opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB");
+  opt->addUsage("                   ................................. 1313 for 10VA miniTRB");
+  opt->addUsage("                   ................................. 2020 for FOOT DAQ");
+  opt->addUsage("                   ................................. 2021 for PAN StripX");
+  opt->addUsage("                   ................................. 2022 for PAN StripY");
+  opt->addUsage("                   ................................. 2023 for AMSL0");
+  opt->addUsage("  --calibration    ................................. Calibration file ");
+  opt->addUsage("  --output         ................................. Output ROOT file ");
+  opt->addUsage("  --minlow         ................................. Minimum low threshold ");
+  opt->addUsage("  --maxlow         ................................. Maximum low threshold ");
+  opt->addUsage("  --minhigh        ................................. Minimum high threshold ");
+  opt->addUsage("  --maxhigh        ................................. Maximum high threshold ");
+  opt->addUsage("  -a, --absolute   ................................. Use absolute ADC value instead of S/N for thresholds ");
+  opt->addUsage("  --cn             ................................. Common noise type ");
+  opt->addUsage("  --steps          ................................. Number of steps ");
+  opt->addUsage("  --nevents        ................................. Number of events to process ");
+
+  opt->setFlag("help", 'h');
+  opt->setFlag("verbose", 'v');
+  opt->setOption("version");
+  opt->setOption("calibration");
+  opt->setOption("output");
+  opt->setOption("minlow");
+  opt->setOption("maxlow");
+  opt->setOption("minhigh");
+  opt->setOption("maxhigh");
+  opt->setFlag("absolute", 'a');
+  opt->setOption("cn");
+  opt->setOption("steps");
+  opt->setOption("nevents");
+
+  opt->processFile("./options.txt");
+  opt->processCommandArgs(argc, argv);
+
+  if (!opt->hasOptions())
+  { /* print usage if no options */
+    opt->printUsage();
+    delete opt;
+    return 2;
+  }
+  if (!opt->getValue("version"))
   {
-    std::cout
-        << "Usage:\n ./raw_threshold_scan <output_rootfile> <calibration file> "
-           "<min low> <max low> <min high> <max high> <use absolute thresholds> <common noise type> "
-           "<steps> <first input root-filename> [second input root-filename] ..."
-        << std::endl;
-    return 1;
+    std::cout << "ERROR: no DAQ board version provided" << std::endl;
+    return 2;
   }
 
-  int steps = atoi(argv[9]);
+  if (atoi(opt->getValue("version")) == 1212) // original DaMPE miniTRB system
+  {
+    NChannels = 384;
+    NVas = 6;
+    minStrip = 0;
+    maxStrip = 383;
+  }
+  else if (atoi(opt->getValue("version")) == 1313) // modded DaMPE miniTRB system for the first FOOT prototype
+  {
+    NChannels = 640;
+    NVas = 10;
+    minStrip = 0;
+    maxStrip = 639;
+  }
+  else if (atoi(opt->getValue("version")) == 2020) // FOOT ADC boards + DE10Nano
+  {
+    NChannels = 640;
+    NVas = 10;
+    minStrip = 0;
+    maxStrip = 639;
+    newDAQ = true;
+  }
+  else if (atoi(opt->getValue("version")) == 2021) // PAN StripX
+  {
+    NChannels = 2048;
+    NVas = 32;
+    minStrip = 0;
+    maxStrip = 2047;
+  }
+  else if (atoi(opt->getValue("version")) == 2022) // PAN StripY
+  {
+    NChannels = 128;
+    NVas = 1;
+    minStrip = 0;
+    maxStrip = 127;
+  }
+  else if (atoi(opt->getValue("version")) == 2023) // AMSL0
+  {
+    NChannels = 1024;
+    NVas = 16;
+    minStrip = 0;
+    maxStrip = 1023;
+  }
+  else
+  {
+    std::cout << "ERROR: invalid DAQ board version" << std::endl;
+    return 2;
+  }
+
+  if (opt->getFlag("help") || opt->getFlag('h'))
+    opt->printUsage();
+
+  if (opt->getFlag("verbose") || opt->getFlag('v'))
+    verb = true;
+
+  if (opt->getValue("calibration"))
+    std::cout << "Calibration file: " << opt->getValue("calibration") << std::endl;
+  else
+    std::cout << "No calibration file provided" << std::endl;
+
+  // Create output ROOTfile
+  TString output_filename;
+  if (opt->getValue("output"))
+  {
+    output_filename = opt->getValue("output");
+  }
+  else
+  {
+    std::cout << "Error: no output file" << std::endl;
+    return 2;
+  }
+
+  if (opt->getFlag("verbose") || opt->getFlag('v'))
+    verb = true;
+
+  if (opt->getValue("minlow"))
+    low_min = atof(opt->getValue("minlow"));
+
+  if (opt->getValue("maxlow"))
+    low_max = atof(opt->getValue("maxlow"));
+
+  if (opt->getValue("minhigh"))
+    high_min = atof(opt->getValue("minhigh"));
+
+  if (opt->getValue("maxhigh"))
+    high_max = atof(opt->getValue("maxhigh"));
+
+  if (opt->getValue("absolute"))
+    absolute = true;
+
+  if (opt->getValue("cn"))
+    commonNoiseType = atoi(opt->getValue("cn"));
+
+  if (opt->getValue("steps"))
+    steps = atoi(opt->getValue("steps"));
 
   //////////////////Histos
   TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5);
@@ -31,25 +188,30 @@ int main(int argc, char *argv[])
   TH1F *hNstrip = new TH1F("hNstrip", "hNstrip", 10, -0.5, 9.5);
   hNstrip->GetXaxis()->SetTitle("n strips");
 
-  TH2F *hLowVsHigh_nclus = new TH2F("hLowVsHigh_nclus", "hLowVsHigh_nclus", steps, atoi(argv[3]) - 0.5, atoi(argv[4]) - 0.5, steps, atoi(argv[5]) - 0.5, atoi(argv[6]) - 0.5);
+  TH2F *hLowVsHigh_nclus = new TH2F("hLowVsHigh_nclus", "hLowVsHigh_nclus", steps, low_min - 0.5, low_max - 0.5, steps, high_min - 0.5, high_max - 0.5);
   hLowVsHigh_nclus->GetXaxis()->SetTitle("Low Threshold");
   hLowVsHigh_nclus->GetYaxis()->SetTitle("High Threshold");
 
-  TH2F *hLowVsHigh_width = new TH2F("hLowVsHigh_width", "hLowVsHigh_width", steps, atoi(argv[3]) - 0.5, atoi(argv[4]) - 0.5, steps, atoi(argv[5]) - 0.5, atoi(argv[6]) - 0.5);
+  TH2F *hLowVsHigh_width = new TH2F("hLowVsHigh_width", "hLowVsHigh_width", steps, low_min - 0.5, low_max - 0.5, steps, high_min - 0.5, high_max - 0.5);
   hLowVsHigh_width->GetXaxis()->SetTitle("Low Threshold");
   hLowVsHigh_width->GetYaxis()->SetTitle("High Threshold");
 
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain("raw_events");
-  for (int ii = 10; ii < argc; ii++)
+  for (int ii = 0; ii < opt->getArgc(); ii++)
   {
-    std::cout << "Adding file " << argv[ii] << " to the chain..." << std::endl;
-    chain->Add(argv[ii]);
+    std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
+    chain->Add(opt->getArgv(ii));
   }
 
   Long64_t entries = chain->GetEntries();
-  // int entries = 2;
   printf("This run has %lld entries\n", entries);
+
+  if (opt->getValue("nevents"))
+  {
+    entries = atoi(opt->getValue("nevents"));
+    printf("Only processing %lld entries\n", entries);
+  }
 
   // Read raw event from input chain TTree
   std::vector<unsigned short> *raw_event = 0;
@@ -57,27 +219,25 @@ int main(int argc, char *argv[])
   chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
 
   // Create output ROOTfile
-  TString output_filename = argv[1];
   TFile *foutput = new TFile(output_filename.Data(), "RECREATE");
   foutput->cd();
 
   calib cal;
-  read_calib(argv[2], &cal);
+  read_calib(opt->getValue("calibration"), &cal, NChannels, 2 * board + side, verb);
 
-  float low_min = atoi(argv[3]);
-  float low_max = atoi(argv[4]);
-  float high_min = atoi(argv[5]);
-  float high_max = atoi(argv[6]);
-
-  float step_low = ((low_max - low_min) + 1) / steps;
-  float step_high = ((high_max - high_min) + 1) / steps;
+  float step_low = (float)((low_max - low_min) + 1) / steps;
+  float step_high = (float)((high_max - high_min) + 1) / steps;
 
   int binHigh = 1;
 
+  cout << "Low threshold: " << low_min << " - " << low_max << endl;
+  cout << "High threshold: " << high_min << " - " << high_max << endl;
+  cout << "Steps: " << step_low << " - " << step_high << endl;
+
   while (high_min <= high_max)
   {
-    low_min = atoi(argv[3]);
     int binLow = 1;
+    low_min = atof(opt->getValue("minlow"));
 
     while (low_min <= low_max && low_min <= high_min)
     {
@@ -99,7 +259,7 @@ int main(int argc, char *argv[])
 
         std::vector<float> signal;
 
-        if (raw_event->size() == 384 || raw_event->size() == 640)
+        if (raw_event->size() == NChannels)
         {
           if (cal.ped.size() >= raw_event->size())
           {
@@ -126,12 +286,11 @@ int main(int argc, char *argv[])
 
         std::vector<float> signal2(signal.size());
 
-#pragma omp parallel for
         for (size_t i = 0; i < signal.size(); i++)
         {
-          if (GetCN(&signal, i / 64, atoi(argv[9])))
+          if (GetCN(&signal, i / 64, commonNoiseType))
           {
-            signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, atoi(argv[8]));
+            signal2.at(i) = signal.at(i) - GetCN(&signal, i / 64, commonNoiseType);
           }
           else
           {
@@ -141,7 +300,7 @@ int main(int argc, char *argv[])
 
         try
         {
-          std::vector<cluster> result = clusterize(&cal, &signal2, high_min, low_min, 0, 0, atoi(argv[7]));
+          std::vector<cluster> result = clusterize_event(&cal, &signal2, high_min, low_min, 0, 0, absolute);
 
           for (int i = 0; i < result.size(); i++)
           {

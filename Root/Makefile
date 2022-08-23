@@ -36,7 +36,7 @@ raw_clusterize: ./src/raw_clusterize.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_threshold_scan: ./src/raw_threshold_scan.cxx
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_cn: ./src/raw_cn.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)

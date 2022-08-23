@@ -255,7 +255,7 @@ void langaus(const char filename[200], const char histo[200], float min, float m
    pllo[1] = 0.5;
    pllo[2] = 1.0;
    pllo[3] = 0.5;
-   plhi[0] = 10.0;
+   plhi[0] = 100.0;
    plhi[1] = 500.0;
    plhi[2] = 1000000.0;
    plhi[3] = 100.0;

@@ -159,6 +159,7 @@ float GetCN(std::vector<float> *signal, int va, int type) // common mode noise c
         cnt++;
       }
     }
+
     if (cnt != 0)
     {
       return cn / cnt;

@@ -66,31 +66,31 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
-      new TH1F((TString) "hADCCluster_board_" + board + "_side_" + side, (TString) "hADCCluster_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hADCCluster_board_" + board + "_side_" + side, (TString) "hADCCluster_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
   TH1F *hHighest = // ADC of highest signal
-      new TH1F((TString) "hHighest_board_" + board + "_side_" + side, (TString) "hHighest_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hHighest_board_" + board + "_side_" + side, (TString) "hHighest_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hHighest->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterEdge = // ADC content of all clusters
-      new TH1F((TString) "hADCClusterEdge_board_" + board + "_side_" + side, (TString) "hADCClusterEdge_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hADCClusterEdge_board_" + board + "_side_" + side, (TString) "hADCClusterEdge_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCClusterEdge->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster1Strip = // ADC content of clusters with a single strips
-      new TH1F((TString) "hADCCluster1Strip_board_" + board + "_side_" + side, (TString) "hADCCluster1Strip_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hADCCluster1Strip_board_" + board + "_side_" + side, (TString) "hADCCluster1Strip_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCCluster1Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCCluster2Strip = // ADC content of clusters with 2 strips
-      new TH1F((TString) "hADCCluster2Strip_board_" + board + "_side_" + side, (TString) "hADCCluster2Strip_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hADCCluster2Strip_board_" + board + "_side_" + side, (TString) "hADCCluster2Strip_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCCluster2Strip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterManyStrip = // ADC content of clusters with more than 2 strips
-      new TH1F((TString) "hADCClusterManyStrip_board_" + board + "_side_" + side, (TString) "hADCClusterManyStrip_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hADCClusterManyStrip_board_" + board + "_side_" + side, (TString) "hADCClusterManyStrip_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCClusterManyStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterSeed = // ADC content of the "seed strip"
-      new TH1F((TString) "hADCClusterSeed_board_" + board + "_side_" + side, (TString) "hADCClusterSeed_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h);
+      new TH1F((TString) "hADCClusterSeed_board_" + board + "_side_" + side, (TString) "hADCClusterSeed_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
   TH1F *hPercentageSeed = // percentage of the "seed strip" wrt the whole cluster
@@ -108,10 +108,10 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   TH1F *hSeedCharge = new TH1F((TString) "hSeedCharge_board_" + board + "_side_" + side, (TString) "hSeedCharge_board_" + board + "_side_" + side, 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterSN = new TH1F((TString) "hClusterSN_board_" + board + "_side_" + side, (TString) "hClusterSN_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h); // cluster S/N
+  TH1F *hClusterSN = new TH1F((TString) "hClusterSN_board_" + board + "_side_" + side, (TString) "hClusterSN_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h); // cluster S/N
   hClusterSN->GetXaxis()->SetTitle("S/N");
 
-  TH1F *hSeedSN = new TH1F((TString) "hSeedSN_board_" + board + "_side_" + side, (TString) "hSeedSN_board_" + board + "_side_" + side, 2000, minADC_h, maxADC_h); // seed S/N
+  TH1F *hSeedSN = new TH1F((TString) "hSeedSN_board_" + board + "_side_" + side, (TString) "hSeedSN_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h); // seed S/N
   hSeedSN->GetXaxis()->SetTitle("S/N");
 
   TH1F *hClusterCog = new TH1F((TString) "hClusterCog_board_" + board + "_side_" + side, (TString) "hClusterCog_board_" + board + "_side_" + side, (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5); // clusters center of gravity in terms of strip number
@@ -161,11 +161,11 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta = // ignore
-      new TH2F((TString) "hADCvsEta_board_" + board + "_side_" + side, (TString) "hADCvsEta_board_" + board + "_side_" + side, 200, 0, 1, 2000, minADC_h, maxADC_h);
+      new TH2F((TString) "hADCvsEta_board_" + board + "_side_" + side, (TString) "hADCvsEta_board_" + board + "_side_" + side, 200, 0, 1, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCvsEta->GetXaxis()->SetTitle("eta");
   hADCvsEta->GetYaxis()->SetTitle("ADC");
 
-  TH2F *hADCvsSN = new TH2F((TString) "hADCvsSN_board_" + board + "_side_" + side, (TString) "hADCvsSN_board_" + board + "_side_" + side, 2000, 0, 2500, 2000, minADC_h, maxADC_h);
+  TH2F *hADCvsSN = new TH2F((TString) "hADCvsSN_board_" + board + "_side_" + side, (TString) "hADCvsSN_board_" + board + "_side_" + side, 2000, 0, 2500, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCvsSN->GetXaxis()->SetTitle("S/N");
   hADCvsSN->GetYaxis()->SetTitle("ADC");
 
@@ -187,11 +187,11 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
 
-  TH2F *hEtaVsADC = new TH2F((TString) "hEtaVsADC_board_" + board + "_side_" + side, (TString) "hEtaVsADC_board_" + board + "_side_" + side, 100, 0, 1, 1000, minADC_h, maxADC_h);
+  TH2F *hEtaVsADC = new TH2F((TString) "hEtaVsADC_board_" + board + "_side_" + side, (TString) "hEtaVsADC_board_" + board + "_side_" + side, 100, 0, 1, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hCommonNoiseVsVA->GetXaxis()->SetTitle("ADC");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("Eta");
 
-  TH2F *hADC0vsADC1 = new TH2F((TString) "hADC0vsADC1_board_" + board + "_side_" + side, (TString) "hADC0vsADC1_board_" + board + "_side_" + side, 2500, minADC_h, maxADC_h, 2500, minADC_h, maxADC_h); // ADC of first strip vs ADC of second strip for clusters with 2 strips
+  TH2F *hADC0vsADC1 = new TH2F((TString) "hADC0vsADC1_board_" + board + "_side_" + side, (TString) "hADC0vsADC1_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h); // ADC of first strip vs ADC of second strip for clusters with 2 strips
   hADC0vsADC1->GetXaxis()->SetTitle("ADC0");
   hADC0vsADC1->GetYaxis()->SetTitle("ADC1");
 
@@ -319,7 +319,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
   std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
 
-  for (int index_event = 0; index_event < entries; index_event++) // looping on the events
+  for (int index_event = first_event; index_event < entries; index_event++) // looping on the events
   {
     chain->GetEntry(index_event);
 
@@ -396,6 +396,10 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
     for (int va = 0; va < NVas; va++) // Loop on VA (readout chip): common noise algo 1
     {
       float cn = GetCN(&signal, va, 0);
+      if (verb)
+      {
+        std::cout << "VA " << va << ": " << cn << std::endl;
+      }
       if (cn != -999 && abs(cn) < maxCN)
       {
         hCommonNoise0->Fill(cn);
@@ -426,9 +430,14 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       for (int va = 0; va < NVas; va++) // Loop on VA
       {
         float cn = GetCN(&signal, va, cntype);
+        if (verb)
+        {
+          std::cout << "VA " << va << " CN " << cn << std::endl;
+        }
         if (cn != -999 && abs(cn) < maxCN)
         {
           hCommonNoiseVsVA->Fill(cn, va);
+          goodCN = true;
 
           for (int ch = va * 64; ch < (va + 1) * 64; ch++) // Loop on VA channels, subtracting common mode noise to the signals before clustering
           {
@@ -451,11 +460,16 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       if (!goodCN)
         continue;
 
-      if (!AMSLO)
-      {
-        if (*max_element(signal.begin(), signal.end()) > 4096) // 4096 is the maximum ADC value possible, any more than that means the event is corrupted
-          continue;
-      }
+      // if (!AMSLO)
+      // {
+      //   if (*max_element(signal.begin(), signal.end()) > 4096) // 4096 is the maximum ADC value possible, any more than that means the event is corrupted
+      //     continue;
+      // }
+      // else
+      // {
+      //   cout << "AMSLO is true" << endl;
+      //   sleep(10);
+      // }
 
       if (*max_element(signal.begin(), signal.end()) > maxADC) // searching for the highest ADC value
       {
@@ -900,16 +914,9 @@ int main(int argc, char *argv[])
     maxADC_h = atoi(opt->getValue("max_histo_ADC"));
 
   int first_event = 0;
-  if (opt->getValue("first_event")) // to choose the first event to process
+  if (opt->getValue("first")) // to choose the first event to process
   {
-    first_event = atoi(opt->getValue("first_event"));
-  }
-
-  // Read raw event from input chain TTree
-  if (side && !newDAQ)
-  {
-    std::cout << "Error: version selected does not contain side " << side << std::endl; // only the new DAQ files contain more than 1 TTree (so side and board > 0)
-    return 2;
+    first_event = atoi(opt->getValue("first"));
   }
 
   // Create output ROOTfile

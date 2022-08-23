@@ -259,7 +259,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   ped_info.SetTextSize(0.025);
   ped_info.SetTextAngle(90);
   ped_info.SetTextAlign(12);
-  ped_info.DrawLatex(680, gr->GetYaxis()->GetXmin(), Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
+  ped_info.DrawLatex(pedestals->size() + 40, gr->GetYaxis()->GetXmin(), Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
   TString out_pdf_open = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf(";
   c1->Print(out_pdf_open, "pdf");
 
@@ -272,7 +272,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   rsig_info.SetTextSize(0.025);
   rsig_info.SetTextAngle(90);
   rsig_info.SetTextAlign(12);
-  rsig_info.DrawLatex(680, gr2->GetYaxis()->GetXmin(), Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
+  rsig_info.DrawLatex(pedestals->size() + 40, gr2->GetYaxis()->GetXmin(), Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
   TString out_pdf = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf";
   c1->Print(out_pdf, "pdf");
 
@@ -408,7 +408,7 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   sig_info.SetTextSize(0.025);
   sig_info.SetTextAngle(90);
   sig_info.SetTextAlign(12);
-  sig_info.DrawLatex(680, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
+  sig_info.DrawLatex(pedestals->size() + 40, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
   TString out_pdf_close = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf)";
   c1->Print(out_pdf_close, "pdf");
 
@@ -438,8 +438,8 @@ int main(int argc, char *argv[])
   bool fit_mode = false;
   bool single_file = true;
 
-  float sigmaraw_cut = 8;
-  float sigma_cut = 5;
+  float sigmaraw_cut = 15;
+  float sigma_cut = 10;
   int cntype = 0;
 
   int NChannels = -1;
