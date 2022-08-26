@@ -13,7 +13,7 @@ OPTFLAGS += -O3
 
 default: all
 
-all: miniTRB_convert FOOT_convert PAPERO_convert PAPERO_info raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI ASTRA_convert
+all: miniTRB_convert FOOT_convert PAPERO_convert PAPERO_info raw_clusterize raw_threshold_scan raw_cn raw_viewer calibration bias_control bias_controlPI ASTRA_convert AMS_convert
 
 .PHONY: raw_viewer
 
@@ -24,6 +24,9 @@ FOOT_convert: ./src/FOOT_convert.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 PAPERO_convert: ./src/PAPERO_convert.cxx
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+AMS_convert: ./src/AMS_convert.cxx
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 ASTRA_convert: ./src/ASTRA_convert.cxx

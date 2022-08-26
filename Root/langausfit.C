@@ -258,7 +258,7 @@ void langaus(const char filename[200], const char histo[200], float min, float m
    plhi[0] = 100.0;
    plhi[1] = 500.0;
    plhi[2] = 1000000.0;
-   plhi[3] = 100.0;
+   plhi[3] = 200.0;
    sv[0] = 2;
    sv[1] = histotofit->GetMean();
    sv[2] = 50000.0;

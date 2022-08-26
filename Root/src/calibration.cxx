@@ -187,6 +187,12 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   for (int index_event = 1; index_event < entries / 2; index_event++)
   {
     chain.GetEntry(index_event);
+    if (index_event == 1)
+    {
+      cout << "Reading event " << index_event << endl;
+      cout << "\tEvent size " << raw_event->size() << endl;
+    }
+
     if (raw_event->size() == NChannels)
     {
       for (int k = 0; k < raw_event->size(); k++)
@@ -549,9 +555,9 @@ int main(int argc, char *argv[])
     chain->Add(opt->getArgv(ii));
   }
 
-  if (single_file && std::ifstream(output_filename+".cal"))
+  if (single_file && std::ifstream(output_filename + ".cal"))
   {
-    remove(output_filename+".cal");
+    remove(output_filename + ".cal");
   }
 
   if (!newDAQ)

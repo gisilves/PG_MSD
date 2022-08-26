@@ -230,9 +230,9 @@ int main(int argc, char *argv[])
 
   int binHigh = 1;
 
-  cout << "Low threshold: " << low_min << " - " << low_max << endl;
-  cout << "High threshold: " << high_min << " - " << high_max << endl;
-  cout << "Steps: " << step_low << " - " << step_high << endl;
+  // cout << "Low threshold: " << low_min << " - " << low_max << endl;
+  // cout << "High threshold: " << high_min << " - " << high_max << endl;
+  // cout << "Steps: " << step_low << " - " << step_high << endl;
 
   while (high_min <= high_max)
   {

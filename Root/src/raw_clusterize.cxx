@@ -62,13 +62,13 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch, bool AMSLO)
+                        int sensor_pitch, bool AMS)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
       new TH1F((TString) "hADCCluster_board_" + board + "_side_" + side, (TString) "hADCCluster_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCCluster->GetXaxis()->SetTitle("ADC");
-
+  
   TH1F *hHighest = // ADC of highest signal
       new TH1F((TString) "hHighest_board_" + board + "_side_" + side, (TString) "hHighest_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hHighest->GetXaxis()->SetTitle("ADC");
@@ -596,6 +596,40 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
               << " in event number " << maxEVT
               << " at strip " << maxPOS << std::endl;
   }
+
+
+  // if(AMS)
+  // {
+  //   hNclus->SetName("Nclus_AMSL0");
+  //   hADCCluster->SetName("ADCCluster_AMSL0");
+  //   hADCClusterEdge->SetName("ADCClusterEdge_AMSL0");
+  //   hADCCluster1Strip->SetName("ADCCluster1Strip_AMSL0");
+  //   hADCCluster2Strip->SetName("ADCCluster2Strip_AMSL0");
+  //   hADCClusterManyStrip->SetName("ADCClusterManyStrip_AMSL0");
+  //   hADCClusterSeed->SetName("ADCClusterSeed_AMSL0");
+  //   hClusterCharge->SetName("ClusterCharge_AMSL0");
+  //   hSeedCharge->SetName("SeedCharge_AMSL0");
+  //   hPercentageSeed->SetName("PercentageSeed_AMSL0");
+  //   hClusterSN->SetName("ClusterSN_AMSL0");
+  //   hSeedSN->SetName("SeedSN_AMSL0");
+  //   hClusterCog->SetName("ClusterCog_AMSL0");
+  //   hBeamProfile->SetName("BeamProfile_AMSL0");
+  //   hSeedPos->SetName("SeedPos_AMSL0");
+  //   hNstrip->SetName("Nstrip_AMSL0");
+  //   hEta->SetName("Eta_AMSL0");
+  //   hEta1->SetName("Eta1_AMSL0");
+  //   hEta2->SetName("Eta2_AMSL0");
+  //   hADCvsEta->SetName("ADCvsEta_AMSL0");
+  //   hADCvsWidth->SetName("ADCvsWidth_AMSL0");
+  //   hADCvsPos->SetName("ADCvsPos_AMSL0");
+  //   hADCvsSeed->SetName("ADCvsSeed_AMSL0");
+  //   hADCvsSN->SetName("ADCvsSN_AMSL0");
+  //   hNStripvsSN->SetName("NStripvsSN_AMSL0");
+  //   hNstripSeed->SetName("NstripSeed_AMSL0");
+  //   hDifference->SetName("Difference_AMSL0");
+  //   hADC0vsADC1->SetName("ADC0vsADC1_AMSL0");
+  // }
+
   hNclus->Write();
   delete hNclus;
 
@@ -655,6 +689,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hCommonNoise1->Write();
   hCommonNoise2->Write();
   hCommonNoiseVsVA->Write();
+
   delete hADCClusterSeed;
   delete hClusterCharge;
   delete hSeedCharge;
@@ -971,7 +1006,7 @@ int main(int argc, char *argv[])
 
   if (detectors == 1)
   {
-    doutput = foutput->mkdir("detector");
+    doutput = foutput->mkdir("histos");
     doutput->cd();
     clusterize_detector(0, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
                         newDAQ, first_event, NChannels, verb, dynped,

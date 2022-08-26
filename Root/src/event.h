@@ -277,14 +277,8 @@ float GetClusterEta(cluster clus)
   }
   else
   {
-    for (int i = 0; i < nstrips; i++)
-    {
-      if (ADC.at(i) > max_adc)
-      {
-        max_adc = ADC.at(i);
-        max_pos = i;
-      }
-    }
+    max_pos = std::max_element(ADC.begin(), ADC.end()) - ADC.begin();
+    max_adc = ADC.at(max_pos);
 
     if (max_pos == 0)
     {
