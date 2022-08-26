@@ -65,6 +65,7 @@ clean:
 	rm -f ./PAPERO_convert
 	rm -f ./PAPERO_info
 	rm -f ./ASTRA_convert
+	rm -f ./AMS_convert
 	rm -f ./raw_clusterize
 	rm -f ./raw_cn
 	rm -f ./raw_threshold_scan
