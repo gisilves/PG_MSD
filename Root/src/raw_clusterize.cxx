@@ -68,7 +68,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   TH1F *hADCCluster = // ADC content of all clusters
       new TH1F((TString) "hADCCluster_board_" + board + "_side_" + side, (TString) "hADCCluster_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCCluster->GetXaxis()->SetTitle("ADC");
-  
+
   TH1F *hHighest = // ADC of highest signal
       new TH1F((TString) "hHighest_board_" + board + "_side_" + side, (TString) "hHighest_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hHighest->GetXaxis()->SetTitle("ADC");
@@ -491,6 +491,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       t_clusters->Fill();
 
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
+      hNclus->Fill(result.size());
 
       for (int i = 0; i < result.size(); i++)
       {
@@ -505,10 +506,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
         if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip) // cut on position on the detector in terms of strip number
         {
-          if (i == 0)
-          {
-            hNclus->Fill(result.size());
-          }
 
           hADCCluster->Fill(GetClusterSignal(result.at(i)));
 
@@ -596,7 +593,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
               << " in event number " << maxEVT
               << " at strip " << maxPOS << std::endl;
   }
-
 
   // if(AMS)
   // {
