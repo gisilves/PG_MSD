@@ -7,6 +7,7 @@
 #include "TH2.h"
 #include "TGraph.h"
 #include "TTree.h"
+#include "TTreeReader.h"
 #include "TKey.h"
 #include <iostream>
 #include <algorithm>
@@ -629,31 +630,31 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hNclus->Write();
   delete hNclus;
 
-  Double_t norm = hADCCluster->GetEntries();
-  hADCCluster->Scale(1 / norm);
+  // Double_t norm = hADCCluster->GetEntries();
+  // hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
   delete hADCCluster;
 
   hHighest->Write();
   delete hHighest;
 
-  norm = hADCClusterEdge->GetEntries();
-  hADCClusterEdge->Scale(1 / norm);
+  // norm = hADCClusterEdge->GetEntries();
+  // hADCClusterEdge->Scale(1 / norm);
   hADCClusterEdge->Write();
   delete hADCClusterEdge;
 
-  norm = hADCCluster1Strip->GetEntries();
-  hADCCluster1Strip->Scale(1 / norm);
+  // norm = hADCCluster1Strip->GetEntries();
+  // hADCCluster1Strip->Scale(1 / norm);
   hADCCluster1Strip->Write();
   delete hADCCluster1Strip;
 
-  norm = hADCCluster2Strip->GetEntries();
-  hADCCluster2Strip->Scale(1 / norm);
+  // norm = hADCCluster2Strip->GetEntries();
+  // hADCCluster2Strip->Scale(1 / norm);
   hADCCluster2Strip->Write();
   delete hADCCluster2Strip;
 
-  norm = hADCClusterManyStrip->GetEntries();
-  hADCClusterManyStrip->Scale(1 / norm);
+  // norm = hADCClusterManyStrip->GetEntries();
+  // hADCClusterManyStrip->Scale(1 / norm);
   hADCClusterManyStrip->Write();
   delete hADCClusterManyStrip;
 
@@ -785,7 +786,7 @@ int main(int argc, char *argv[])
   opt->addUsage("  --first          ................................. First event to process ");
   opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB");
   opt->addUsage("                   ................................. 1313 for 10VA miniTRB");
-  opt->addUsage("                   ................................. 2020 for FOOT DAQ");
+  opt->addUsage("                   ................................. 2020 for PAPERO DAQ");
   opt->addUsage("                   ................................. 2021 for PAN StripX");
   opt->addUsage("                   ................................. 2022 for PAN StripY");
   opt->addUsage("                   ................................. 2023 for AMSL0");
@@ -859,7 +860,7 @@ int main(int argc, char *argv[])
     maxStrip = 639;
     sensor_pitch = 0.150;
   }
-  else if (atoi(opt->getValue("version")) == 2020) // FOOT ADC boards + DE10Nano
+  else if (atoi(opt->getValue("version")) == 2020) // FOOT/POX ADC boards + DE10Nano
   {
     NChannels = 640;
     NVas = 10;
@@ -891,7 +892,7 @@ int main(int argc, char *argv[])
     minStrip = 0;
     maxStrip = 1023;
     sensor_pitch = 0.109;
-    maxADC_h = 30000;
+    maxADC_h = 120;
   }
   else
   {
@@ -1034,6 +1035,37 @@ int main(int argc, char *argv[])
                           sensor_pitch,
                           atoi(opt->getValue("version")) == 2023);
     }
+  }
+
+  TH2F *hClusterCog2D[detectors / 2];
+  for (size_t i = 0; i < detectors / 2; i++)
+  {
+    hClusterCog2D[i] = new TH2F((TString) "hClusterCog2D_board_" + i, (TString) "hClusterCog2D_board_" + i, (maxStrip - minStrip) / 10, minStrip - 0.5, maxStrip - 0.5, (maxStrip - minStrip) / 10, minStrip - 0.5, maxStrip - 0.5);
+    hClusterCog2D[i]->GetXaxis()->SetTitle("cogJ5");
+    hClusterCog2D[i]->GetYaxis()->SetTitle("cogJ7");
+  }
+
+  for (int board = 0; board < detectors / 2; board++)
+  {
+    TTreeReader readerJ5((TString) "board_" + board + (TString) "_side_0/t_clusters_board_" + board + "_side_0", foutput);
+    TTreeReaderValue<std::vector<cluster>> clusterJ5(readerJ5, "clusters");
+
+    TTreeReader readerJ7((TString) "board_" + board + (TString) "_side_1/t_clusters_board_" + board + "_side_1", foutput);
+    TTreeReaderValue<std::vector<cluster>> clusterJ7(readerJ7, "clusters");
+
+    while (readerJ5.Next())
+    {
+      readerJ7.Next();
+      for (size_t i = 0; i < clusterJ5->size(); i++)
+      {
+        for (size_t k = 0; k < clusterJ7->size(); k++)
+        {
+          hClusterCog2D[board]->Fill(GetClusterCOG(clusterJ5->at(i)), GetClusterCOG(clusterJ7->at(k)));
+        }
+      }
+    }
+    foutput->cd();
+    hClusterCog2D[board]->Write();
   }
 
   foutput->Close();
