@@ -124,6 +124,7 @@ int main(int argc, char *argv[])
         {
             raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
             raw_events_tree.at(detector)->Branch("RAW Event", &raw_event_vector.at(detector));
+            raw_events_tree.at(detector)->SetAutoSave(0);
         }
         else
         {
@@ -275,12 +276,26 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "\n\tClosing file after " << evtnum << " events" << std::endl;
+    int filled = 0;
 
-    for (size_t detector = 0; detector < max_detectors; detector++)
+    for (size_t detector = 0; detector < raw_events_tree.size(); detector++)
     {
         if (raw_events_tree.at(detector)->GetEntries())
         {
-            raw_events_tree.at(detector)->Write();
+            if (filled == 0)
+            {
+                raw_events_tree.at(detector)->SetName("raw_events");
+                raw_events_tree.at(detector)->SetTitle("raw_events");
+                raw_events_tree.at(detector)->Write();
+            }
+            else
+            {
+                std::string name = "raw_events_" + alphabet.substr(filled, 1);
+                raw_events_tree.at(detector)->SetName(name.c_str());
+                raw_events_tree.at(detector)->SetTitle(name.c_str());
+                raw_events_tree.at(detector)->Write();
+            }
+            filled++;
         }
     }
 
