@@ -7,19 +7,20 @@
 #include "TAxis.h"
 #include "TCanvas.h"
 #include "TLatex.h"
+#include "TPDF.h"
 #include <iostream>
 #include <algorithm>
 #include <numeric>
 #include <string>
 #include "TLine.h"
 #include "TKey.h"
-
+#include "TPaveText.h"
 #include "anyoption.h"
 #include "event.h"
 
 AnyOption *opt; // Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true)
+int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -71,22 +72,19 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
 
   TF1 *fittedgaus;
 
-  TCanvas *c1 = new TCanvas(Form("c1_%d_%d", board, side), "Canvas", 1920, 1080);
-  c1->SetGrid();
-
   TGraph *gr = new TGraph(NChannels);
   gr->SetName((TString) "Pedestals" + "_board-" + board + "_side-" + side);
-  gr->SetTitle("Pedestals for file " + output_filename + "_" + Form("%d_%d", board, side));
+  gr->SetTitle("Pedestals");
 
   TGraph *gr2 = new TGraph(NChannels);
   gr2->SetName((TString) "RawSigma" + "_board-" + board + "_side-" + side);
-  gr2->SetTitle("Raw Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
+  gr2->SetTitle("Raw Sigmas");
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
   gr3->SetName((TString) "Sigma" + "_board-" + board + "_side-" + side);
-  gr3->SetTitle("Sigma for file " + output_filename + "_" + Form("%d_%d", board, side));
+  gr3->SetTitle("Sigmas");
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
 
@@ -187,11 +185,11 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   for (int index_event = 1; index_event < entries / 2; index_event++)
   {
     chain.GetEntry(index_event);
-    if (index_event == 1)
-    {
-      cout << "Reading event " << index_event << endl;
-      cout << "\tEvent size " << raw_event->size() << endl;
-    }
+    // if (index_event == 1)
+    // {
+    //   cout << "Reading event " << index_event << endl;
+    //   cout << "\tEvent size " << raw_event->size() << endl;
+    // }
 
     if (raw_event->size() == NChannels)
     {
@@ -260,27 +258,19 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   TAxis *axis = gr->GetXaxis();
   axis->SetLimits(0, NChannels);
   axis->SetNdivisions(NVas, false);
+  c1.cd(1);
+  gPad->SetGrid();
+  gr->SetMarkerSize(0.8);
   gr->Draw("AL*");
-  TLatex ped_info;
-  ped_info.SetTextSize(0.025);
-  ped_info.SetTextAngle(90);
-  ped_info.SetTextAlign(12);
-  ped_info.DrawLatex(pedestals->size() + 40, gr->GetYaxis()->GetXmin(), Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
-  TString out_pdf_open = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf(";
-  c1->Print(out_pdf_open, "pdf");
 
   gr2->GetXaxis()->SetTitle("channel");
   TAxis *axis2 = gr2->GetXaxis();
   axis2->SetLimits(0, NChannels);
   axis2->SetNdivisions(NVas, false);
+  c1.cd(2);
+  gPad->SetGrid();
+  gr2->SetMarkerSize(0.8);
   gr2->Draw("AL*");
-  TLatex rsig_info;
-  rsig_info.SetTextSize(0.025);
-  rsig_info.SetTextAngle(90);
-  rsig_info.SetTextAlign(12);
-  rsig_info.DrawLatex(pedestals->size() + 40, gr2->GetYaxis()->GetXmin(), Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
-  TString out_pdf = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf";
-  c1->Print(out_pdf, "pdf");
 
   // Like before, but this time we correct for common noise
   for (int index_event = entries / 2; index_event < entries; index_event++)
@@ -409,14 +399,34 @@ int compute_calibration(TChain &chain, TString output_filename, float sigmaraw_c
   TAxis *axis3 = gr3->GetXaxis();
   axis3->SetLimits(0, NChannels);
   axis3->SetNdivisions(NVas, false);
+  c1.cd(3);
+  gPad->SetGrid();
+  gr3->SetMarkerSize(0.8);
   gr3->Draw("AL*");
-  TLatex sig_info;
-  sig_info.SetTextSize(0.025);
-  sig_info.SetTextAngle(90);
-  sig_info.SetTextAlign(12);
-  sig_info.DrawLatex(pedestals->size() + 40, gr3->GetYaxis()->GetXmin(), Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
-  TString out_pdf_close = output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".pdf)";
-  c1->Print(out_pdf_close, "pdf");
+
+  c1.cd(4);
+  TPaveText *pt = new TPaveText(.05, .1, .95, .8);
+
+  pt->AddText(Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
+  pt->AddText(Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
+  pt->AddText(Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
+  pt->AddText("Calibration file " + output_filename);
+  pt->AddText(Form("Board: %i \t Side: %i", board, side));
+  pt->Draw();
+
+  if (board == 0 && !last_board)
+  {
+    c1.SetGrid();
+    c1.Print(output_filename + ".pdf(", "pdf");
+  }
+  else if (last_board)
+  {
+    c1.Print(output_filename + ".pdf)", "pdf");
+  }
+  else
+  {
+    c1.Print(output_filename + ".pdf", "pdf");
+  }
 
   cout << "\tMean pedestal \t Mean RSigma \t Mean Sigma \t Max Sigma " << endl;
   cout << Form("\t%f \t %f \t %f \t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << endl;
@@ -544,7 +554,7 @@ int main(int argc, char *argv[])
   }
 
   int detectors = 0;
-  int board_num = 0;
+  int detector_num = 0;
   int ladder_side = 0;
 
   // Join ROOTfiles in a single chain
@@ -560,25 +570,30 @@ int main(int argc, char *argv[])
     remove(output_filename + ".cal");
   }
 
+  TCanvas *c1 = new TCanvas("calibration", "Canvas", 1920, 1080);
+  c1->Divide(2, 2);
+
+  TFile tempfile(opt->getArgv(0));
+  TIter list(tempfile.GetListOfKeys());
+  TKey *key;
+  while ((key = (TKey *)list()))
+  {
+    if (!strcmp(key->GetClassName(), "TTree"))
+    {
+      detectors++;
+    }
+  }
+  std::cout << "File with " << detectors << " detector(s)" << std::endl;
+  if (detectors == 1)
+    newDAQ = false;
+
   if (!newDAQ)
   {
-    compute_calibration(*chain, output_filename, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file);
+    compute_calibration(*chain, output_filename, *c1, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file, true);
   }
   else
   {
     std::cout << "\nNEW DAQ FILE" << std::endl;
-
-    TFile tempfile(opt->getArgv(0));
-    TIter list(tempfile.GetListOfKeys());
-    TKey *key;
-    while ((key = (TKey *)list()))
-    {
-      if (!strcmp(key->GetClassName(), "TTree"))
-      {
-        detectors++;
-      }
-    }
-    std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
     TTree *T;
     TIter list2(tempfile.GetListOfKeys());
@@ -592,9 +607,15 @@ int main(int argc, char *argv[])
         {
           chain2->Add(opt->getArgv(ii));
         }
-
-        compute_calibration(*chain2, output_filename, sigmaraw_cut, sigma_cut, board_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file);
-        board_num++;
+        if (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1)
+        {
+          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, true);
+        }
+        else
+        {
+          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, false);
+        }
+        detector_num++;
         if (ladder_side == 0)
         {
           ladder_side = 1;
