@@ -312,6 +312,18 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
   std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
 
+  bool BL_monster = false;
+  if (atoi(opt->getValue("version")) == 2023 || atoi(opt->getValue("version")) == 2024)
+  {
+    AMS = true;
+    //cout << "AMS is " << AMS << endl;
+    if (atoi(opt->getValue("version")) == 2024)
+    {
+      BL_monster = true;
+      //cout << "BL_monster is " << BL_monster << endl;
+    }
+  }
+
   for (int index_event = first_event; index_event < entries; index_event++) // looping on the events
   {
     chain->GetEntry(index_event);
@@ -476,6 +488,14 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
         std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
 
       hHighest->Fill(*max_element(signal.begin(), signal.end()));
+
+      // if it's BL_monster we keep only channels 320-383, 448-639, deleting the others from the vector
+      if (BL_monster)
+      {
+        signal.erase(signal.begin(), signal.begin() + 320);
+        signal.erase(signal.begin() + 64, signal.begin() + 128);
+        signal.erase(signal.begin() + 256, signal.end());
+      }
 
       result = clusterize_event(&cal, &signal, highthreshold, lowthreshold, // clustering function
                                 symmetric, symmetricwidth, absolute, board, side, verb);
@@ -782,6 +802,7 @@ int main(int argc, char *argv[])
   opt->addUsage("                   ................................. 2021 for PAN StripX");
   opt->addUsage("                   ................................. 2022 for PAN StripY");
   opt->addUsage("                   ................................. 2023 for AMSL0");
+  opt->addUsage("                   ................................. 2024 for AMSL0 BabyLong Monster");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
   opt->addUsage("  --dynped         ................................. Enable dynamic pedestals ");
@@ -884,7 +905,16 @@ int main(int argc, char *argv[])
     minStrip = 0;
     maxStrip = 1023;
     sensor_pitch = 0.109;
-    maxADC_h = 30000;
+    maxADC_h = 2000;
+  }
+  else if (atoi(opt->getValue("version")) == 2024) // AMSL0 BL Monster
+  {
+    NChannels = 1024;
+    NVas = 16;
+    minStrip = 0;
+    maxStrip = 1023;
+    sensor_pitch = 0.109;
+    maxADC_h = 500;
   }
   else
   {
