@@ -3,7 +3,9 @@ Software for MSD data analysis
 
 ###### Root 6 with C++14 support needed (to compile, *make + executable name* or *make all*):
 
-**miniTRB_compress, FOOT_compress and PAPERO_compress:** to compress binary raw data into rootfiles
+**miniTRB_convert, FOOT_convert, PAPERO_convert and AMS_convert:** to compress binary raw data into rootfiles
+
+**PAPERO_info:** to retrieve info from PAPERO event headers
 
 **raw_clusterize:** to find clusters from compressed data
 
