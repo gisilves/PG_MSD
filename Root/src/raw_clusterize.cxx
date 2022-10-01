@@ -266,14 +266,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   std::vector<unsigned int> *raw_event = 0; // buffer vector for the raw event in the TTree
   TBranch *RAW = 0;
 
-  if (board == 0 && side == 0)
-  {
-    chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
-  }
-  else
-  {
-    chain->SetBranchAddress((TString) "RAW Event " + alphabet.at(2 * board + side), &raw_event, &RAW);
-  }
+  chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
 
   std::vector<cluster> result; // Vector of resulting clusters
 

@@ -43,14 +43,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  if (board == 0 && side == 0)
-  {
-    chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
-  }
-  else
-  {
-    chain.SetBranchAddress((TString) "RAW Event " + alphabet.at(2 * board + side), &raw_event, &RAW);
-  }
+  chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
 
   chain.GetEntry(0);
   int NChannels = raw_event->size();
