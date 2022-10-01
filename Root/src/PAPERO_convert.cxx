@@ -130,8 +130,7 @@ int main(int argc, char *argv[])
         {
             ttree_name = (TString) "raw_events_" + alphabet.at(detector);
             raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            ttree_name = (TString) "RAW Event " + alphabet.at(detector);
-            raw_events_tree.at(detector)->Branch(ttree_name, &raw_event_vector.at(detector));
+            raw_events_tree.at(detector)->Branch("RAW Event", &raw_event_vector.at(detector));
             raw_events_tree.at(detector)->SetAutoSave(0);
         }
     }
