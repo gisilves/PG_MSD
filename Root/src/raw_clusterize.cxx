@@ -13,6 +13,8 @@
 #include <vector>
 #include <cmath>
 
+#include "TTreeReader.h"
+
 #include "anyoption.h"
 #include "event.h"
 
@@ -266,7 +268,14 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   std::vector<unsigned int> *raw_event = 0; // buffer vector for the raw event in the TTree
   TBranch *RAW = 0;
 
-  chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+  if(side == 0)
+  {
+    chain->SetBranchAddress("RAW Event J5", &raw_event, &RAW);
+  }
+  else
+  {
+    chain->SetBranchAddress("RAW Event J7", &raw_event, &RAW);
+  }
 
   std::vector<cluster> result; // Vector of resulting clusters
 
@@ -642,31 +651,31 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hNclus->Write();
   delete hNclus;
 
-  Double_t norm = hADCCluster->GetEntries();
-  hADCCluster->Scale(1 / norm);
+ // Double_t norm = hADCCluster->GetEntries();
+ // hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
   delete hADCCluster;
 
   hHighest->Write();
   delete hHighest;
 
-  norm = hADCClusterEdge->GetEntries();
-  hADCClusterEdge->Scale(1 / norm);
+ // norm = hADCClusterEdge->GetEntries();
+ // hADCClusterEdge->Scale(1 / norm);
   hADCClusterEdge->Write();
   delete hADCClusterEdge;
 
-  norm = hADCCluster1Strip->GetEntries();
-  hADCCluster1Strip->Scale(1 / norm);
+ // norm = hADCCluster1Strip->GetEntries();
+ // hADCCluster1Strip->Scale(1 / norm);
   hADCCluster1Strip->Write();
   delete hADCCluster1Strip;
 
-  norm = hADCCluster2Strip->GetEntries();
-  hADCCluster2Strip->Scale(1 / norm);
+  //norm = hADCCluster2Strip->GetEntries();
+ // hADCCluster2Strip->Scale(1 / norm);
   hADCCluster2Strip->Write();
   delete hADCCluster2Strip;
 
-  norm = hADCClusterManyStrip->GetEntries();
-  hADCClusterManyStrip->Scale(1 / norm);
+  //norm = hADCClusterManyStrip->GetEntries();
+  //hADCClusterManyStrip->Scale(1 / norm);
   hADCClusterManyStrip->Write();
   delete hADCClusterManyStrip;
 
@@ -1016,6 +1025,15 @@ int main(int argc, char *argv[])
   tempfile.Close();
   std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
+  //Beam Profile 2D Histos
+  TH2F *h2D_Cog[detectors/2];
+  for (int i = 0; i < detectors/2; i++)
+  {
+    h2D_Cog[i] = new TH2F(Form("h2D_Cog_board_%d", i), Form("h2D_Cog_board_%d", i), (maxStrip-minStrip)/10, minStrip, maxStrip, (maxStrip-minStrip)/10, minStrip, maxStrip);
+    h2D_Cog[i]->GetXaxis()->SetTitle("J5");
+    h2D_Cog[i]->GetYaxis()->SetTitle("J7");
+  }
+
   // TFile *foutput = new TFile(output_filename + "_board" + std::to_string(board) + "_side" + std::to_string(side) + ".root", "RECREATE");
   TFile *foutput = new TFile(output_filename + ".root", "RECREATE");
   foutput->cd();
@@ -1056,7 +1074,32 @@ int main(int argc, char *argv[])
                           symmetric, symmetricwidth,
                           sensor_pitch,
                           atoi(opt->getValue("version")) == 2023);
+
+      // Fill 2D Beam Profile Histos
+      TTreeReader j5Reader((TString)"board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
+      TTreeReaderValue<std::vector<cluster>> j5Clusters(j5Reader, "clusters");
+      TTreeReader j7Reader((TString)"board_" + i + "_side_1/t_clusters_board_" + i + "_side_1", foutput);
+      TTreeReaderValue<std::vector<cluster>> j7Clusters(j7Reader, "clusters");
+
+      while (j5Reader.Next())
+      {
+        j7Reader.Next();
+        for (int j = 0; j < (*j5Clusters).size(); j++)
+        {
+          for (int k = 0; k < (*j7Clusters).size(); k++)
+          {
+            h2D_Cog[i]->Fill(GetClusterCOG((*j5Clusters)[j]), GetClusterCOG((*j7Clusters)[k]));
+          }
+        }
+      }
     }
+  }
+
+  // Write 2D Beam Profile Histos
+  foutput->cd();
+  for (int i = 0; i < detectors/2; i++)
+  {
+    h2D_Cog[i]->Write();
   }
 
   foutput->Close();
