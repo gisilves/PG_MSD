@@ -43,7 +43,19 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
+  if(side == 0)
+  {
+    chain.SetBranchAddress("RAW Event J5", &raw_event, &RAW);
+  }
+  else if(side == 1)
+  {
+    chain.SetBranchAddress("RAW Event J7", &raw_event, &RAW);
+  }
+  else
+  {
+    std::cout << "Side must be 0 or 1" << std::endl;
+    return 1;
+  }
 
   chain.GetEntry(0);
   int NChannels = raw_event->size();
