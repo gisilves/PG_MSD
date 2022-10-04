@@ -20,7 +20,7 @@
 
 AnyOption *opt; // Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false)
+int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -43,11 +43,11 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  if(side == 0)
+  if (side == 0)
   {
     chain.SetBranchAddress("RAW Event J5", &raw_event, &RAW);
   }
-  else if(side == 1)
+  else if (side == 1)
   {
     chain.SetBranchAddress("RAW Event J7", &raw_event, &RAW);
   }
@@ -272,6 +272,12 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   TAxis *axis2 = gr2->GetXaxis();
   axis2->SetLimits(0, NChannels);
   axis2->SetNdivisions(NVas, false);
+  if(max_ADC != -1)
+  {
+    TAxis *axis2y = gr2->GetYaxis();
+    axis2y->SetRangeUser(0, max_ADC);
+  }
+
   c1.cd(2);
   gPad->SetGrid();
   gr2->SetMarkerSize(0.8);
@@ -404,6 +410,12 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   TAxis *axis3 = gr3->GetXaxis();
   axis3->SetLimits(0, NChannels);
   axis3->SetNdivisions(NVas, false);
+  if(max_ADC != -1)
+  {
+    TAxis *axis3y = gr3->GetYaxis();
+    axis3y->SetRangeUser(0, max_ADC);
+  }
+
   c1.cd(3);
   gPad->SetGrid();
   gr3->SetMarkerSize(0.8);
@@ -458,6 +470,7 @@ int main(int argc, char *argv[])
   bool fast_mode = false;
   bool fit_mode = false;
   bool single_file = true;
+  int max_ADC = -1;
 
   float sigmaraw_cut = 15;
   float sigma_cut = 10;
@@ -482,6 +495,7 @@ int main(int argc, char *argv[])
   opt->addUsage("  --fast           ................................. no info prompt");
   opt->addUsage("  --minitrb        ................................. For files acquired with the miniTRB");
   opt->addUsage("  --fit            ................................. Compute calibration parameters with gaussian fits");
+  opt->addUsage("  --max_ADC        ................................. Maximum ADC value for noise plots");
   opt->setFlag("help", 'h');
   opt->setFlag("minitrb");
   opt->setFlag("verbose", 'v');
@@ -489,6 +503,7 @@ int main(int argc, char *argv[])
   opt->setFlag("pdf");
   opt->setFlag("fast");
   opt->setFlag("fit");
+  opt->setOption("max_ADC");
 
   opt->setOption("output");
   opt->setOption("cn");
@@ -557,6 +572,9 @@ int main(int argc, char *argv[])
     std::cout << "Error: no output file" << std::endl;
     return 2;
   }
+  
+  if (opt->getValue("max_ADC"))
+    max_ADC = atoi(opt->getValue("max_ADC"));
 
   int detectors = 0;
   int detector_num = 0;
@@ -594,7 +612,7 @@ int main(int argc, char *argv[])
 
   if (!newDAQ)
   {
-    compute_calibration(*chain, output_filename, *c1, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file, true);
+    compute_calibration(*chain, output_filename, *c1, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC);
   }
   else
   {
@@ -614,11 +632,11 @@ int main(int argc, char *argv[])
         }
         if (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1)
         {
-          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, true);
+          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC);
         }
         else
         {
-          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, false);
+          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, false, max_ADC);
         }
         detector_num++;
         if (ladder_side == 0)
