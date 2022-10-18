@@ -26,8 +26,7 @@
 #include <TGMsgBox.h>
 #include <TGPicture.h>
 
-#include "viewerGUI.hh"
-#include "event.h"
+#include "viewerGUI.h"
 
 #include <iostream>
 #include <fstream>
@@ -318,20 +317,18 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
+  int is_branch_valid = 0;  
 
-  if (detector == 0)
+  if (detector%2)
   {
-    chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+    chain->SetBranchAddress("RAW Event J7", &raw_event, &RAW);
   }
   else
   {
-    chain->SetBranchAddress((TString) "RAW Event " + alphabet.at(detector), &raw_event, &RAW);
+    chain->SetBranchAddress("RAW Event J5", &raw_event, &RAW);
   }
 
   chain->GetEntry(0);
-  // Read Calibration file
-  calib cal;
-  read_calib(calibfile, &cal, raw_event->size(), detector, false);
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
@@ -354,7 +351,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
 
     if (fPed->IsOn())
     {
-      signal = ADC - cal.ped[chan];
+      signal = ADC - calib_data[detector].ped[chan];
     }
     else
     {
@@ -417,19 +414,14 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
   int maxadc = -999;
   int minadc = 0;
 
-  calib cal;
-  bool good_calib = false;
-
-  good_calib = read_calib(calibfile, &cal, evt.size(), detector, false);
-
   gr_event->Set(0);
   double signal;
 
   for (int chan = 0; chan < evt.size(); chan++)
   {
-    if (fPed2->IsOn() && good_calib)
+    if (fPed2->IsOn() && calib_open)
     {
-      signal = evt[chan] - cal.ped[chan];
+      signal = evt[chan] - calib_data[detector].ped[chan];
     }
     else
     {
@@ -577,6 +569,8 @@ void MyMainFrame::DoOpenCalib()
   }
 
   dir = fi.fIniDir;
+
+  calib_data = read_calib_all((char *)(calibLabel->GetText())->GetString(), false);
 }
 
 void MyMainFrame::DoClose()
@@ -608,7 +602,7 @@ void MyMainFrame::DoStop()
 {
   // if the thread has been created and is running, kill it
   if (th1 && th1->GetState() == TThread::kRunningState)
-    th1->Kill();
+    th1->Join();
   fStatusBar2->LoadBuffer("Online monitoring stopped");
   fStart->SetState(kButtonUp);
 }

@@ -1,7 +1,11 @@
+#ifndef VIEWER_GUI_HH
+#define VIEWER_GUI_HH
+
 #include <TQObject.h>
 #include <RQ_OBJECT.h>
 #include "TGraph.h"
 #include "udpSocket.h"
+#include "event.h"
 
 class TGWindow;
 class TGMainFrame;
@@ -42,6 +46,8 @@ private:
   bool calib_open = false;
   int boards = 1;
 
+  std::vector<calib> calib_data;
+
   // UDP server to on-line monitor
   std::string kUdpAddr = "localhost"; //!< UDP Server address (x.x.x.x format)
   int kUdpPort = 8890;                //!< UDP server port
@@ -65,3 +71,5 @@ public:
   void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);
   ClassDef(MyMainFrame, 0)
 };
+
+#endif
