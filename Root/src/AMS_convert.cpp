@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
     foutput->SetCompressionAlgorithm(ROOT::kZLIB);
 
     TTree *raw_events_tree = new TTree("raw_events", "raw_events");
-    raw_events_tree->Branch("RAW Event", &raw_event_buffer);
+    raw_events_tree->Branch("RAW Event J5", &raw_event_buffer);
     raw_events_tree->SetAutoSave(0);
     for (auto &evt : signals_by_ev)
     {

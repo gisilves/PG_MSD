@@ -12,7 +12,7 @@
 #include <TGClient.h>
 #include <TGMsgBox.h>
 #include "TSystem.h"
-#include "biascontrolPI.hh"
+#include "biascontrolPI.h"
 
 #include "HV_manager.c"
 

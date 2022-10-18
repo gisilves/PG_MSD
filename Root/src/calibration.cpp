@@ -34,7 +34,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
     {
       root_filename = output_filename + ".root";
     }
-    foutput = new TFile(root_filename.Data(), "RECREATE");
+    foutput = new TFile(root_filename.Data(), "UPDATE");
     foutput->cd();
   }
 

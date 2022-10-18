@@ -12,7 +12,7 @@
 #include <TGClient.h>
 #include <TGMsgBox.h>
 #include "TSystem.h"
-#include "biascontrol.hh"
+#include "biascontrol.h"
 
 #include <iostream>
 #include <fstream>
