@@ -6,6 +6,7 @@
 #include "TGraph.h"
 #include "udpSocket.h"
 #include "event.h"
+#include <thread>
 
 class TGWindow;
 class TGMainFrame;
@@ -53,7 +54,8 @@ private:
   int kUdpPort = 8890;                //!< UDP server port
   udpServer *omServer;
 
-  TThread *th1 = 0;
+  std::thread th1;
+  bool running = false;
 
 public:
   MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h);
@@ -65,7 +67,7 @@ public:
   void DoStart();
   void DoStop();
   void DoGetUDP();
-  static void *JobThread(void *arg);
+  void JobThread();
   void DoOpenCalib();
   void DoOpenCalibOnly();
   void viewer(int evt, int detector, char filename[200], char calibfile[200], int boards);

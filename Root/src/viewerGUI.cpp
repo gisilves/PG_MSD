@@ -7,7 +7,6 @@
 #include "TGTab.h"
 #include "TApplication.h"
 #include "TSystem.h"
-#include "TThread.h"
 
 #include <TCanvas.h>
 #include <TColor.h>
@@ -33,6 +32,16 @@
 #include <string>
 
 template <typename T>
+void print(std::vector<T> const &v)
+{
+    for (auto i : v)
+    {
+        std::cout << std::hex << i << ' ' << std::endl;
+    }
+    std::cout << '\n';
+}
+
+template <typename T>
 std::vector<T> reorder(std::vector<T> const &v)
 {
   std::vector<T> reordered_vec(v.size());
@@ -56,8 +65,6 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   gROOT->ProcessLine("gErrorIgnoreLevel = 2022;");
   // On-line monitor with UDP server
   omServer = new udpServer(kUdpAddr, kUdpPort);
-  // create the thread for the job
-  th1 = new TThread("th1", JobThread, this);
   gr_event = new TGraph();
 
   newDAQ = false;
@@ -428,16 +435,10 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
       signal = evt[chan];
     }
 
-    if (signal > maxadc)
-      maxadc = signal;
-    if (signal < minadc)
-      minadc = signal;
-
     gr_event->SetPoint(gr_event->GetN(), chan, signal);
   }
   gr_event->GetXaxis()->SetNdivisions((evt.size() - 1) / 64, false);
   gr_event->GetXaxis()->SetRangeUser(0, evt.size() - 1);
-  gr_event->Draw("*lSAME");
   gr_event->Draw();
 }
 
@@ -593,16 +594,19 @@ void MyMainFrame::DoStart()
   fEcanvas->GetCanvas()->Clear();
   fEcanvas->GetCanvas()->SetFrameLineColor(kBlack);
   // if the thread has been created and is not running, start it
-  if (th1 && th1->GetState() != TThread::kRunningState)
-    th1->Run();
+  running = true;
+  // create the thread for the job
+  th1 = std::thread(&MyMainFrame::JobThread, this);
   fStart->SetState(kButtonDisabled);
 }
 
 void MyMainFrame::DoStop()
 {
-  // if the thread has been created and is running, kill it
-  if (th1 && th1->GetState() == TThread::kRunningState)
-    th1->Join();
+  running = false;
+  if (th1.joinable())
+  {
+    th1.join();
+  }
   fStatusBar2->LoadBuffer("Online monitoring stopped");
   fStart->SetState(kButtonUp);
 }
@@ -611,7 +615,8 @@ void MyMainFrame::DoGetUDP()
 {
   uint32_t header;
   omServer->Rx(&header, sizeof(header));
-  // std::cout << "header: " << std::hex << header << std::endl;
+  std::cout << "header: " << std::hex << header << std::endl;
+  
   if (header != 0xfa4af1ca)
   {
     std::cout << "ERROR: header is not correct, skipping packet" << std::endl;
@@ -672,18 +677,14 @@ void MyMainFrame::DoGetUDP()
   }
 }
 
-void *MyMainFrame::JobThread(void *arg)
+void MyMainFrame::JobThread()
 {
-  TThread::SetCancelOn(); // to allow to terminate (kill) the thread
-  MyMainFrame *fMain = (MyMainFrame *)arg;
-  int i = 0;
-  while (1)
+  while(running)
   {
-    TThread::Sleep(0, 1e7);
-    fMain->DoGetUDP();
-    i++;
+    usleep(10000);
+    DoGetUDP();
   }
-  return 0;
+  return;
 }
 
 MyMainFrame::~MyMainFrame()
