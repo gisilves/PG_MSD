@@ -6,8 +6,108 @@
 #include <tuple>
 #include <unistd.h>
 #include <iostream>
+#include <time.h>
 
 // for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
+
+int seek_file_header(std::fstream &file, unsigned int offset, bool verbose)
+{
+  uint32_t file_known_word = 0xB01ADEEE;
+  bool found = false;
+
+  unsigned char buffer[4];
+  unsigned int val;
+
+  while (!found && !file.eof())
+  {
+    file.seekg(offset);
+    file.read(reinterpret_cast<char *>(&buffer), 4);
+    val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+    if (val == file_known_word)
+    {
+      found = true;
+      if (verbose)
+      {
+        std::cout << "Found file header at offset " << offset << std::endl;
+      }
+    }
+    else
+    {
+      offset += 4;
+    }
+  }
+
+  if (!found)
+  {
+    if (verbose)
+    {
+      std::cout << "Can't find file header in the file" << std::endl;
+    }
+    return -999;
+  }
+  else
+  {
+    return offset;
+  }
+}
+
+std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> read_file_header(std::fstream &file, unsigned int offset, bool verbose)
+{
+  unsigned char buffer[4];
+  uint32_t unix_time;
+  uint32_t maka_hash;
+  uint16_t type;
+  uint16_t version;
+  uint16_t n_detectors;
+  std::vector<uint16_t> detector_ids;
+  
+  file.seekg(offset + 4);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  unix_time = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  // convert unix time to date
+  time_t rawtime = unix_time;
+  struct tm *timeinfo;
+  timeinfo = localtime(&rawtime);
+  char date[80];
+  strftime(date, 80, "%Y-%m-%d %H:%M:%S", timeinfo);
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  maka_hash = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+  file.read(reinterpret_cast<char *>(&buffer), 2);
+  n_detectors = buffer[0] | buffer[1] << 8;
+
+  file.read(reinterpret_cast<char *>(&buffer), 2);
+  version = ((buffer[0] | buffer[1] << 8) & 0x0FFF);
+
+  type = ((buffer[0] | buffer[1] << 8) & 0xF000) >> 12;
+
+  if (verbose)
+  {
+    std::cout << "File header: " << std::endl;
+    std::cout << "\tunix_time: " << unix_time << std::endl;
+    std::cout << "\t\tdate: " << date << std::endl;
+    std::cout << "\tmaka_hash: " << maka_hash << std::endl;
+    std::cout << "\tn_detectors: " << n_detectors << std::endl;
+    std::cout << "\tversion: " << hex << version << std::endl;
+    std::cout << "\ttype: " << type << std::endl;
+  }
+
+  for (int i = 0; i < n_detectors; i++)
+  {
+    file.read(reinterpret_cast<char *>(&buffer), 2);
+    detector_ids.push_back(buffer[0] | buffer[1] << 8);
+  }
+
+  if (n_detectors % 2)
+  {
+    //move 2 bits ahead in file
+    file.seekg(2, std::ios_base::cur);
+  }
+
+  return std::make_tuple(true, unix_time, maka_hash, type, version, n_detectors, detector_ids, file.tellg());
+}
 
 int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
 {
@@ -30,7 +130,7 @@ int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
       found = true;
       if (verbose)
       {
-        std::cout << "Found header at offset " << offset << std::endl;
+        std::cout << "Found maka header at offset " << offset << std::endl;
       }
     }
     else
@@ -53,11 +153,16 @@ int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
 {
-  unsigned int header;
+  uint32_t header;
   unsigned char buffer[4];
-  unsigned int val;
+  uint32_t val;
+  uint32_t lenght_in_bytes;
+  uint32_t evt_number;
+  uint16_t n_detectors;
+  uint16_t status;
+  uint16_t type;
 
   header = 0xcaf14afa;
 
@@ -71,7 +176,6 @@ bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
     {
       std::cout << "Evt header is present " << std::endl;
     }
-    return true;
   }
   else
   {
@@ -80,8 +184,33 @@ bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
       std::cout << "Can't find event header"
                 << " at offset " << offset << std::endl;
     }
-    return false;
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1);
   }
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  lenght_in_bytes = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  evt_number = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+
+  file.read(reinterpret_cast<char *>(&buffer), 2);
+  n_detectors = buffer[0] | buffer[1] << 8;
+
+  file.read(reinterpret_cast<char *>(&buffer), 2);
+  status = ((buffer[0] | buffer[1] << 8) & 0x0FFF);
+  type = ((buffer[0] | buffer[1] << 8) & 0xF000) >> 12;
+
+  if (verbose)
+  {
+    std::cout << "MAKA header: " << std::endl;
+    std::cout << "\tlenght_in_bytes: " << dec << lenght_in_bytes << std::endl;
+    std::cout << "\tevt_number: " << evt_number << std::endl;
+    std::cout << "\tn_detectors: " << n_detectors << std::endl;
+    std::cout << "\tstatus: " << status << std::endl;
+    std::cout << "\ttype: " << type << std::endl;
+  }
+
+  return std::make_tuple(true, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
 }
 
 bool read_de10_footer(std::fstream &file, unsigned int offset, bool verbose)

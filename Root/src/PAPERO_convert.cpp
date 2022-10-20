@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
         {
             ttree_name = (TString) "raw_events_" + alphabet.at(detector);
             raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            if(detector%2)
+            if (detector % 2)
             {
                 raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
             }
@@ -142,40 +142,67 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Find if there is an offset before first event
-    unsigned int offset = 0;
-    offset = seek_first_evt_header(file, offset, verbose);
-    int padding_offset = 0;
-
-    // Read raw events and write to TTree
+    // Find if there is an offset before file header
     bool is_good = false;
+    bool gsi = false;
+    unsigned int offset = 0;
     int evtnum = 0;
     int evt_to_read = -1;
     int boards = 0;
-    bool gsi = false;
     unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
     int trigger_id = -1;
     int evt_size = 0;
+    int boards_read = 0;
     unsigned long timestamp = 0;
     unsigned long ext_timestamp = 0;
-    int boards_read = 0;
     float mean_rate = 0;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
-
     unsigned int old_offset = 0;
+    int padding_offset = 0;
     char dummy[100];
 
-    if (!opt->getValue("boards"))
+    std::vector<uint16_t> detector_ids;
+    std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
+    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
+
+    offset = seek_file_header(file, offset, verbose);
+
+    if (offset != 0)
     {
-        std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
-        return 2;
+        std::cout << "WARNING: file header is not at offset 0" << std::endl;
     }
-    else
+
+    file_retValues = read_file_header(file, offset, verbose);
+    is_good = std::get<0>(file_retValues);
+    boards = std::get<5>(file_retValues);
+
+    // map detector_ids values to progrssive number from 0 to size of detector_ids
+    std::map<uint16_t, int> detector_ids_map;
+    detector_ids = std::get<6>(file_retValues);
+    for (size_t i = 0; i < detector_ids.size(); i++)
     {
-        boards = atoi(opt->getValue("boards"));
+        detector_ids_map[detector_ids.at(i)] = i;
     }
+
+    old_offset = std::get<7>(file_retValues);
+    offset = seek_first_evt_header(file, old_offset, verbose);
+
+    if (offset != old_offset)
+    {
+        std::cout << "WARNING: first evt header has a " << offset - old_offset << " delta value " << std::endl;
+    }
+
+    // if (!opt->getValue("boards"))
+    // {
+    //     std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
+    //     return 2;
+    // }
+    // else
+    // {
+    //     boards = atoi(opt->getValue("boards"));
+    // }
 
     if (opt->getValue("gsi"))
     {
@@ -194,84 +221,76 @@ int main(int argc, char *argv[])
         if (evt_to_read > 0 && evtnum == evt_to_read) // stop reading after the number of events specified
             break;
 
-        if (boards_read == 0)
-            if (!read_evt_header(file, offset, verbose)) // check for event header if this is the first board
-                break;
-
-        evt_retValues = read_de10_header(file, offset, verbose); // read de10 header
-        is_good = std::get<0>(evt_retValues);
-
-        if (is_good)
+        maka_retValues = read_evt_header(file, offset, verbose);
+        if (std::get<0>(maka_retValues))
         {
-            boards_read++;
-            evt_size = std::get<1>(evt_retValues);
-            fw_version = std::get<2>(evt_retValues);
-            trigger_number = std::get<3>(evt_retValues);
-            board_id = std::get<4>(evt_retValues);
-            timestamp = std::get<5>(evt_retValues);
-            ext_timestamp = std::get<6>(evt_retValues);
-            trigger_id = std::get<7>(evt_retValues);
-            offset = std::get<8>(evt_retValues);
+            offset = std::get<6>(maka_retValues);
+            for (size_t de10 = 0; de10 < std::get<3>(maka_retValues); de10++)
+            {
+                de10_retValues = read_de10_header(file, offset, verbose); // read de10 header
+                is_good = std::get<0>(de10_retValues);
 
-            std::cout << "\r\tReading event " << evtnum << std::flush;
-
-            if (verbose)
-            {
-                std::cout << "\tBoard ID " << board_id << std::endl;
-                std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
-                std::cout << "\tTrigger ID " << trigger_id << std::endl;
-                std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
-                std::cout << "\tEvt lenght: " << evt_size << std::endl;
-            }
-
-            if (fw_version == 0xffffffff9fd68b40)
-            {
-                // std::cout << "\tLADDERONE!!!" << std::endl;
-                padding_offset = 1024;
-                board_id = board_id - 300;
-                // std::cout << "\tFixed Board ID " << board_id << std::endl;
-                raw_event_buffer.clear();
-                raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose, false));
-            }
-            else
-            {
-                padding_offset = 0;
-                raw_event_buffer.clear();
-                raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
-            }
-
-            if (!gsi)
-            {
-                raw_event_vector.at(2 * board_id).clear();
-                raw_event_vector.at(2 * board_id + 1).clear();
-                raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
-                raw_events_tree.at(2 * board_id)->Fill();
-                raw_events_tree.at(2 * board_id + 1)->Fill();
-            }
-            else
-            {
-                for (int hole = 1; hole <= 10; hole++)
+                if (is_good)
                 {
-                    raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
-                }
-                raw_event_vector.at(2 * board_id).clear();
-                raw_event_vector.at(2 * board_id) = raw_event_buffer;
-                raw_events_tree.at(2 * board_id)->Fill();
-            }
+                    boards_read++;
+                    evt_size = std::get<1>(de10_retValues);
+                    fw_version = std::get<2>(de10_retValues);
+                    trigger_number = std::get<3>(de10_retValues);
+                    board_id = std::get<4>(de10_retValues);
+                    timestamp = std::get<5>(de10_retValues);
+                    ext_timestamp = std::get<6>(de10_retValues);
+                    trigger_id = std::get<7>(de10_retValues);
+                    offset = std::get<8>(de10_retValues);
 
-            if (boards_read == boards)
-            {
-                boards_read = 0;
-                evtnum++;
-                offset = (int)file.tellg() + padding_offset + 8;
-            }
-            else
-            {
-                offset = (int)file.tellg() + padding_offset + 4;
-                if (verbose)
-                {
-                    std::cout << "WARNING: not all boards were read" << std::endl;
+                    std::cout << "\r\tReading event " << evtnum << std::flush;
+
+                    if (verbose)
+                    {
+                        std::cout << "\tBoard ID " << board_id << std::endl;
+                        std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
+                        std::cout << "\tTrigger ID " << trigger_id << std::endl;
+                        std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
+                        std::cout << "\tEvt lenght: " << evt_size << std::endl;
+                    }
+
+                    if (fw_version == 0xffffffff9fd68b40)
+                    {
+                        // std::cout << "\tLADDERONE!!!" << std::endl;
+                        padding_offset = 1024;
+                        board_id = board_id - 300;
+                        // std::cout << "\tFixed Board ID " << board_id << std::endl;
+                        raw_event_buffer.clear();
+                        raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose, false));
+                    }
+                    else
+                    {
+                        padding_offset = 0;
+                        raw_event_buffer.clear();
+                        raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
+                    }
+
+                    if (!gsi)
+                    {
+                        raw_event_vector.at(2 * board_id).clear();
+                        raw_event_vector.at(2 * board_id + 1).clear();
+                        raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                        raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                        raw_events_tree.at(2 * board_id)->Fill();
+                        raw_events_tree.at(2 * board_id + 1)->Fill();
+                    }
+                    else
+                    {
+                        for (int hole = 1; hole <= 10; hole++)
+                        {
+                            raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
+                        }
+                        raw_event_vector.at(2 * board_id).clear();
+                        raw_event_vector.at(2 * board_id) = raw_event_buffer;
+                        raw_events_tree.at(2 * board_id)->Fill();
+                    }
+
+                    offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
+                    evtnum++;
                 }
             }
         }
