@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
     opt->addUsage("  -v, --verbose    ................................. Verbose ");
-    opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
+    opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected (for old data format)");
     opt->addUsage("  --nevents        ................................. Number of events to be read ");
     opt->addUsage("  --gsi            ................................. To convert data from GSI hybrids (10 ADC per detector)");
     opt->setOption("boards");
@@ -162,47 +162,61 @@ int main(int argc, char *argv[])
     int padding_offset = 0;
     char dummy[100];
 
+    bool is_new_format = false;
+
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> de10_retValues;
     std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
-    offset = seek_file_header(file, offset, verbose);
+    bool new_format = seek_file_header(file, offset, verbose);
+
+    if (new_format)
+    {
+        is_new_format = true;
+        std::cout << "New data format" << std::endl;
+        file_retValues = read_file_header(file, offset, verbose);
+        is_good = std::get<0>(file_retValues);
+        boards = std::get<5>(file_retValues);
+        // map detector_ids values to progrssive number from 0 to size of detector_ids
+        std::map<uint16_t, int> detector_ids_map;
+        detector_ids = std::get<6>(file_retValues);
+        for (size_t i = 0; i < detector_ids.size(); i++)
+        {
+            detector_ids_map[detector_ids.at(i)] = i;
+        }
+        old_offset = std::get<7>(file_retValues);
+        offset = seek_first_evt_header(file, old_offset, verbose);
+        if (offset != old_offset)
+        {
+            std::cout << "WARNING: first evt header has a " << offset - old_offset << " delta value " << std::endl;
+        }
+    }
+    else
+    {
+        std::cout << "No file header: assuming old data format" << std::endl;
+        is_new_format = false;
+        offset = 0;
+    }
 
     if (offset != 0)
     {
         std::cout << "WARNING: file header is not at offset 0" << std::endl;
     }
 
-    file_retValues = read_file_header(file, offset, verbose);
-    is_good = std::get<0>(file_retValues);
-    boards = std::get<5>(file_retValues);
-
-    // map detector_ids values to progrssive number from 0 to size of detector_ids
-    std::map<uint16_t, int> detector_ids_map;
-    detector_ids = std::get<6>(file_retValues);
-    for (size_t i = 0; i < detector_ids.size(); i++)
+    if (!is_new_format)
     {
-        detector_ids_map[detector_ids.at(i)] = i;
+        if (!opt->getValue("boards"))
+        {
+            std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
+            return 2;
+        }
+        else
+        {
+            boards = atoi(opt->getValue("boards"));
+        }
+        offset = seek_first_evt_header(file, 0, verbose);
     }
-
-    old_offset = std::get<7>(file_retValues);
-    offset = seek_first_evt_header(file, old_offset, verbose);
-
-    if (offset != old_offset)
-    {
-        std::cout << "WARNING: first evt header has a " << offset - old_offset << " delta value " << std::endl;
-    }
-
-    // if (!opt->getValue("boards"))
-    // {
-    //     std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
-    //     return 2;
-    // }
-    // else
-    // {
-    //     boards = atoi(opt->getValue("boards"));
-    // }
 
     if (opt->getValue("gsi"))
     {
