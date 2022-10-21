@@ -24,7 +24,7 @@ FOOT_convert: ./src/FOOT_convert.cpp
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 PAPERO_convert: ./src/PAPERO_convert.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) ./src/PAPERO.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 AMS_convert: ./src/AMS_convert.cpp
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)

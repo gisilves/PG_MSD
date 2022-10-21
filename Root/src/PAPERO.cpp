@@ -9,13 +9,13 @@
 #include <time.h>
 #include "PAPERO.h"
 
-bool seek_file_header(std::fstream &file, unsigned int offset, bool verbose)
+bool seek_file_header(std::fstream &file, uint32_t offset, bool verbose)
 {
   uint32_t file_known_word = 0xB01ADEEE;
   bool found = false;
 
   unsigned char buffer[4];
-  unsigned int val;
+  uint32_t val;
 
   file.seekg(offset);
   file.read(reinterpret_cast<char *>(&buffer), 4);
@@ -44,7 +44,7 @@ bool seek_file_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> read_file_header(std::fstream &file, unsigned int offset, bool verbose)
+std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> read_file_header(std::fstream &file, uint32_t offset, bool verbose)
 {
   unsigned char buffer[4];
   uint32_t unix_time;
@@ -101,13 +101,13 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<u
   return std::make_tuple(true, unix_time, maka_hash, type, version, n_detectors, detector_ids, file.tellg());
 }
 
-int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+int seek_first_evt_header(std::fstream &file, uint32_t offset, bool verbose)
 {
-  unsigned int header;
+  uint32_t header;
   bool found = false;
 
   unsigned char buffer[4];
-  unsigned int val;
+  uint32_t val;
 
   header = 0xcaf14afa;
 
@@ -145,7 +145,7 @@ int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose)
 {
   uint32_t header;
   unsigned char buffer[4];
@@ -205,11 +205,11 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> rea
   return std::make_tuple(true, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
 }
 
-bool read_old_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+bool read_old_evt_header(std::fstream &file, uint32_t offset, bool verbose)
 {
-  unsigned int header;
+  uint32_t header;
   unsigned char buffer[4];
-  unsigned int val;
+  uint32_t val;
 
   header = 0xcaf14afa;
 
@@ -236,11 +236,11 @@ bool read_old_evt_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-bool read_de10_footer(std::fstream &file, unsigned int offset, bool verbose)
+bool read_de10_footer(std::fstream &file, uint32_t offset, bool verbose)
 {
-  unsigned int footer;
+  uint32_t footer;
   unsigned char buffer[4];
-  unsigned int val;
+  uint32_t val;
 
   footer = 0xcefaed0b;
 
@@ -266,24 +266,24 @@ bool read_de10_footer(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, unsigned int offset, bool verbose)
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, bool verbose)
 {
   unsigned char buffer[4];
 
-  unsigned long evt_lenght = 0;
-  unsigned long fw_version = 0;
-  unsigned long trigger = 0;
-  unsigned long board_id = 0;
-  unsigned long trigger_id = 0;
+  uint32_t evt_lenght = 0;
+  uint32_t fw_version = 0;
+  uint32_t trigger = 0;
+  uint32_t board_id = 0;
+  uint32_t trigger_id = 0;
   uint32_t timestamp_part = 0;
   uint64_t timestamp = 0UL;
   uint32_t ext_timestamp_part = 0;
   uint64_t ext_timestamp = 0UL;
-  unsigned long val = 0;
+  uint32_t val = 0;
   bool found = false;
-  unsigned int original_offset = offset;
+  uint32_t original_offset = offset;
 
-  unsigned long long header = 0xffffffffbaba1a9a;
+  uint32_t long header = 0xffffffffbaba1a9a;
 
   char dummy[100];
 
@@ -374,7 +374,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);
 }
 
-std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose, bool astra)
+std::vector<uint32_t> read_event(std::fstream &file, uint32_t offset, int event_size, bool verbose, bool astra)
 {
 
   file.seekg(offset + 36);
@@ -386,10 +386,10 @@ std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, in
   event_size = event_size * 2;
 
   unsigned char buffer[4];
-  unsigned int val1;
-  unsigned int val2;
+  uint32_t val1;
+  uint32_t val2;
 
-  std::vector<unsigned int> event;
+  std::vector<uint32_t> event;
 
   for (size_t i = 0; i < event_size; i = i + 2)
   {

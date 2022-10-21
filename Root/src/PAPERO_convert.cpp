@@ -111,11 +111,11 @@ int main(int argc, char *argv[])
     foutput->SetCompressionAlgorithm(ROOT::kZLIB);
 
     // Initialize TTree(s)
-    std::vector<unsigned int> raw_event_buffer;
+    std::vector<uint32_t> raw_event_buffer;
 
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
     std::vector<TTree *> raw_events_tree(max_detectors);
-    std::vector<std::vector<unsigned int>> raw_event_vector(max_detectors);
+    std::vector<std::vector<uint32_t>> raw_event_vector(max_detectors);
     TString ttree_name;
 
     for (size_t detector = 0; detector < max_detectors; detector++)
@@ -145,28 +145,28 @@ int main(int argc, char *argv[])
     // Find if there is an offset before file header
     bool is_good = false;
     bool gsi = false;
-    unsigned int offset = 0;
     int evtnum = 0;
     int evt_to_read = -1;
     int boards = 0;
-    unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
     int trigger_id = -1;
     int evt_size = 0;
     int boards_read = 0;
-    unsigned long timestamp = 0;
-    unsigned long ext_timestamp = 0;
-    float mean_rate = 0;
-    unsigned int old_offset = 0;
+    uint32_t offset = 0;
+    uint32_t fw_version = 0;
+    uint32_t timestamp = 0;
+    uint32_t ext_timestamp = 0;
+    uint32_t old_offset = 0;
     int padding_offset = 0;
     char dummy[100];
+    float mean_rate = 0;
 
     bool is_new_format = false;
 
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
@@ -287,8 +287,8 @@ int main(int argc, char *argv[])
                     {
                         raw_event_vector.at(2 * board_id).clear();
                         raw_event_vector.at(2 * board_id + 1).clear();
-                        raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                        raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                        raw_event_vector.at(2 * board_id) = std::vector<uint32_t>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                        raw_event_vector.at(2 * board_id + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                         raw_events_tree.at(2 * board_id)->Fill();
                         raw_events_tree.at(2 * board_id + 1)->Fill();
                     }
