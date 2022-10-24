@@ -163,6 +163,7 @@ int main(int argc, char *argv[])
     float mean_rate = 0;
 
     bool is_new_format = false;
+    std::map<uint16_t, int> detector_ids_map;
 
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
@@ -180,7 +181,6 @@ int main(int argc, char *argv[])
         boards = std::get<5>(file_retValues);
 
         // map detector_ids values to progressive number from 0 to size of detector_ids
-        std::map<uint16_t, int> detector_ids_map;
         detector_ids = std::get<6>(file_retValues);
         for (size_t i = 0; i < detector_ids.size(); i++)
         {
@@ -292,12 +292,12 @@ int main(int argc, char *argv[])
 
                     if (!gsi)
                     {
-                        raw_event_vector.at(2 * board_id).clear();
-                        raw_event_vector.at(2 * board_id + 1).clear();
-                        raw_event_vector.at(2 * board_id) = std::vector<uint32_t>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                        raw_event_vector.at(2 * board_id + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
-                        raw_events_tree.at(2 * board_id)->Fill();
-                        raw_events_tree.at(2 * board_id + 1)->Fill();
+                        raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
+                        raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1).clear();
+                        raw_event_vector.at(2 * detector_ids_map.at(board_id)) = std::vector<uint32_t>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                        raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                        raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
+                        raw_events_tree.at(2 * detector_ids_map.at(board_id) + 1)->Fill();
                     }
                     else
                     {
@@ -305,9 +305,9 @@ int main(int argc, char *argv[])
                         {
                             raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
                         }
-                        raw_event_vector.at(2 * board_id).clear();
-                        raw_event_vector.at(2 * board_id) = raw_event_buffer;
-                        raw_events_tree.at(2 * board_id)->Fill();
+                        raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
+                        raw_event_vector.at(2 * detector_ids_map.at(board_id)) = raw_event_buffer;
+                        raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
                     }
 
                     offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
