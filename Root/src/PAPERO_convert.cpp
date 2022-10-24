@@ -178,13 +178,15 @@ int main(int argc, char *argv[])
         file_retValues = read_file_header(file, offset, verbose);
         is_good = std::get<0>(file_retValues);
         boards = std::get<5>(file_retValues);
-        // map detector_ids values to progrssive number from 0 to size of detector_ids
+
+        // map detector_ids values to progressive number from 0 to size of detector_ids
         std::map<uint16_t, int> detector_ids_map;
         detector_ids = std::get<6>(file_retValues);
         for (size_t i = 0; i < detector_ids.size(); i++)
         {
             detector_ids_map[detector_ids.at(i)] = i;
         }
+
         old_offset = std::get<7>(file_retValues);
         offset = seek_first_evt_header(file, old_offset, verbose);
         if (offset != old_offset)
@@ -199,7 +201,7 @@ int main(int argc, char *argv[])
         offset = 0;
     }
 
-    if (offset != 0)
+    if (offset != 0 && verbose)
     {
         std::cout << "WARNING: file header is not at offset 0" << std::endl;
     }
@@ -227,14 +229,18 @@ int main(int argc, char *argv[])
     if (opt->getValue("nevents"))
     {
         evt_to_read = atoi(opt->getValue("nevents"));
+        std::cout << "\tReading " << evt_to_read << " events" << std::endl;
     }
 
     while (!file.eof())
-    {
+    {   
         is_good = false;
-        if (evt_to_read > 0 && evtnum == evt_to_read) // stop reading after the number of events specified
+        if (evtnum == evt_to_read)
+        {// stop reading after the number of events specified
+            std::cout << "Reached the number of events to read" << std::endl;
+            sleep(2);
             break;
-
+        }
         maka_retValues = read_evt_header(file, offset, verbose);
         if (std::get<0>(maka_retValues))
         {
@@ -267,7 +273,7 @@ int main(int argc, char *argv[])
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
                     }
 
-                    if (fw_version == 0xffffffff9fd68b40)
+                    if (fw_version == 0x9fd68b40)
                     {
                         // std::cout << "\tLADDERONE!!!" << std::endl;
                         padding_offset = 1024;

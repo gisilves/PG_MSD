@@ -715,8 +715,12 @@ void MyMainFrame::DoGetUDP()
   uint32_t word2;
   omServer->Rx(&word2, sizeof(word2));
 
-  uint32_t word3;
+  //should be number of detectors connected
+  uint16_t word3;
   omServer->Rx(&word3, sizeof(word3));
+
+  uint16_t word4;
+  omServer->Rx(&word4, sizeof(word4));
 
   omServer->Rx(evt.data(), 2600);
 
