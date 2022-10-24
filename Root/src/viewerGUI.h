@@ -30,18 +30,22 @@ class MyMainFrame
 private:
   TGMainFrame *fMain;
   TRootEmbeddedCanvas *fEcanvas;
-  TGNumberEntry *fNumber, *fNumber1, *fNumber2, *fNumber3;
+  TGNumberEntry *fNumberEvent, *fNumberDet, *fNumberBoard, *fNumberDetOM;
+  TGNumberEntry *fxmin, *fxmax, *fymin, *fymax, *fdivisions;
   TGHorizontalFrame *fHor_Buttons, *fHor_OM_Buttons;
   TGHorizontalFrame *fHor_Numbers, *fHor_Numbers_OM;
   TGHorizontalFrame *fHor_Pedestal, *fHor_Pedestal_OM;
   TGHorizontalFrame *fHor_Status, *fHor_Status_OM;
   TGHorizontalFrame *fHor_Files;
+  TGHorizontalFrame *fHor_Settings, *fHor_Settings2, *fHor_Settings3, *fHor_Settings4;
   TGTextButton *fExit, *fExit2, *fDraw, *fOpen, *fSave, *fOpenCalib, *fStart, *fStop;
   TGLabel *evtLabel, *fileLabel, *pedLabel, *detectorLabel, *detectorLabel2, *boardsLabel;
   TGLabel *calibLabel;
+  TGLabel *xminLabel, *xmaxLabel, *yminLabel, *ymaxLabel, *divisionsLabel;
   TGTextView *fStatusBar, *fStatusBar2;
   TGCheckButton *fPed, *fPed2;
   TGCheckButton *fShowAll;
+  TGCheckButton *fShowGrid;
   TGraph *gr_event;
   bool newDAQ = false;
   bool calib_open = false;
@@ -56,6 +60,11 @@ private:
 
   std::thread th1;
   bool running = false;
+
+  std::vector<uint32_t> evt;
+  std::vector<uint32_t> evt_buffer;
+  std::vector<uint32_t> detJ5;
+  std::vector<uint32_t> detJ7;
 
 public:
   MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h);

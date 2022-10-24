@@ -7,6 +7,7 @@
 #include "TGTab.h"
 #include "TApplication.h"
 #include "TSystem.h"
+#include "TStyle.h"
 
 #include <TCanvas.h>
 #include <TColor.h>
@@ -31,14 +32,16 @@
 #include <fstream>
 #include <string>
 
+#include <chrono>
+
 template <typename T>
 void print(std::vector<T> const &v)
 {
-    for (auto i : v)
-    {
-        std::cout << std::hex << i << ' ' << std::endl;
-    }
-    std::cout << '\n';
+  for (auto i : v)
+  {
+    std::cout << std::hex << i << ' ' << std::endl;
+  }
+  std::cout << '\n';
 }
 
 template <typename T>
@@ -66,6 +69,16 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   // On-line monitor with UDP server
   omServer = new udpServer(kUdpAddr, kUdpPort);
   gr_event = new TGraph();
+  gr_event->GetXaxis()->SetTitle("Strip number");
+  gr_event->GetYaxis()->SetTitle("ADC");
+  gr_event->GetYaxis()->SetTitleOffset(1.5);
+  gr_event->GetXaxis()->SetTitleFont(62);
+  gr_event->GetYaxis()->SetTitleFont(62);
+
+  gr_event->SetMarkerColor(kRed + 1);
+  gr_event->SetLineColor(kRed + 1);
+  gr_event->SetMarkerStyle(23);
+  gr_event->SetMarkerSize(0.5);
 
   newDAQ = false;
   boards = 1;
@@ -81,6 +94,8 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   // Create canvas widget
   fEcanvas = new TRootEmbeddedCanvas("Ecanvas", fMain, 1024, 800);
+  gStyle->SetCanvasPreferGL(kTRUE);
+
   fMain->AddFrame(fEcanvas, new TGLayoutHints(kLHintsExpandX | kLHintsExpandY, 10, 10, 10, 1));
   fMain->AddFrame(fTab, new TGLayoutHints(kLHintsExpandX, 2, 2, 5, 1));
 
@@ -111,15 +126,15 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   evtLabel = new TGLabel(fHor_Numbers, "Event Number:");
   fHor_Numbers->AddFrame(evtLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
-  fNumber->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor_Numbers->AddFrame(fNumber, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fNumberEvent = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
+  fNumberEvent->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
+  fHor_Numbers->AddFrame(fNumberEvent, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   detectorLabel = new TGLabel(fHor_Numbers, "Detector number:");
   fHor_Numbers->AddFrame(detectorLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber1 = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 6);
-  fNumber1->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor_Numbers->AddFrame(fNumber1, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
+  fNumberDet = new TGNumberEntry(fHor_Numbers, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 6);
+  fNumberDet->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
+  fHor_Numbers->AddFrame(fNumberDet, new TGLayoutHints(kLHintsCenterX, 5, 5, 5, 5));
 
   fPed = new TGCheckButton(fHor_Pedestal, "Pedestal subtraction");
   fHor_Pedestal->AddFrame(fPed, new TGLayoutHints(kLHintsExpandX | kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
@@ -152,14 +167,14 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   boardsLabel = new TGLabel(fHor_Numbers_OM, "Board number:");
   fHor_Numbers_OM->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber2 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
-  fHor_Numbers_OM->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+  fNumberBoard = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
+  fHor_Numbers_OM->AddFrame(fNumberBoard, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
 
   detectorLabel2 = new TGLabel(fHor_Numbers_OM, "Detector number:");
   fHor_Numbers_OM->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber3 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
-  fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor_Numbers_OM->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+  fNumberDetOM = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
+  fNumberDetOM->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
+  fHor_Numbers_OM->AddFrame(fNumberDetOM, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
 
   fHor_Pedestal_OM = new TGHorizontalFrame(tf, 1280, 20);
 
@@ -193,6 +208,46 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
   tf->AddFrame(fHor_Numbers_OM, new TGLayoutHints(kLHintsExpandY | kLHintsCenterX, 2, 2, 5, 1));
   tf->AddFrame(fHor_Pedestal_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
   tf->AddFrame(fHor_Status_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
+
+  tf = fTab->AddTab("Settings");
+  fHor_Settings = new TGHorizontalFrame(tf, 1280, 20);
+  xminLabel = new TGLabel(fHor_Settings, "Xmin:");
+  fHor_Settings->AddFrame(xminLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fxmin = new TGNumberEntry(fHor_Settings, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 0, 4096);
+  fxmin->SetNumber(-1);
+  fHor_Settings->AddFrame(fxmin, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+
+  xmaxLabel = new TGLabel(fHor_Settings, "Xmax:");
+  fHor_Settings->AddFrame(xmaxLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fxmax = new TGNumberEntry(fHor_Settings, 4096, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 0, 4096);
+  fxmax->SetNumber(-1);
+  fHor_Settings->AddFrame(fxmax, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+
+  fHor_Settings2 = new TGHorizontalFrame(tf, 1280, 20);
+
+  yminLabel = new TGLabel(fHor_Settings2, "Ymin:");
+  fHor_Settings2->AddFrame(yminLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fymin = new TGNumberEntry(fHor_Settings2, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 0, 4096);
+  fymin->SetNumber(-1);
+  fHor_Settings2->AddFrame(fymin, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+
+  ymaxLabel = new TGLabel(fHor_Settings2, "Ymax:");
+  fHor_Settings2->AddFrame(ymaxLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fymax = new TGNumberEntry(fHor_Settings2, 4096, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 0, 4096);
+  fymax->SetNumber(-1);
+  fHor_Settings2->AddFrame(fymax, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+
+  fHor_Settings3 = new TGHorizontalFrame(tf, 1280, 20);
+
+  divisionsLabel = new TGLabel(fHor_Settings3, "Divisions:");
+  fHor_Settings3->AddFrame(divisionsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
+  fdivisions = new TGNumberEntry(fHor_Settings3, 1, 10, -1, TGNumberFormat::kNESInteger, TGNumberFormat::kNEAAnyNumber, TGNumberFormat::kNELLimitMinMax, 1, 100);
+  fdivisions->SetNumber(-1);
+  fHor_Settings3->AddFrame(fdivisions, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
+
+  tf->AddFrame(fHor_Settings, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Settings2, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
+  tf->AddFrame(fHor_Settings3, new TGLayoutHints(kLHintsCenterX, 2, 2, 5, 1));
 
   fMain->SetCleanup(kDeepCleanup);
   fMain->SetWindowName("Microstrip Raw Event Viewer");
@@ -324,9 +379,9 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
-  int is_branch_valid = 0;  
+  int is_branch_valid = 0;
 
-  if (detector%2)
+  if (detector % 2)
   {
     chain->SetBranchAddress("RAW Event J7", &raw_event, &RAW);
   }
@@ -388,8 +443,9 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   frame->GetYaxis()->SetTitle("ADC");
 
   gr_event->SetMarkerSize(0.5);
-  gr_event->Draw("*lSAME");
-  gr_event->Draw();
+  gr_event->Draw("GL");
+  gSystem->ProcessEvents();
+
   TCanvas *fCanvas = fEcanvas->GetCanvas();
   fCanvas->SetGrid();
   fCanvas->cd();
@@ -407,46 +463,77 @@ void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::v
 
   gr_event->SetName("Event " + TGString(evtnum) + " Detector " + TGString(detector));
   gr_event->SetTitle("Event number " + TString::Format("%0d", (int)evtnum) + " Detector: " + TString::Format("%0d", (int)detector));
-  gr_event->GetXaxis()->SetTitle("Strip number");
-  gr_event->GetYaxis()->SetTitle("ADC");
-  gr_event->GetYaxis()->SetTitleOffset(1.5);
-  gr_event->GetXaxis()->SetTitleFont(62);
-  gr_event->GetYaxis()->SetTitleFont(62);
-
-  gr_event->SetMarkerColor(kRed + 1);
-  gr_event->SetLineColor(kRed + 1);
-  gr_event->SetMarkerStyle(23);
-  gr_event->SetMarkerSize(0.5);
 
   int maxadc = -999;
   int minadc = 0;
-
-  gr_event->Set(0);
   double signal;
 
-  for (int chan = 0; chan < evt.size(); chan++)
+  // clear graph before drawing
+  gr_event->Set(0);
+
+  // loop on evt vector with iterators and subtract pedestal
+  for (std::vector<uint32_t>::iterator it = evt.begin(); it != evt.end(); ++it)
   {
-    if (fPed2->IsOn() && calib_open)
+    int chan = it - evt.begin();
+    double ADC = *it;
+
+    if (fPed->IsOn())
     {
-      signal = evt[chan] - calib_data[detector].ped[chan];
+      signal = ADC - calib_data[detector].ped[chan];
     }
     else
     {
-      signal = evt[chan];
+      signal = ADC;
     }
+
+    if (signal > maxadc)
+      maxadc = signal;
+    if (signal < minadc)
+      minadc = signal;
 
     gr_event->SetPoint(gr_event->GetN(), chan, signal);
   }
-  gr_event->GetXaxis()->SetNdivisions((evt.size() - 1) / 64, false);
-  gr_event->GetXaxis()->SetRangeUser(0, evt.size() - 1);
-  gr_event->Draw();
+
+  if (fxmin->GetNumberEntry()->GetIntNumber() != -1 || fxmax->GetNumberEntry()->GetIntNumber() != -1)
+  {
+    gr_event->GetXaxis()->SetRangeUser(fxmin->GetNumberEntry()->GetIntNumber(), fxmax->GetNumberEntry()->GetIntNumber());
+  }
+  else
+  {
+    gr_event->GetXaxis()->SetRangeUser(0, evt.size() - 1);
+  }
+
+  if (fymin->GetNumberEntry()->GetIntNumber() != -1 || fymax->GetNumberEntry()->GetIntNumber() != -1)
+  {
+    gr_event->GetYaxis()->SetRangeUser(fymin->GetNumberEntry()->GetIntNumber(), fymax->GetNumberEntry()->GetIntNumber());
+  }
+  else
+  {
+    gr_event->GetYaxis()->SetRangeUser(minadc - 100, maxadc + 100);
+  }
+
+  if (fdivisions->GetNumberEntry()->GetIntNumber() != -1)
+  {
+    gr_event->GetXaxis()->SetNdivisions(-fdivisions->GetNumberEntry()->GetIntNumber(), false);
+  }
+  else
+  {
+    gr_event->GetXaxis()->SetNdivisions(-evt.size() / 64, false);
+  }
+
+  gr_event->Draw("GL");
+  gSystem->ProcessEvents();
 }
 
 void MyMainFrame::DoDraw()
 {
   if (gROOT->GetListOfFiles()->FindObject((char *)(fileLabel->GetText())->GetString()))
   {
-    viewer(fNumber->GetNumberEntry()->GetIntNumber(), fNumber1->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
+    auto t1 = std::chrono::high_resolution_clock::now();
+    viewer(fNumberEvent->GetNumberEntry()->GetIntNumber(), fNumberDet->GetNumberEntry()->GetIntNumber(), (char *)(fileLabel->GetText())->GetString(), (char *)(calibLabel->GetText())->GetString(), boards);
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto ms_int = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
+    std::cout << "Event " << fNumberEvent->GetNumberEntry()->GetIntNumber() << " drawn in " << ms_int.count() << " ms" << std::endl;
   }
 }
 
@@ -457,7 +544,7 @@ void MyMainFrame::DoOpen()
   fi.fFileTypes = filetypesROOT;
   fi.fIniDir = StrDup(dir);
   new TGFileDialog(gClient->GetRoot(), fMain, kFDOpen, &fi);
-  fNumber1->SetState(false);
+  fNumberDet->SetState(false);
 
   if (fi.fFilename)
   {
@@ -467,42 +554,42 @@ void MyMainFrame::DoOpen()
     bool ISfoot = f->GetListOfKeys()->Contains("raw_events_B");
     if (ISfoot)
     {
-      fNumber1->SetState(true);
-      fNumber1->SetLimitValues(0, 1);
+      fNumberDet->SetState(true);
+      fNumberDet->SetLimitValues(0, 1);
       newDAQ = true;
       if (f->GetListOfKeys()->Contains("raw_events_C"))
       {
-        fNumber1->SetLimitValues(0, 3);
+        fNumberDet->SetLimitValues(0, 3);
         boards = 2;
       }
       if (f->GetListOfKeys()->Contains("raw_events_E"))
       {
-        fNumber1->SetLimitValues(0, 5);
+        fNumberDet->SetLimitValues(0, 5);
         boards = 3;
       }
       if (f->GetListOfKeys()->Contains("raw_events_G"))
       {
-        fNumber1->SetLimitValues(0, 7);
+        fNumberDet->SetLimitValues(0, 7);
         boards = 4;
       }
       if (f->GetListOfKeys()->Contains("raw_events_I"))
       {
-        fNumber1->SetLimitValues(0, 9);
+        fNumberDet->SetLimitValues(0, 9);
         boards = 5;
       }
       if (f->GetListOfKeys()->Contains("raw_events_K"))
       {
-        fNumber1->SetLimitValues(0, 11);
+        fNumberDet->SetLimitValues(0, 11);
         boards = 6;
       }
       if (f->GetListOfKeys()->Contains("raw_events_M"))
       {
-        fNumber1->SetLimitValues(0, 13);
+        fNumberDet->SetLimitValues(0, 13);
         boards = 7;
       }
       if (f->GetListOfKeys()->Contains("raw_events_O"))
       {
-        fNumber1->SetLimitValues(0, 15);
+        fNumberDet->SetLimitValues(0, 15);
         boards = 8;
       }
     }
@@ -511,10 +598,10 @@ void MyMainFrame::DoOpen()
     {
       TTree *t = (TTree *)f->Get("raw_events");
       int entries = t->GetEntries();
-      fNumber->SetLimitValues(0, entries - 1);
+      fNumberEvent->SetLimitValues(0, entries - 1);
       fStatusBar->Clear();
       fileLabel->SetText(fi.fFilename);
-      fNumber->SetText("0");
+      fNumberEvent->SetText("0");
 
       Int_t buttons = kMBYes + kMBNo;
       Int_t retval;
@@ -615,18 +702,23 @@ void MyMainFrame::DoGetUDP()
 {
   uint32_t header;
   omServer->Rx(&header, sizeof(header));
-  std::cout << "header: " << std::hex << header << std::endl;
-  
+
   if (header != 0xfa4af1ca)
   {
     std::cout << "ERROR: header is not correct, skipping packet" << std::endl;
     return;
   }
 
-  std::vector<uint32_t> evt(650);
-  omServer->Rx(evt.data(), 2600);
+  uint32_t word1;
+  omServer->Rx(&word1, sizeof(word1));
 
-  std::vector<uint32_t> evt_buffer;
+  uint32_t word2;
+  omServer->Rx(&word2, sizeof(word2));
+
+  uint32_t word3;
+  omServer->Rx(&word3, sizeof(word3));
+
+  omServer->Rx(evt.data(), 2600);
 
   for (size_t i = 0; i < evt.size() - 10; i++)
   {
@@ -635,13 +727,13 @@ void MyMainFrame::DoGetUDP()
   }
 
   evt_buffer = reorder(evt_buffer);
-  std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
-  std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
+  detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
+  detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
 
   if (fShowAll->IsOn())
   {
-    fNumber2->SetState(kTRUE);
-    fNumber3->SetState(kFALSE);
+    fNumberBoard->SetState(kTRUE);
+    fNumberDetOM->SetState(kFALSE);
     fEcanvas->GetCanvas()->cd();
     fEcanvas->GetCanvas()->Clear();
     fEcanvas->GetCanvas()->Divide(2, 1);
@@ -660,10 +752,10 @@ void MyMainFrame::DoGetUDP()
   }
   else
   {
-    fNumber2->SetState(kFALSE);
-    fNumber3->SetState(kTRUE);
+    fNumberBoard->SetState(kFALSE);
+    fNumberDetOM->SetState(kTRUE);
     fEcanvas->GetCanvas()->cd();
-    if (fNumber3->GetNumberEntry()->GetIntNumber())
+    if (fNumberDetOM->GetNumberEntry()->GetIntNumber())
     {
       DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
     }
@@ -679,9 +771,8 @@ void MyMainFrame::DoGetUDP()
 
 void MyMainFrame::JobThread()
 {
-  while(running)
+  while (running)
   {
-    usleep(10000);
     DoGetUDP();
   }
   return;
