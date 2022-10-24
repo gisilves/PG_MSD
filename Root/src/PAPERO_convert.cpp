@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
     bool is_good = false;
     bool gsi = false;
     int evtnum = 0;
-    int evt_to_read = -1;
+    int evt_to_read = 10;
     int boards = 0;
     int board_id = -1;
     int trigger_number = -1;
@@ -235,12 +235,12 @@ int main(int argc, char *argv[])
     while (!file.eof())
     {   
         is_good = false;
-        if (evtnum == evt_to_read)
-        {// stop reading after the number of events specified
-            std::cout << "Reached the number of events to read" << std::endl;
-            sleep(2);
+
+        if ((evtnum == evt_to_read))
+        {   // stop reading after the number of events specified
             break;
         }
+
         maka_retValues = read_evt_header(file, offset, verbose);
         if (std::get<0>(maka_retValues))
         {
@@ -261,6 +261,7 @@ int main(int argc, char *argv[])
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
                     offset = std::get<8>(de10_retValues);
+
 
                     std::cout << "\r\tReading event " << evtnum << std::flush;
 
