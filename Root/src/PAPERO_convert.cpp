@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
     bool is_good = false;
     bool gsi = false;
     int evtnum = 0;
-    int evt_to_read = 10;
+    int evt_to_read = -1;
     int boards = 0;
     int board_id = -1;
     int trigger_number = -1;
