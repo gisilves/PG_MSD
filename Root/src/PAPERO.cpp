@@ -283,7 +283,7 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uin
   bool found = false;
   uint32_t original_offset = offset;
 
-  uint32_t long header = 0xbaba1a9a;
+  uint32_t header = 0xbaba1a9a;
 
   char dummy[100];
 

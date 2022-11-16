@@ -201,11 +201,6 @@ int main(int argc, char *argv[])
         offset = 0;
     }
 
-    if (offset != 0 && verbose)
-    {
-        std::cout << "WARNING: file header is not at offset 0" << std::endl;
-    }
-
     if (!is_new_format)
     {
         if (!opt->getValue("boards"))
@@ -234,13 +229,12 @@ int main(int argc, char *argv[])
 
     while (!file.eof())
     {   
-        is_good = false;
-
-        if ((evtnum == evt_to_read))
-        {   // stop reading after the number of events specified
+        if (evtnum == evt_to_read)
+        {
             break;
         }
 
+        is_good = false;
         maka_retValues = read_evt_header(file, offset, verbose);
         if (std::get<0>(maka_retValues))
         {
@@ -311,9 +305,9 @@ int main(int argc, char *argv[])
                     }
 
                     offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
-                    evtnum++;
                 }
             }
+            evtnum++;
         }
         else
         {
