@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
     int boards_read = 0;
     uint32_t offset = 0;
     uint32_t fw_version = 0;
-    uint32_t timestamp = 0;
+    uint32_t i2cmsg = 0;
     uint32_t ext_timestamp = 0;
     uint32_t old_offset = 0;
     int padding_offset = 0;
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
-                    timestamp = std::get<5>(de10_retValues);
+                    i2cmsg = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
                     offset = std::get<8>(de10_retValues);
@@ -307,6 +307,7 @@ int main(int argc, char *argv[])
                     offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
                 }
             }
+            boards_read = 0;
             evtnum++;
         }
         else

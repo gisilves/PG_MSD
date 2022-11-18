@@ -275,8 +275,8 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uin
   uint32_t trigger = 0;
   uint32_t board_id = 0;
   uint32_t trigger_id = 0;
-  uint32_t timestamp_part = 0;
-  uint64_t timestamp = 0UL;
+  uint32_t i2cmsg_part = 0;
+  uint64_t i2cmsg = 0UL;
   uint32_t ext_timestamp_part = 0;
   uint64_t ext_timestamp = 0UL;
   uint32_t val = 0;
@@ -346,11 +346,11 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uin
   trigger_id = buffer[0] | buffer[1] << 8;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  timestamp = 0x0000000000000000 | ((uint64_t)timestamp_part << 32UL);
+  i2cmsg_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  i2cmsg = 0x0000000000000000 | ((uint64_t)i2cmsg_part << 32UL);
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  timestamp |= (uint64_t)timestamp_part;
+  i2cmsg_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  i2cmsg |= (uint64_t)i2cmsg_part;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
   ext_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
@@ -364,14 +364,16 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uin
     std::cout << "\t\tIn DE10Nano header: " << std::endl;
     std::cout << "\t\t\tevt_lenght: " << evt_lenght << std::endl;
     std::cout << "\t\t\tfw_version: " << std::hex << fw_version << std::endl;
-    std::cout << "\t\t\ttrigger: " << trigger << std::endl;
+    std::cout << "\t\t\ttrigger: " << std::dec << trigger << std::endl;
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
-    std::cout << "\t\t\tinternal timestamp: " << timestamp << std::endl;
-    std::cout << "\t\t\texternal timestamp: " << ext_timestamp << std::endl;
+    //std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
+    printf("\t\t\ti2c message: %016lx\n", i2cmsg);
+    printf("\t\t\ti2c Trigger type: %04x - i2c Subsystem: %04x - i2c Serial: %d\n", (i2cmsg_part&0x0000ffff), ((i2cmsg_part&0xffff0000)>>16), ((i2cmsg&0xffffffff00000000)>>32));
+    std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
   }
 
-  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);
+  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, i2cmsg, ext_timestamp, trigger_id, offset);
 }
 
 std::vector<uint32_t> read_event(std::fstream &file, uint32_t offset, int event_size, bool verbose, bool astra)
