@@ -145,11 +145,13 @@ int seek_first_evt_header(std::fstream &file, uint32_t offset, bool verbose)
   }
 }
 
-std::tuple<bool, uint64_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose)
+std::tuple<bool, time_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose)
 {
   uint32_t header;
-  uint32_t timestamp_part;
-  uint64_t timestamp;
+  uint32_t tv_sec_part;
+  uint64_t tv_sec;
+  uint16_t tv_nsec_part;
+  uint32_t tv_nsec; 
   unsigned char buffer[4];
   uint32_t val;
   uint32_t lenght_in_bytes;
@@ -182,11 +184,26 @@ std::tuple<bool, uint64_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
   }
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  timestamp = 0x0000000000000000 | ((uint64_t)timestamp_part << 32UL);
+  tv_sec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  tv_sec = 0x0000000000000000 | ((uint64_t)tv_sec_part << 32UL);
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  timestamp |= (uint64_t)timestamp_part;
+  tv_sec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  tv_sec |= (uint64_t)tv_sec_part;
+
+  file.read(reinterpret_cast<char *>(&buffer), 2);
+  tv_nsec_part = buffer[0] | buffer[1] << 8;
+  tv_nsec = 0x00000000 | ((uint32_t)tv_nsec_part << 16UL);
+  file.read(reinterpret_cast<char *>(&buffer), 2);
+  tv_nsec_part = buffer[0] | buffer[1] << 8;
+  tv_nsec |= (uint32_t)tv_nsec_part;
+
+  file.seekg(4, std::ios_base::cur);
+
+  //create time_t from tv_sec and tv_nsec
+  struct timespec ts;
+  ts.tv_sec = tv_sec;
+  ts.tv_nsec = tv_nsec;
+  time_t timestamp = ts.tv_sec;
   
   file.read(reinterpret_cast<char *>(&buffer), 4);
   lenght_in_bytes = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
@@ -204,7 +221,8 @@ std::tuple<bool, uint64_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
   if (verbose)
   {
     std::cout << "MAKA header: " << std::endl;
-    std::cout << "\ttimestamp: " << timestamp << std::endl;
+    std::cout << "\t\ttimestamp sec: " << tv_sec << std::endl;
+    std::cout << "\t\ttimestamp nsec: " << tv_nsec << std::endl;
     std::cout << "\tlenght_in_bytes: " << std::dec << lenght_in_bytes << std::endl;
     std::cout << "\tevt_number: " << evt_number << std::endl;
     std::cout << "\tn_detectors: " << n_detectors << std::endl;
