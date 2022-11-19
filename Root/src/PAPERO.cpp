@@ -145,9 +145,11 @@ int seek_first_evt_header(std::fstream &file, uint32_t offset, bool verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose)
+std::tuple<bool, uint64_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose)
 {
   uint32_t header;
+  uint32_t timestamp_part;
+  uint64_t timestamp;
   unsigned char buffer[4];
   uint32_t val;
   uint32_t lenght_in_bytes;
@@ -176,9 +178,16 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> rea
       std::cout << "Can't find event header"
                 << " at offset " << offset << std::endl;
     }
-    return std::make_tuple(false, -1, -1, -1, -1, -1, -1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1);
   }
 
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  timestamp = 0x0000000000000000 | ((uint64_t)timestamp_part << 32UL);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  timestamp |= (uint64_t)timestamp_part;
+  
   file.read(reinterpret_cast<char *>(&buffer), 4);
   lenght_in_bytes = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
@@ -195,6 +204,7 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> rea
   if (verbose)
   {
     std::cout << "MAKA header: " << std::endl;
+    std::cout << "\ttimestamp: " << timestamp << std::endl;
     std::cout << "\tlenght_in_bytes: " << std::dec << lenght_in_bytes << std::endl;
     std::cout << "\tevt_number: " << evt_number << std::endl;
     std::cout << "\tn_detectors: " << n_detectors << std::endl;
@@ -202,7 +212,7 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> rea
     std::cout << "\ttype: " << type << std::endl;
   }
 
-  return std::make_tuple(true, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
+  return std::make_tuple(true, timestamp, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
 }
 
 bool read_old_evt_header(std::fstream &file, uint32_t offset, bool verbose)
@@ -368,8 +378,8 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uin
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
     //std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
-    printf("\t\t\ti2c message: %016lx\n", i2cmsg);
-    printf("\t\t\ti2c Trigger type: %04x - i2c Subsystem: %04x - i2c Serial: %d\n", (i2cmsg_part&0x0000ffff), ((i2cmsg_part&0xffff0000)>>16), ((i2cmsg&0xffffffff00000000)>>32));
+    printf("\t\t\ti2c message: %016llx\n", i2cmsg);
+    printf("\t\t\ti2c Trigger type: %04x - i2c Subsystem: %04x - i2c Serial: %llu\n", (i2cmsg_part&0x0000ffff), ((i2cmsg_part&0xffff0000)>>16), ((i2cmsg&0xffffffff00000000)>>32));
     std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
   }
 

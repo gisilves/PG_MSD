@@ -20,7 +20,7 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<u
 int seek_first_evt_header(std::fstream &file, uint32_t offset, bool verbose);
 
 bool read_old_evt_header(std::fstream &file, uint32_t offset, bool verbose);
-std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose);
+std::tuple<bool, uint64_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, bool verbose);
 
 bool read_de10_footer(std::fstream &file, uint32_t offset, bool verbose);
 

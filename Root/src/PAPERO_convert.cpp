@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
     std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
+    std::tuple<bool, uint64_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
 
@@ -238,8 +238,8 @@ int main(int argc, char *argv[])
         maka_retValues = read_evt_header(file, offset, verbose);
         if (std::get<0>(maka_retValues))
         {
-            offset = std::get<6>(maka_retValues);
-            for (size_t de10 = 0; de10 < std::get<3>(maka_retValues); de10++)
+            offset = std::get<7>(maka_retValues);
+            for (size_t de10 = 0; de10 < std::get<4>(maka_retValues); de10++)
             {
                 de10_retValues = read_de10_header(file, offset, verbose); // read de10 header
                 is_good = std::get<0>(de10_retValues);

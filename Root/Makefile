@@ -52,7 +52,7 @@ raw_viewer:
 	$(CXX) ./src/viewerGUI.cpp ./src/event.cpp guiDict.cpp  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 readOM: ./src/readOM.cpp
-	$(CXX) ./src/udpSocket.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
+	$(CXX) ./src/udpSocket.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)	
 
 bias_control: 
 	$(ROOTCLING) -f guiDict.cpp ./src/biascontrol.h ./src/guiLinkDef.h
