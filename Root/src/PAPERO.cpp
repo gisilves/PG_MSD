@@ -150,8 +150,8 @@ std::tuple<bool, time_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint3
   uint32_t header;
   uint32_t tv_sec_part;
   uint64_t tv_sec;
-  uint16_t tv_nsec_part;
-  uint32_t tv_nsec; 
+  uint32_t tv_nsec_part;
+  uint64_t tv_nsec; 
   unsigned char buffer[4];
   uint32_t val;
   uint32_t lenght_in_bytes;
@@ -190,14 +190,12 @@ std::tuple<bool, time_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint3
   tv_sec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   tv_sec |= (uint64_t)tv_sec_part;
 
-  file.read(reinterpret_cast<char *>(&buffer), 2);
-  tv_nsec_part = buffer[0] | buffer[1] << 8;
-  tv_nsec = 0x00000000 | ((uint32_t)tv_nsec_part << 16UL);
-  file.read(reinterpret_cast<char *>(&buffer), 2);
-  tv_nsec_part = buffer[0] | buffer[1] << 8;
-  tv_nsec |= (uint32_t)tv_nsec_part;
-
-  file.seekg(4, std::ios_base::cur);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  tv_nsec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  tv_nsec = 0x0000000000000000 | ((uint64_t)tv_nsec_part << 32UL);
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  tv_nsec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  tv_nsec |= (uint64_t)tv_nsec_part;
 
   //create time_t from tv_sec and tv_nsec
   struct timespec ts;
