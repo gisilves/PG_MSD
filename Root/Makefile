@@ -33,7 +33,7 @@ ASTRA_convert: ./src/ASTRA_convert.cpp
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 PAPERO_info: ./src/PAPERO_info.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
+	$(CXX) ./src/PAPERO.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
 
 raw_clusterize: ./src/raw_clusterize.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
@@ -50,6 +50,9 @@ calibration: ./src/calibration.cpp
 raw_viewer: 
 	$(ROOTCLING) -f guiDict.cpp ./src/viewerGUI.h ./src/udpSocket.cpp ./src/guiLinkDef.h
 	$(CXX) ./src/viewerGUI.cpp ./src/event.cpp guiDict.cpp  -o$@ $< $(CFLAGS) $(OPTFLAGS)
+
+readOM: ./src/readOM.cpp
+	$(CXX) ./src/udpSocket.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
 
 bias_control: 
 	$(ROOTCLING) -f guiDict.cpp ./src/biascontrol.h ./src/guiLinkDef.h
