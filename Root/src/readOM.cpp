@@ -84,9 +84,6 @@ int main()
   readOM om;
   while (true)
   {
-    auto start = std::chrono::high_resolution_clock::now();
     om.DoGetUDP();
-    auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << " ms" << std::endl;
   }
 }

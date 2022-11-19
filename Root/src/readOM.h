@@ -20,9 +20,8 @@ private:
 
 public:
     readOM();
-    ~readOM();
+    virtual ~readOM();
     void DoGetUDP();
-    ClassDef(readOM, 0);
 };
 
 #endif
