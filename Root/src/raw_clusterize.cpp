@@ -64,7 +64,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch, bool AMS)
+                        float sensor_pitch, bool AMS)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
@@ -1055,7 +1055,7 @@ int main(int argc, char *argv[])
   else
   {
     for (int i = 0; i < detectors / 2; i++)
-    {
+    {      
       cout << "Creating output directory " << i << endl;
       doutput = foutput->mkdir((TString) "board_" + i + "_side_0");
       doutput->cd();

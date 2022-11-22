@@ -65,15 +65,15 @@ int main(int argc, char *argv[])
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
-    opt->addUsage("  -v, --verbose    ................................. Verbose ");
+    opt->addUsage("  --verbose        ................................. Verbose level (1 - headers info, 2 - timestamps info)");
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected (for old data format)");
     opt->addUsage("  --nevents        ................................. Number of events to be read ");
     opt->addUsage("  --gsi            ................................. To convert data from GSI hybrids (10 ADC per detector)");
     opt->setOption("boards");
     opt->setOption("nevents");
+    opt->setOption("verbose");
 
     opt->setFlag("help", 'h');
-    opt->setFlag("verbose", 'v');
     opt->setFlag("gsi");
 
     opt->processFile("./options.txt");
@@ -88,9 +88,11 @@ int main(int argc, char *argv[])
         return 2;
     }
 
-    bool verbose = false;
-    if (opt->getFlag("verbose") || opt->getFlag('v'))
-        verbose = true;
+    int verbose = 0;
+    if (opt->getValue("verbose"))
+    {
+        verbose = atoi(opt->getValue("verbose"));
+    }
 
     // Open binary data file
     std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
@@ -168,7 +170,7 @@ int main(int argc, char *argv[])
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
     std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
-    std::tuple<bool, time_t, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
+    std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
 
@@ -259,7 +261,7 @@ int main(int argc, char *argv[])
 
                     std::cout << "\r\tReading event " << evtnum << std::flush;
 
-                    if (verbose)
+                    if (verbose == 1)
                     {
                         std::cout << "\tBoard ID " << board_id << std::endl;
                         std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
@@ -316,7 +318,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    std::cout << "\n\tClosing file after " << evtnum << " events" << std::endl;
+    std::cout << "\n\tClosing file after " << std::dec << evtnum << " events" << std::endl;
     int filled = 0;
 
     for (size_t detector = 0; detector < raw_events_tree.size(); detector++)
