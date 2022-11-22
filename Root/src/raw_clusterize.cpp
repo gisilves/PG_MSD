@@ -268,7 +268,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   std::vector<unsigned int> *raw_event = 0; // buffer vector for the raw event in the TTree
   TBranch *RAW = 0;
 
-  if(side == 0)
+  if (side == 0)
   {
     chain->SetBranchAddress("RAW Event J5", &raw_event, &RAW);
   }
@@ -325,11 +325,11 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   if (atoi(opt->getValue("version")) == 2023 || atoi(opt->getValue("version")) == 2024)
   {
     AMS = true;
-    //cout << "AMS is " << AMS << endl;
+    // cout << "AMS is " << AMS << endl;
     if (atoi(opt->getValue("version")) == 2024)
     {
       BL_monster = true;
-      //cout << "BL_monster is " << BL_monster << endl;
+      // cout << "BL_monster is " << BL_monster << endl;
     }
   }
 
@@ -651,31 +651,31 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hNclus->Write();
   delete hNclus;
 
- // Double_t norm = hADCCluster->GetEntries();
- // hADCCluster->Scale(1 / norm);
+  // Double_t norm = hADCCluster->GetEntries();
+  // hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
   delete hADCCluster;
 
   hHighest->Write();
   delete hHighest;
 
- // norm = hADCClusterEdge->GetEntries();
- // hADCClusterEdge->Scale(1 / norm);
+  // norm = hADCClusterEdge->GetEntries();
+  // hADCClusterEdge->Scale(1 / norm);
   hADCClusterEdge->Write();
   delete hADCClusterEdge;
 
- // norm = hADCCluster1Strip->GetEntries();
- // hADCCluster1Strip->Scale(1 / norm);
+  // norm = hADCCluster1Strip->GetEntries();
+  // hADCCluster1Strip->Scale(1 / norm);
   hADCCluster1Strip->Write();
   delete hADCCluster1Strip;
 
-  //norm = hADCCluster2Strip->GetEntries();
- // hADCCluster2Strip->Scale(1 / norm);
+  // norm = hADCCluster2Strip->GetEntries();
+  // hADCCluster2Strip->Scale(1 / norm);
   hADCCluster2Strip->Write();
   delete hADCCluster2Strip;
 
-  //norm = hADCClusterManyStrip->GetEntries();
-  //hADCClusterManyStrip->Scale(1 / norm);
+  // norm = hADCClusterManyStrip->GetEntries();
+  // hADCClusterManyStrip->Scale(1 / norm);
   hADCClusterManyStrip->Write();
   delete hADCClusterManyStrip;
 
@@ -1025,13 +1025,28 @@ int main(int argc, char *argv[])
   tempfile.Close();
   std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
-  //Beam Profile 2D Histos
-  TH2F *h2D_Cog[detectors/2];
-  for (int i = 0; i < detectors/2; i++)
+  // Beam Profile 2D Histos
+  TH2F *h2D_Cog[detectors / 2];
+  for (int i = 0; i < detectors / 2; i++)
   {
-    h2D_Cog[i] = new TH2F(Form("h2D_Cog_board_%d", i), Form("h2D_Cog_board_%d", i), (maxStrip-minStrip)/10, minStrip, maxStrip, (maxStrip-minStrip)/10, minStrip, maxStrip);
+    h2D_Cog[i] = new TH2F(Form("h2D_Cog_board_%d", i), Form("h2D_Cog_board_%d", i), (maxStrip - minStrip) / 10, minStrip, maxStrip, (maxStrip - minStrip) / 10, minStrip, maxStrip);
     h2D_Cog[i]->GetXaxis()->SetTitle("J5");
     h2D_Cog[i]->GetYaxis()->SetTitle("J7");
+  }
+
+  // Position correlation Histos of all detectors
+  TH2F *h2D_Cog_corr_side0[detectors];
+  for (int i = 0; i < detectors; i++)
+  {
+    h2D_Cog_corr_side0[i] = new TH2F(Form("h2D_Cog_corr_detector_%d_with_side0", i), Form("h2D_Cog_corr_detector_%d_with_side0", i), (maxStrip - minStrip) / 10, minStrip, maxStrip, (maxStrip - minStrip) / 10, minStrip, maxStrip);
+    h2D_Cog_corr_side0[i]->GetXaxis()->SetTitle("board_0_side_0");
+  }
+
+  TH2F *h2D_Cog_corr_side1[detectors];
+  for (int i = 0; i < detectors; i++)
+  {
+    h2D_Cog_corr_side1[i] = new TH2F(Form("h2D_Cog_corr_detector_%d_with_side1", i), Form("h2D_Cog_corr_detector_%d_with_side1", i), (maxStrip - minStrip) / 10, minStrip, maxStrip, (maxStrip - minStrip) / 10, minStrip, maxStrip);
+    h2D_Cog_corr_side1[i]->GetXaxis()->SetTitle("board_0_side_1");
   }
 
   // TFile *foutput = new TFile(output_filename + "_board" + std::to_string(board) + "_side" + std::to_string(side) + ".root", "RECREATE");
@@ -1055,7 +1070,7 @@ int main(int argc, char *argv[])
   else
   {
     for (int i = 0; i < detectors / 2; i++)
-    {      
+    {
       cout << "Creating output directory " << i << endl;
       doutput = foutput->mkdir((TString) "board_" + i + "_side_0");
       doutput->cd();
@@ -1076,9 +1091,9 @@ int main(int argc, char *argv[])
                           atoi(opt->getValue("version")) == 2023);
 
       // Fill 2D Beam Profile Histos
-      TTreeReader j5Reader((TString)"board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
+      TTreeReader j5Reader((TString) "board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
       TTreeReaderValue<std::vector<cluster>> j5Clusters(j5Reader, "clusters");
-      TTreeReader j7Reader((TString)"board_" + i + "_side_1/t_clusters_board_" + i + "_side_1", foutput);
+      TTreeReader j7Reader((TString) "board_" + i + "_side_1/t_clusters_board_" + i + "_side_1", foutput);
       TTreeReaderValue<std::vector<cluster>> j7Clusters(j7Reader, "clusters");
 
       while (j5Reader.Next())
@@ -1095,11 +1110,71 @@ int main(int argc, char *argv[])
     }
   }
 
+  // Fill 2D correlation histos
+  TTreeReader firstdetector((TString) "board_0_side_0/t_clusters_board_0_side_0", foutput);
+  TTreeReader secondetector((TString) "board_0_side_1/t_clusters_board_0_side_1", foutput);
+  TTreeReaderValue<std::vector<cluster>> firstdetector_clus(firstdetector, "clusters");
+  TTreeReaderValue<std::vector<cluster>> secondetector_clus(secondetector, "clusters");
+  for (int board = 0; board < detectors / 2; board++)
+  {
+    for (int side = 0; side < 2; side++)
+    {
+      firstdetector.Restart();
+      TTreeReader detector((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side, foutput);
+      TTreeReaderValue<std::vector<cluster>> detector_clus(detector, "clusters");
+
+      while (firstdetector.Next())
+      {
+        detector.Next();
+        for (int j = 0; j < (*firstdetector_clus).size(); j++)
+        {
+          for (int k = 0; k < (*detector_clus).size(); k++)
+          {
+            h2D_Cog_corr_side0[board * 2 + side]->Fill(GetClusterCOG((*firstdetector_clus)[j]), GetClusterCOG((*detector_clus)[k]));
+            h2D_Cog_corr_side0[board * 2 + side]->GetYaxis()->SetTitle(Form("board_%d_side_%d", board, side));
+          }
+        }
+      }
+    }
+  }
+
+  for (int board = 0; board < detectors / 2; board++)
+  {
+    for (int side = 0; side < 2; side++)
+    {
+      secondetector.Restart();
+      TTreeReader detector((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side, foutput);
+      TTreeReaderValue<std::vector<cluster>> detector_clus(detector, "clusters");
+      while (secondetector.Next())
+      {
+        detector.Next();
+        for (int j = 0; j < (*secondetector_clus).size(); j++)
+        {
+          for (int k = 0; k < (*detector_clus).size(); k++)
+          {
+            h2D_Cog_corr_side1[board * 2 + side]->Fill(GetClusterCOG((*secondetector_clus)[j]), GetClusterCOG((*detector_clus)[k]));
+            h2D_Cog_corr_side1[board * 2 + side]->GetYaxis()->SetTitle(Form("board_%d_side_%d", board, side));
+          }
+        }
+      }
+    }
+  }
+
   // Write 2D Beam Profile Histos
-  foutput->cd();
-  for (int i = 0; i < detectors/2; i++)
+  doutput = foutput->mkdir("2D_Beam_Profile");
+  doutput->cd();
+  for (int i = 0; i < detectors / 2; i++)
   {
     h2D_Cog[i]->Write();
+  }
+
+  // Write 2D correlation histos
+  doutput = foutput->mkdir("2D_Correlation");
+  doutput->cd();
+  for (int i = 0; i < detectors; i++)
+  {
+    h2D_Cog_corr_side0[i]->Write();
+    h2D_Cog_corr_side1[i]->Write();
   }
 
   foutput->Close();
