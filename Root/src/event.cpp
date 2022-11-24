@@ -78,6 +78,36 @@ int GetClusterSeed(cluster clus, calib *cal) // Strip corresponding to the seed
   return seed;
 }
 
+int GetClusterSecond(cluster clus, calib *cal) // Strip corresponding to the second strip by ADC
+{
+  int seed = GetClusterSeed(clus, cal);
+  int second = -999;
+
+  std::vector<float> ADC = GetClusterADC(clus);
+
+  if (seed == clus.address)
+  {
+    second = clus.address + 1;
+  }
+  else if (seed == clus.address + clus.width - 1)
+  {
+    second = clus.address + clus.width - 2;
+  }
+  else
+  {
+    if (ADC.at(seed - clus.address - 1) > ADC.at(seed - clus.address + 1))
+    {
+      second = seed - 1;
+    }
+    else
+    {
+      second = seed + 1;
+    }
+  }
+
+  return second;
+}
+
 int GetClusterSeedIndex(cluster clus, calib *cal) // Position of the seed in the cluster
 {
   int seed_idx = -999;
@@ -96,11 +126,55 @@ int GetClusterSeedIndex(cluster clus, calib *cal) // Position of the seed in the
   return seed_idx;
 }
 
+int GetClusterSecondIndex(cluster clus, calib *cal)
+{
+  int seed = GetClusterSeed(clus, cal);
+  int second = -999;
+
+  std::vector<float> ADC = GetClusterADC(clus);
+
+  if (ADC.size() != 1)
+  {
+
+    if (seed == clus.address)
+    {
+      second = 1;
+    }
+    else if (seed == clus.address + clus.width - 1)
+    {
+      second = clus.width - 2;
+    }
+    else
+    {
+      if (ADC.at(seed - clus.address - 1) > ADC.at(seed - clus.address + 1))
+      {
+        second = seed - clus.address - 1;
+      }
+      else
+      {
+        second = seed - clus.address + 1;
+      }
+    }
+  }
+  else
+  {
+    second = -1;
+  }
+
+  return second;
+}
+
 float GetClusterSeedADC(cluster clus, calib *cal)
 {
   int seed_idx = GetClusterSeedIndex(clus, cal);
 
   return clus.ADC.at(seed_idx);
+}
+
+float GetClusterSecondADC(cluster clus, calib *cal)
+{
+  int second_idx = GetClusterSecondIndex(clus, cal);
+  return clus.ADC.at(second_idx);
 }
 
 int GetClusterVA(cluster clus, calib *cal)
@@ -366,7 +440,7 @@ bool read_calib(const char *calib_file, calib *cal, int NChannels, int detector,
   return 1;
 }
 
-std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scrivere bene e aggiornare gli altri eseguibili per usare la nuova calib single file
+std::vector<calib> read_calib_all(const char *calib_file, bool verb) // TODO:scrivere bene e aggiornare gli altri eseguibili per usare la nuova calib single file
 {
   std::ifstream in;
   in.open(calib_file);
@@ -386,8 +460,7 @@ std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scri
   std::vector<calib> calib_vec;
   calib temp_calib;
 
-
-  //skip lines starting with #
+  // skip lines starting with #
   while (in.peek() == '#')
   {
     getline(in, dummyLine);
@@ -395,9 +468,9 @@ std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scri
 
   while (in.good())
   {
-    if(in.peek() == '#' || in.peek() == EOF)
+    if (in.peek() == '#' || in.peek() == EOF)
     {
-      if(read_channels != 0)
+      if (read_channels != 0)
       {
         if (verb)
         {
@@ -419,7 +492,7 @@ std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scri
     }
     else
     {
-      //tokenize line
+      // tokenize line
       std::string line;
       getline(in, line);
       std::stringstream ss(line);
@@ -430,7 +503,7 @@ std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scri
         tokens.push_back(token);
       }
 
-      //read values
+      // read values
       strip = std::stof(tokens[0]);
       va = std::stof(tokens[1]);
       vachannel = std::stof(tokens[2]);
@@ -440,8 +513,7 @@ std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scri
       status = std::stof(tokens[6]);
       not_used = std::stof(tokens[7]);
 
-
-      //fill calib struct
+      // fill calib struct
       temp_calib.ped.push_back(ped);
       temp_calib.rsig.push_back(rawsigma);
       temp_calib.sig.push_back(sigma);
@@ -449,7 +521,7 @@ std::vector<calib> read_calib_all(const char *calib_file, bool verb) //TODO:scri
       read_channels++;
     }
   }
-  
+
   in.close();
   return calib_vec;
 }

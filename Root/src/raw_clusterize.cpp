@@ -95,6 +95,10 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       new TH1F((TString) "hADCClusterSeed_board_" + board + "_side_" + side, (TString) "hADCClusterSeed_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
+  TH1F *hADCClusterSecond = // ADC content of the second strip in the cluster (by ADC)
+      new TH1F((TString) "hADCClusterSecond_board_" + board + "_side_" + side, (TString) "hADCClusterSecond_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
+  hADCClusterSecond->GetXaxis()->SetTitle("ADC");
+
   TH1F *hPercentageSeed = // percentage of the "seed strip" wrt the whole cluster
       new TH1F((TString) "hPercentageSeed_board_" + board + "_side_" + side, (TString) "hPercentageSeed_board_" + board + "_side_" + side, 200, 20, 150);
   hPercentageSeed->GetXaxis()->SetTitle("percentage");
@@ -104,7 +108,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hPercSeedintegral->GetXaxis()->SetTitle("percentage");
 
   TH1F *hClusterCharge = // sqrt(ADC signal / MIP_ADC) for the cluster
-      new TH1F((TString) "hClusterCharge_board_" + board + "_side_" + side, (TString) "hClusterCharge_board_" + board + "_side_" + side, 1000, -0.5, 25.5);
+      new TH1F((TString) "hClusterCharge_board_" + board + "_side_" + side, (TString) "hClusterCharge_board_" + board + "_side_" + side, 1000, -0.5, 50.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
   TH1F *hSeedCharge = new TH1F((TString) "hSeedCharge_board_" + board + "_side_" + side, (TString) "hSeedCharge_board_" + board + "_side_" + side, 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
@@ -553,6 +557,8 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
           }
 
           hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
+          if (GetClusterSecondIndex(result.at(i), &cal) != -1)
+            hADCClusterSecond->Fill(GetClusterSecondADC(result.at(i), &cal));
           hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
           hSeedCharge->Fill(GetSeedMIPCharge(result.at(i), &cal));
           hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i), &cal) / GetClusterSignal(result.at(i)));
@@ -683,6 +689,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   delete hEtaVsADC;
 
   hADCClusterSeed->Write();
+  hADCClusterSecond->Write();
   hClusterCharge->Write();
   hSeedCharge->Write();
   hClusterSN->Write();
@@ -709,6 +716,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hCommonNoiseVsVA->Write();
 
   delete hADCClusterSeed;
+  delete hADCClusterSecond;
   delete hClusterCharge;
   delete hSeedCharge;
   delete hClusterSN;
@@ -1049,6 +1057,16 @@ int main(int argc, char *argv[])
     h2D_Cog_corr_side1[i]->GetXaxis()->SetTitle("board_0_side_1");
   }
 
+  // Mean Z charge of all detectors
+  TH1F *h_Z_mean_charge;
+  h_Z_mean_charge = new TH1F("h_Z_mean_charge", "h_Z_mean_charge", 1000, -0.5, 50.5);
+  h_Z_mean_charge->GetXaxis()->SetTitle("Mean Z charge [ADC]");
+
+  TH1F *h_Z_mean_chargeGold;
+  h_Z_mean_chargeGold = new TH1F("h_Z_mean_chargeGold", "h_Z_mean_chargeGold", 1000, -0.5, 50.5);
+  h_Z_mean_chargeGold->GetXaxis()->SetTitle("Mean Z charge [ADC]");
+  h_Z_mean_chargeGold->SetLineColor(kRed);
+
   // TFile *foutput = new TFile(output_filename + "_board" + std::to_string(board) + "_side" + std::to_string(side) + ".root", "RECREATE");
   TFile *foutput = new TFile(output_filename + ".root", "RECREATE");
   foutput->cd();
@@ -1091,6 +1109,7 @@ int main(int argc, char *argv[])
                           atoi(opt->getValue("version")) == 2023);
 
       // Fill 2D Beam Profile Histos
+      std::cout << "Filling 2D Beam Profile Histos" << std::endl;
       TTreeReader j5Reader((TString) "board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
       TTreeReaderValue<std::vector<cluster>> j5Clusters(j5Reader, "clusters");
       TTreeReader j7Reader((TString) "board_" + i + "_side_1/t_clusters_board_" + i + "_side_1", foutput);
@@ -1111,6 +1130,7 @@ int main(int argc, char *argv[])
   }
 
   // Fill 2D correlation histos
+  std::cout << "Filling 2D correlation histos" << std::endl;
   TTreeReader firstdetector((TString) "board_0_side_0/t_clusters_board_0_side_0", foutput);
   TTreeReader secondetector((TString) "board_0_side_1/t_clusters_board_0_side_1", foutput);
   TTreeReaderValue<std::vector<cluster>> firstdetector_clus(firstdetector, "clusters");
@@ -1160,6 +1180,89 @@ int main(int argc, char *argv[])
     }
   }
 
+  std::cout << "Filling mean charge histos" << std::endl;
+  // Mean charge of all detectors for gold events
+  vector<TTreeReaderValue<std::vector<cluster>>> clusters_array;
+  TTreeReader goldReader;
+  for (size_t board = 0; board < detectors / 2; board++)
+  {
+    for (size_t side = 0; side < 2; side++)
+    {
+      goldReader.SetTree((TTree *)foutput->Get((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side));
+      // TTreeReader goldReader((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side, foutput);
+      TTreeReaderValue<std::vector<cluster>> goldClusters(goldReader, "clusters");
+      clusters_array.push_back(goldClusters);
+    }
+  }
+
+  // Loop over gold events
+  bool gold = true;
+  int evt = 0;
+  float mean_charge = 0;
+
+  while (evt < goldReader.GetEntries(true))
+  {
+    gold = true;
+    mean_charge = 0;
+    goldReader.Next();
+    for (size_t det = 0; det < detectors; det++)
+    {
+
+      // ONLY FOR HERD TB WITH STRIPY DETECTOR
+      if (det == 2 || det == 3)
+        continue;
+
+      if ((*clusters_array[det]).size() != 1)
+      {
+        gold = false;
+        break;
+      }
+    }
+    if (gold)
+    {
+      for (size_t det = 0; det < detectors; det++)
+      {
+        mean_charge += GetClusterMIPCharge((*clusters_array[det])[0]);
+      }
+      h_Z_mean_chargeGold->Fill((float)mean_charge / detectors);
+    }
+    evt++;
+  }
+
+  goldReader.Restart();
+  evt = 0;
+
+  while (evt < goldReader.GetEntries(true))
+  {
+    mean_charge = 0;
+    goldReader.Next();
+    for (size_t det = 0; det < detectors; det++)
+    {
+
+      // ONLY FOR HERD TB WITH STRIPY DETECTOR
+      if (det == 2 || det == 3)
+        continue;
+
+      if ((*clusters_array[det]).size() != 1)
+      {
+        // get the cluster with highest ADC
+        float max_charge = 0;
+        int max_charge_index = 0;
+        for (size_t i = 0; i < (*clusters_array[det]).size(); i++)
+        {
+          if (GetClusterSignal((*clusters_array[det])[i]) > max_charge)
+          {
+            max_charge = GetClusterSignal((*clusters_array[det])[i]);
+            max_charge_index = i;
+          }
+        }
+      }
+      mean_charge += GetClusterMIPCharge((*clusters_array[det])[0]);
+    }
+    h_Z_mean_charge->Fill((float)mean_charge / detectors);
+    evt++;
+  }
+
   // Write 2D Beam Profile Histos
   doutput = foutput->mkdir("2D_Beam_Profile");
   doutput->cd();
@@ -1176,6 +1279,11 @@ int main(int argc, char *argv[])
     h2D_Cog_corr_side0[i]->Write();
     h2D_Cog_corr_side1[i]->Write();
   }
+
+  foutput->cd();
+  // Write Mean charge of all detectors
+  h_Z_mean_charge->Write();
+  h_Z_mean_chargeGold->Write();
 
   foutput->Close();
   return 0;

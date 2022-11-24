@@ -47,9 +47,15 @@ float GetClusterCOG(cluster clus);
 
 int GetClusterSeed(cluster clus, calib *cal);
 
+int GetClusterSecond(cluster clus, calib *cal);
+
 int GetClusterSeedIndex(cluster clus, calib *cal);
 
+int GetClusterSecondIndex(cluster clus, calib *cal);
+
 float GetClusterSeedADC(cluster clus, calib *cal);
+
+float GetClusterSecondADC(cluster clus, calib *cal);
 
 int GetClusterVA(cluster clus, calib *cal);
 
