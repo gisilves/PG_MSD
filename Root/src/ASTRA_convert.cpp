@@ -25,14 +25,18 @@ void print(std::vector<T> const &v)
 template <typename T>
 std::vector<T> reorder(std::vector<T> const &v)
 {
+    const int nASICS = 2;
+    const int nCH = 32;
     std::vector<T> reordered_vec(v.size());
     int j = 0;
-    constexpr int order[] = {1, 0};
-    for (int ch = 0; ch < 32; ch++)
+    constexpr int order[nASICS] = {1, 0};
+    constexpr int mirror[nASICS] = {1, -1};
+
+    for (int ch = 0; ch < nCH; ch++)
     {
-        for (int adc : order)
+        for (int asic; asic < nASICS; asic++)
         {
-            reordered_vec.at(adc * 32 + ch) = v.at(j);
+            reordered_vec.at(mirror[asic] * order[asic] * 32 + ch) = v.at(j);
             j++;
         }
     }
