@@ -7,6 +7,7 @@
 #include "anyoption.h"
 #include <ctime>
 #include <tuple>
+#include <algorithm>
 
 #include "PAPERO.h"
 
@@ -23,24 +24,32 @@ void print(std::vector<T> const &v)
 }
 
 template <typename T>
-std::vector<T> reorder(std::vector<T> const &v)
-{
-    const int nASICS = 2;
-    const int nCH = 32;
-    std::vector<T> reordered_vec(v.size());
-    int j = 0;
-    constexpr int order[nASICS] = {1, 0};
-    constexpr int mirror[nASICS] = {1, -1};
+std::vector<T> reorder(const std::vector<T> &v) {
 
-    for (int ch = 0; ch < nCH; ch++)
-    {
-        for (int asic; asic < nASICS; asic++)
-        {
-            reordered_vec.at(mirror[asic] * order[asic] * 32 + ch) = v.at(j);
-            j++;
+    std::vector<int> order = {1, 0};
+    std::vector<bool> mirror = {false, true};
+
+    // Calculate the section size based on the data size and order vector
+    int nCH = v.size() / order.size();
+
+    std::vector<T> rearrangedData(v.size());
+
+    for (int i = 0; i < order.size(); i++) {
+        int asicIndex = order[i];
+        int asicStart = asicIndex * nCH;
+        int asicEnd = asicStart + nCH;
+
+        if (mirror[asicIndex]) {
+            // Mirror the section
+            std::copy(v.begin() + asicStart, v.begin() + asicEnd, rearrangedData.begin() + (i * nCH));
+            std::reverse(rearrangedData.begin() + (i * nCH), rearrangedData.begin() + ((i + 1) * nCH));
+        } else {
+            // Don't mirror the section
+            std::copy(v.begin() + asicStart, v.begin() + asicEnd, rearrangedData.begin() + (i * nCH));
         }
     }
-    return reordered_vec;
+
+    return rearrangedData;
 }
 
 AnyOption *opt; // Handle the option input
