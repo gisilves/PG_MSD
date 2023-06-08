@@ -24,32 +24,30 @@ void print(std::vector<T> const &v)
 }
 
 template <typename T>
-std::vector<T> reorder(const std::vector<T> &v) {
-
+std::vector<T> reorder(std::vector<T> const &v)
+{
+    int nCH = 32;
+    std::vector<T> reordered_vec(v.size());
+    int j = 0;
     std::vector<int> order = {1, 0};
-    std::vector<bool> mirror = {false, true};
-
-    // Calculate the section size based on the data size and order vector
-    int nCH = v.size() / order.size();
-
-    std::vector<T> rearrangedData(v.size());
-
-    for (int i = 0; i < order.size(); i++) {
-        int asicIndex = order[i];
-        int asicStart = asicIndex * nCH;
-        int asicEnd = asicStart + nCH;
-
-        if (mirror[asicIndex]) {
-            // Mirror the section
-            std::copy(v.begin() + asicStart, v.begin() + asicEnd, rearrangedData.begin() + (i * nCH));
-            std::reverse(rearrangedData.begin() + (i * nCH), rearrangedData.begin() + ((i + 1) * nCH));
-        } else {
-            // Don't mirror the section
-            std::copy(v.begin() + asicStart, v.begin() + asicEnd, rearrangedData.begin() + (i * nCH));
+    for (int ch = 0; ch < nCH; ch++)
+    {
+        for (int adc = 0; adc < order.size(); adc++)
+        {
+            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j);
+            j++;
         }
     }
 
-    return rearrangedData;
+    std::vector<bool> mirror = {false, true};
+
+    for (int adc = 0; adc < order.size(); adc++)
+    {
+        if(mirror.at(adc))
+            std::reverse(reordered_vec.begin() + (adc * nCH), reordered_vec.begin() + ((adc + 1) * nCH));
+    }
+
+    return reordered_vec;
 }
 
 AnyOption *opt; // Handle the option input
