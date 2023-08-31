@@ -35,6 +35,9 @@ ASTRA_convert: ./src/ASTRA_convert.cpp
 PAPERO_info: ./src/PAPERO_info.cpp
 	$(CXX) ./src/PAPERO.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
 
+PAPERO_i2c: ./src/PAPERO_i2c.cpp
+	$(CXX) ./src/PAPERO.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
+
 raw_clusterize: ./src/raw_clusterize.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
