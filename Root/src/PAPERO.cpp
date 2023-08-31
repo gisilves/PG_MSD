@@ -407,7 +407,8 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
     std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
-    printf("\t\t\ti2c Trigger type: %04x - i2c Subsystem: %04x - i2c Serial: %llu\n", (i2cmsg_part&0x0000ffff), ((i2cmsg_part&0xffff0000)>>16), ((i2cmsg&0xffffffff00000000)>>32));
+    printf("\t\t\ti2c Trigger type: %d - i2c Subsystem: %01x - i2c Serial: %lu\n", (i2cmsg_part&0x0000000f) & 0x1, ((i2cmsg_part&0x0fff0000)>>16), 
+((i2cmsg&0xffffffff00000000)>>32));
     std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
   }
 
