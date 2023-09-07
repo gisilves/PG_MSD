@@ -812,6 +812,7 @@ int main(int argc, char *argv[])
   opt->addUsage("                   ................................. 2022 for PAN StripY");
   opt->addUsage("                   ................................. 2023 for AMSL0");
   opt->addUsage("                   ................................. 2024 for AMSL0 BabyLong Monster");
+  opt->addUsage("                   ................................. 2025 for ASTRA 32ch");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
   opt->addUsage("  --dynped         ................................. Enable dynamic pedestals ");
@@ -923,6 +924,15 @@ int main(int argc, char *argv[])
     minStrip = 0;
     maxStrip = 1023;
     sensor_pitch = 0.109;
+    maxADC_h = 200;
+  }
+  else if (atoi(opt->getValue("version")) == 2025) // ASTRA 32ch
+  {
+    NChannels = 32;
+    NVas = 1;
+    minStrip = 0;
+    maxStrip = 31;
+    sensor_pitch = 0.150;
     maxADC_h = 500;
   }
   else
