@@ -9,7 +9,7 @@
 
 // for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
-int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+uint64_t seek_first_evt_header(std::fstream &file, uint64_t offset, bool verbose)
 {
   unsigned int header;
   bool found = false;
@@ -53,7 +53,7 @@ int seek_first_evt_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
+bool read_evt_header(std::fstream &file, uint64_t offset, bool verbose)
 {
   unsigned int header;
   unsigned char buffer[4];
@@ -84,7 +84,7 @@ bool read_evt_header(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-bool read_de10_footer(std::fstream &file, unsigned int offset, bool verbose)
+bool read_de10_footer(std::fstream &file, uint64_t offset, bool verbose)
 {
   unsigned int footer;
   unsigned char buffer[4];
@@ -114,7 +114,7 @@ bool read_de10_footer(std::fstream &file, unsigned int offset, bool verbose)
   }
 }
 
-std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> read_de10_header(std::fstream &file, unsigned int offset, bool verbose)
+std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, uint64_t> read_de10_header(std::fstream &file, uint64_t offset, bool verbose)
 {
   unsigned char buffer[4];
 
@@ -129,7 +129,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   uint64_t ext_timestamp = 0UL;
   unsigned long val = 0;
   bool found = false;
-  unsigned int original_offset = offset;
+  uint64_t original_offset = offset;
 
   unsigned long long header = 0xffffffffbaba1a9a;
 
@@ -222,7 +222,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);
 }
 
-std::vector<unsigned int> read_event(std::fstream &file, unsigned int offset, int event_size, bool verbose, bool astra)
+std::vector<unsigned int> read_event(std::fstream &file, uint64_t offset, int event_size, bool verbose, bool astra)
 {
 
   file.seekg(offset + 36);

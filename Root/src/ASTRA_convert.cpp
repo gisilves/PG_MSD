@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
     }
 
     // Find if there is an offset before first event
-    unsigned int offset = 0;
+    uint64_t offset = 0;
     offset = seek_first_evt_header(file, offset, verbose);
     int padding_offset = 0;
 

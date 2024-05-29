@@ -143,9 +143,9 @@ int main(int argc, char *argv[])
     }
 
     // Find if there is an offset before first event
-    unsigned int offset = 0;
+    uint64_t offset = 0;
     offset = seek_first_evt_header(file, offset, verbose);
-    int padding_offset = 0;
+    uint64_t padding_offset = 0;
 
     // Read raw events and write to TTree
     bool is_good = false;
@@ -162,9 +162,9 @@ int main(int argc, char *argv[])
     unsigned long ext_timestamp = 0;
     int boards_read = 0;
     float mean_rate = 0;
-    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
+    std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, uint64_t> evt_retValues;
 
-    unsigned int old_offset = 0;
+    uint64_t old_offset = 0;
     char dummy[100];
 
     if (!opt->getValue("boards"))
@@ -264,11 +264,11 @@ int main(int argc, char *argv[])
             {
                 boards_read = 0;
                 evtnum++;
-                offset = (int)file.tellg() + padding_offset + 8;
+                offset = (uint64_t)file.tellg() + padding_offset + 8;
             }
             else
             {
-                offset = (int)file.tellg() + padding_offset + 4;
+                offset = (uint64_t)file.tellg() + padding_offset + 4;
                 if (verbose)
                 {
                     std::cout << "WARNING: not all boards were read" << std::endl;
