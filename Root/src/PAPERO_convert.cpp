@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
     opt->setFlag("help", 'h');
     opt->setFlag("verbose", 'v');
     opt->setFlag("gsi");
-    opt->setFlag("gsi");
+    opt->setFlag("dune");
 
     opt->processFile("./options.txt");
     opt->processCommandArgs(argc, argv);
