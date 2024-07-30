@@ -11,6 +11,7 @@
 #include "PAPERO.h"
 
 #define max_detectors 16
+#define ADC_N 10
 
 template <typename T>
 void print(std::vector<T> const &v)
@@ -44,7 +45,7 @@ std::vector<T> reorder_DUNE(std::vector<T> const &v)
 {
     std::vector<T> reordered_vec(v.size());
     int j = 0;
-    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
+    constexpr int order[] = {1, 0, 3, 2, 4, 8, 6, 5, 9, 7};
     for (int ch = 0; ch < 192; ch++)
     {
         for (int adc : order)
@@ -135,7 +136,15 @@ int main(int argc, char *argv[])
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
     std::vector<TTree *> raw_events_tree(max_detectors);
     std::vector<std::vector<unsigned int>> raw_event_vector(max_detectors);
-    TString ttree_name;
+    TString ttree_name, branch_name;
+
+    bool dune = false;
+
+    if (opt->getValue("dune"))
+    {
+        dune = true;
+        std::cout << "\tFormatting data for protoDUNE setup" << std::endl;
+    }
 
     for (size_t detector = 0; detector < max_detectors; detector++)
     {
@@ -171,7 +180,7 @@ int main(int argc, char *argv[])
     int evtnum = 0;
     int evt_to_read = -1;
     int boards = 0;
-    bool gsi, dune = false;
+    bool gsi = false;
     unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
@@ -185,12 +194,6 @@ int main(int argc, char *argv[])
 
     uint64_t old_offset = 0;
     char dummy[100];
-
-    if (opt->getValue("dune"))
-    {
-        dune = true;
-        std::cout << "\tFormatting data for protoDUNE setup" << std::endl;
-    }
 
     if (dune)
     {
@@ -296,20 +299,24 @@ int main(int argc, char *argv[])
                 raw_events_tree.at(2 * board_id)->Fill();
             }
             else if (dune)
-            {
+            {   
+
                 raw_event_vector.at(2 * board_id).clear();
                 raw_event_vector.at(2 * board_id + 1).clear();
                 raw_event_vector.at(2 * board_id + 2).clear();
+                raw_event_vector.at(2 * board_id + 3).clear();
 
-                uint buffer_length = raw_event_buffer.size();
+                uint adc_length = raw_event_buffer.size() / ADC_N;
                 
-                raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + buffer_length / 3);
-                raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + buffer_length / 3, raw_event_buffer.begin() + buffer_length * 2 / 3);
-                raw_event_vector.at(2 * board_id + 2) = std::vector<unsigned int>(raw_event_buffer.begin() + buffer_length * 2 / 3, raw_event_buffer.end());
-                
+                raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + 2 * adc_length);
+                raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + 2 * adc_length, raw_event_buffer.begin() + 4 * adc_length);
+                raw_event_vector.at(2 * board_id + 2) = std::vector<unsigned int>(raw_event_buffer.begin() + 4 * adc_length, raw_event_buffer.begin() + 6 * adc_length);
+                raw_event_vector.at(2 * board_id + 3) = std::vector<unsigned int>(raw_event_buffer.begin() + 6 * adc_length, raw_event_buffer.begin() + 8 * adc_length);
+
                 raw_events_tree.at(2 * board_id)->Fill();
                 raw_events_tree.at(2 * board_id + 1)->Fill();
-                raw_events_tree.at(2 * board_id + 1)->Fill();
+                raw_events_tree.at(2 * board_id + 2)->Fill();
+                raw_events_tree.at(2 * board_id + 3)->Fill();
             }
 
             if (boards_read == boards)
@@ -337,7 +344,8 @@ int main(int argc, char *argv[])
     int filled = 0;
 
     for (size_t detector = 0; detector < raw_events_tree.size(); detector++)
-    {
+    {   
+
         if (raw_events_tree.at(detector)->GetEntries())
         {
             if (filled == 0)
@@ -356,7 +364,7 @@ int main(int argc, char *argv[])
             filled++;
         }
     }
-
+    
     foutput->Close();
     file.close();
     return 0;

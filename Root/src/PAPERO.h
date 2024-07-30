@@ -77,8 +77,7 @@ bool read_evt_header(std::fstream &file, uint64_t offset, bool verbose)
   {
     if (verbose)
     {
-      std::cout << "Can't find event header"
-                << " at offset " << offset << std::endl;
+      std::cout << "Can't find event header at offset " << offset << std::endl;
     }
     return false;
   }
