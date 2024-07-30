@@ -40,6 +40,23 @@ std::vector<T> reorder(std::vector<T> const &v)
 }
 
 template <typename T>
+std::vector<T> reorder_DUNE(std::vector<T> const &v)
+{
+    std::vector<T> reordered_vec(v.size());
+    int j = 0;
+    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
+    for (int ch = 0; ch < 192; ch++)
+    {
+        for (int adc : order)
+        {
+            reordered_vec.at(adc * 192 + ch) = v.at(j);
+            j++;
+        }
+    }
+    return reordered_vec;
+}
+
+template <typename T>
 std::vector<T> reorder_DAMPE(std::vector<T> const &v)
 {
     std::vector<T> reordered_vec(v.size());
@@ -69,11 +86,13 @@ int main(int argc, char *argv[])
     opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
     opt->addUsage("  --nevents        ................................. Number of events to be read ");
     opt->addUsage("  --gsi            ................................. To convert data from GSI hybrids (10 ADC per detector)");
+    opt->addUsage("  --dune           ................................. To convert data from protoDUNE setup (3 DAMPE detectors with adapter)");
     opt->setOption("boards");
     opt->setOption("nevents");
 
     opt->setFlag("help", 'h');
     opt->setFlag("verbose", 'v');
+    opt->setFlag("gsi");
     opt->setFlag("gsi");
 
     opt->processFile("./options.txt");
@@ -152,7 +171,7 @@ int main(int argc, char *argv[])
     int evtnum = 0;
     int evt_to_read = -1;
     int boards = 0;
-    bool gsi = false;
+    bool gsi, dune = false;
     unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
@@ -167,7 +186,17 @@ int main(int argc, char *argv[])
     uint64_t old_offset = 0;
     char dummy[100];
 
-    if (!opt->getValue("boards"))
+    if (opt->getValue("dune"))
+    {
+        dune = true;
+        std::cout << "\tFormatting data for protoDUNE setup" << std::endl;
+    }
+
+    if (dune)
+    {
+        boards = 1;
+    }
+    else if (!opt->getValue("boards"))
     {
         std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
         return 2;
@@ -237,10 +266,17 @@ int main(int argc, char *argv[])
             {
                 padding_offset = 0;
                 raw_event_buffer.clear();
-                raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
+                if (!dune)
+                {
+                    raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
+                }
+                else
+                {
+                    raw_event_buffer = reorder_DUNE(read_event(file, offset, evt_size, verbose, false));
+                }
             }
 
-            if (!gsi)
+            if (!gsi && !dune)
             {
                 raw_event_vector.at(2 * board_id).clear();
                 raw_event_vector.at(2 * board_id + 1).clear();
@@ -249,7 +285,7 @@ int main(int argc, char *argv[])
                 raw_events_tree.at(2 * board_id)->Fill();
                 raw_events_tree.at(2 * board_id + 1)->Fill();
             }
-            else
+            else if (gsi)
             {
                 for (int hole = 1; hole <= 10; hole++)
                 {
@@ -258,6 +294,22 @@ int main(int argc, char *argv[])
                 raw_event_vector.at(2 * board_id).clear();
                 raw_event_vector.at(2 * board_id) = raw_event_buffer;
                 raw_events_tree.at(2 * board_id)->Fill();
+            }
+            else if (dune)
+            {
+                raw_event_vector.at(2 * board_id).clear();
+                raw_event_vector.at(2 * board_id + 1).clear();
+                raw_event_vector.at(2 * board_id + 2).clear();
+
+                uint buffer_length = raw_event_buffer.size();
+                
+                raw_event_vector.at(2 * board_id) = std::vector<unsigned int>(raw_event_buffer.begin(), raw_event_buffer.begin() + buffer_length / 3);
+                raw_event_vector.at(2 * board_id + 1) = std::vector<unsigned int>(raw_event_buffer.begin() + buffer_length / 3, raw_event_buffer.begin() + buffer_length * 2 / 3);
+                raw_event_vector.at(2 * board_id + 2) = std::vector<unsigned int>(raw_event_buffer.begin() + buffer_length * 2 / 3, raw_event_buffer.end());
+                
+                raw_events_tree.at(2 * board_id)->Fill();
+                raw_events_tree.at(2 * board_id + 1)->Fill();
+                raw_events_tree.at(2 * board_id + 1)->Fill();
             }
 
             if (boards_read == boards)
