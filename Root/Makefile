@@ -48,7 +48,7 @@ calibration: ./src/calibration.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_viewer: 
-	$(ROOTCLING) -f guiDict.cpp ./src/viewerGUI.h ./src/udpSocket.cpp ./src/guiLinkDef.h
+	$(ROOTCLING) -f guiDict.cpp ./src/viewerGUI.h ./src/guiLinkDef.h
 	$(CXX) ./src/viewerGUI.cpp ./src/event.cpp guiDict.cpp  -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 bias_control: 
