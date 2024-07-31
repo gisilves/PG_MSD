@@ -31,40 +31,11 @@
 #include <fstream>
 #include <string>
 
-template <typename T>
-void print(std::vector<T> const &v)
-{
-    for (auto i : v)
-    {
-        std::cout << std::hex << i << ' ' << std::endl;
-    }
-    std::cout << '\n';
-}
-
-template <typename T>
-std::vector<T> reorder(std::vector<T> const &v)
-{
-  std::vector<T> reordered_vec(v.size());
-  int j = 0;
-  constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
-  for (int ch = 0; ch < 128; ch++)
-  {
-    for (int adc : order)
-    {
-      reordered_vec.at(adc * 128 + ch) = v.at(j);
-      j++;
-    }
-  }
-  return reordered_vec;
-}
-
-const char symb[] = {'|', '/', '-', '\\', 0};
+#define max_detectors 16
 
 MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 {
   gROOT->ProcessLine("gErrorIgnoreLevel = 2022;");
-  // On-line monitor with UDP server
-  omServer = new udpServer(kUdpAddr, kUdpPort);
   gr_event = new TGraph();
 
   newDAQ = false;
@@ -141,59 +112,6 @@ MyMainFrame::MyMainFrame(const TGWindow *p, UInt_t w, UInt_t h)
 
   fMain->AddFrame(fHor_Files, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
 
-  tf = fTab->AddTab("Realtime data");
-  fHor_OM_Buttons = new TGHorizontalFrame(tf, 1280, 20);
-
-  fOpenCalib = new TGTextButton(fHor_OM_Buttons, "&Open Calib");
-  fOpenCalib->Connect("Clicked()", "MyMainFrame", this, "DoOpenCalibOnly()");
-  fHor_OM_Buttons->AddFrame(fOpenCalib, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-
-  fHor_Numbers_OM = new TGHorizontalFrame(tf, 1280, 20);
-
-  boardsLabel = new TGLabel(fHor_Numbers_OM, "Board number:");
-  fHor_Numbers_OM->AddFrame(boardsLabel, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber2 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 8);
-  fHor_Numbers_OM->AddFrame(fNumber2, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
-
-  detectorLabel2 = new TGLabel(fHor_Numbers_OM, "Detector number:");
-  fHor_Numbers_OM->AddFrame(detectorLabel2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-  fNumber3 = new TGNumberEntry(fHor_Numbers_OM, 0, 10, -1, TGNumberFormat::kNESReal, TGNumberFormat::kNEANonNegative, TGNumberFormat::kNELLimitMax, 0, 1);
-  fNumber3->GetNumberEntry()->Connect("ReturnPressed()", "MyMainFrame", this, "DoDraw()");
-  fHor_Numbers_OM->AddFrame(fNumber3, new TGLayoutHints(kLHintsCenterX | kLHintsCenterY, 5, 5, 5, 5));
-
-  fHor_Pedestal_OM = new TGHorizontalFrame(tf, 1280, 20);
-
-  fPed2 = new TGCheckButton(fHor_Pedestal_OM, "Pedestal subtraction");
-  fHor_Pedestal_OM->AddFrame(fPed2, new TGLayoutHints(kLHintsLeft | kLHintsCenterY, 5, 2, 2, 2));
-
-  fShowAll = new TGCheckButton(fHor_Pedestal_OM, "Show both detectors on the board");
-  fHor_Pedestal_OM->AddFrame(fShowAll, new TGLayoutHints(kLHintsRight | kLHintsCenterY, 5, 2, 2, 2));
-
-  fStart = new TGTextButton(fHor_OM_Buttons, "&Start");
-  fStart->SetToolTipText("Start online monitoring display");
-  fStart->Connect("Clicked()", "MyMainFrame", this, "DoStart()");
-  fHor_OM_Buttons->AddFrame(fStart, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-  fStop = new TGTextButton(fHor_OM_Buttons, "&Stop");
-  fStop->SetToolTipText("Stop online monitoring display");
-  fStop->Connect("Clicked()", "MyMainFrame", this, "DoStop()");
-  fHor_OM_Buttons->AddFrame(fStop, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-
-  fExit2 = new TGTextButton(fHor_OM_Buttons, "&Exit");
-  fExit2->Connect("Clicked()", "MyMainFrame", this, "DoClose()");
-  fHor_OM_Buttons->AddFrame(fExit2, new TGLayoutHints(kLHintsCenterX, 5, 5, 3, 4));
-
-  fHor_Status_OM = new TGHorizontalFrame(tf, 1024, 20);
-
-  fStatusBar2 = new TGTextView(fHor_Status_OM, 500, 25);
-  fStatusBar2->LoadBuffer("Online monitoring data plotting via UDP");
-
-  fHor_Status_OM->AddFrame(fStatusBar2, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 5, 5, 5, 5));
-
-  tf->AddFrame(fHor_OM_Buttons, new TGLayoutHints(kLHintsExpandY | kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor_Numbers_OM, new TGLayoutHints(kLHintsExpandY | kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor_Pedestal_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
-  tf->AddFrame(fHor_Status_OM, new TGLayoutHints(kLHintsExpandX | kLHintsCenterX, 2, 2, 5, 1));
-
   fMain->SetCleanup(kDeepCleanup);
   fMain->SetWindowName("Microstrip Raw Event Viewer");
   fMain->MapSubwindows();
@@ -235,107 +153,59 @@ const char *filetypesCalib[] = {
 
 void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfile[200], int boards)
 {
-  TChain *chain = new TChain("raw_events");
-  TChain *chain2 = new TChain("raw_events_B");
-  TChain *chain3 = new TChain("raw_events_C");
-  TChain *chain4 = new TChain("raw_events_D");
-  TChain *chain5 = new TChain("raw_events_E");
-  TChain *chain6 = new TChain("raw_events_F");
-  TChain *chain7 = new TChain("raw_events_G");
-  TChain *chain8 = new TChain("raw_events_H");
-  TChain *chain9 = new TChain("raw_events_I");
-  TChain *chain10 = new TChain("raw_events_J");
-  TChain *chain11 = new TChain("raw_events_K");
-  TChain *chain12 = new TChain("raw_events_L");
-  TChain *chain13 = new TChain("raw_events_M");
-  TChain *chain14 = new TChain("raw_events_N");
-  TChain *chain15 = new TChain("raw_events_O");
-  TChain *chain16 = new TChain("raw_events_P");
+  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
+  std::vector<TChain*> data_chains;
+  TString chain_name;
 
-  chain->Add(filename);
+  for (int i = 0; i < max_detectors; i++) 
+  {
+    if (i == 0)
+    {
+      chain_name = "raw_events";
+    }
+    else
+    {
+      chain_name = "raw_events_" + (TString) alphabet.at(i);
+    }
+    TChain* chain = new TChain(chain_name);
+    data_chains.push_back(chain);
+  }
+
+  data_chains.at(0)->Add(filename);
   if (newDAQ)
   {
-    chain2->Add(filename);
-    chain->AddFriend(chain2);
-
-    if (boards >= 2)
-    {
-      chain3->Add(filename);
-      chain4->Add(filename);
-      chain->AddFriend(chain3);
-      chain->AddFriend(chain4);
-    }
-
-    if (boards >= 3)
-    {
-      chain5->Add(filename);
-      chain6->Add(filename);
-      chain->AddFriend(chain5);
-      chain->AddFriend(chain6);
-    }
-
-    if (boards >= 4)
-    {
-      chain7->Add(filename);
-      chain8->Add(filename);
-      chain->AddFriend(chain7);
-      chain->AddFriend(chain8);
-    }
-
-    if (boards >= 5)
-    {
-      chain9->Add(filename);
-      chain10->Add(filename);
-      chain->AddFriend(chain9);
-      chain->AddFriend(chain10);
-    }
-
-    if (boards >= 6)
-    {
-      chain11->Add(filename);
-      chain12->Add(filename);
-      chain->AddFriend(chain11);
-      chain->AddFriend(chain12);
-    }
-
-    if (boards >= 7)
-    {
-      chain13->Add(filename);
-      chain14->Add(filename);
-      chain->AddFriend(chain13);
-      chain->AddFriend(chain14);
-    }
-
-    if (boards >= 8)
-    {
-      chain15->Add(filename);
-      chain16->Add(filename);
-      chain->AddFriend(chain15);
-      chain->AddFriend(chain16);
-    }
+    data_chains.at(1)->Add(filename);
   }
-  Long64_t entries = chain->GetEntries();
 
+  for (size_t detector = 2; detector < 2 * boards; detector += 2)
+  {
+    data_chains.at(detector)->Add(filename);
+    data_chains.at(detector + 1)->Add(filename);
+  } 
+
+  Long64_t entries = data_chains.at(0)->GetEntries();
   fStatusBar->AddLine("");
   fStatusBar->AddLine("Event: " + TGString(evt) + " of: " + TGString(entries - 1) + " for detector: " + TGString(detector));
   fStatusBar->ShowBottom();
 
-  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
   int is_branch_valid = 0;  
 
+  TString branch_name;
   if (detector%2)
-  {
-    chain->SetBranchAddress("RAW Event J7", &raw_event, &RAW);
+  { 
+    branch_name = "RAW Event J7";
+    data_chains.at(detector)->SetBranchAddress(branch_name, &raw_event, &RAW);
   }
   else
   {
-    chain->SetBranchAddress("RAW Event J5", &raw_event, &RAW);
+    branch_name = "RAW Event J5";
+    data_chains.at(detector)->SetBranchAddress(branch_name, &raw_event, &RAW);
   }
 
-  chain->GetEntry(0);
+  data_chains.at(detector)->GetEntry(0);
 
   gr_event->SetMarkerColor(kRed + 1);
   gr_event->SetLineColor(kRed + 1);
@@ -347,7 +217,7 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   int maxadc = -999;
   int minadc = 0;
 
-  chain->GetEntry(evt);
+  data_chains.at(detector)->GetEntry(evt);
 
   gr_event->Set(0);
 
@@ -394,52 +264,6 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   fCanvas->SetGrid();
   fCanvas->cd();
   fCanvas->Update();
-  delete chain;
-  delete chain2;
-}
-
-void MyMainFrame::DoDrawOM(int evtnum, int detector, char calibfile[200], std::vector<uint32_t> evt)
-{
-  fStatusBar2->Clear();
-  fStatusBar2->LoadBuffer("Online monitoring is running\t Reading event: " + TGString(evtnum) +
-                          "\tRead " + TGString(evt.size()) + " channels for detector: " + TGString(detector) +
-                          "\tCalibration file " + TGString(calib_open ? "loaded" : "not loaded"));
-
-  gr_event->SetName("Event " + TGString(evtnum) + " Detector " + TGString(detector));
-  gr_event->SetTitle("Event number " + TString::Format("%0d", (int)evtnum) + " Detector: " + TString::Format("%0d", (int)detector));
-  gr_event->GetXaxis()->SetTitle("Strip number");
-  gr_event->GetYaxis()->SetTitle("ADC");
-  gr_event->GetYaxis()->SetTitleOffset(1.5);
-  gr_event->GetXaxis()->SetTitleFont(62);
-  gr_event->GetYaxis()->SetTitleFont(62);
-
-  gr_event->SetMarkerColor(kRed + 1);
-  gr_event->SetLineColor(kRed + 1);
-  gr_event->SetMarkerStyle(23);
-  gr_event->SetMarkerSize(0.5);
-
-  int maxadc = -999;
-  int minadc = 0;
-
-  gr_event->Set(0);
-  double signal;
-
-  for (int chan = 0; chan < evt.size(); chan++)
-  {
-    if (fPed2->IsOn() && calib_open)
-    {
-      signal = evt[chan] - calib_data[detector].ped[chan];
-    }
-    else
-    {
-      signal = evt[chan];
-    }
-
-    gr_event->SetPoint(gr_event->GetN(), chan, signal);
-  }
-  gr_event->GetXaxis()->SetNdivisions((evt.size() - 1) / 64, false);
-  gr_event->GetXaxis()->SetRangeUser(0, evt.size() - 1);
-  gr_event->Draw();
 }
 
 void MyMainFrame::DoDraw()
@@ -587,104 +411,6 @@ void MyMainFrame::DoClose()
   {
     gApplication->Terminate(0);
   }
-}
-
-void MyMainFrame::DoStart()
-{
-  fEcanvas->GetCanvas()->Clear();
-  fEcanvas->GetCanvas()->SetFrameLineColor(kBlack);
-  // if the thread has been created and is not running, start it
-  running = true;
-  // create the thread for the job
-  th1 = std::thread(&MyMainFrame::JobThread, this);
-  fStart->SetState(kButtonDisabled);
-}
-
-void MyMainFrame::DoStop()
-{
-  running = false;
-  if (th1.joinable())
-  {
-    th1.join();
-  }
-  fStatusBar2->LoadBuffer("Online monitoring stopped");
-  fStart->SetState(kButtonUp);
-}
-
-void MyMainFrame::DoGetUDP()
-{
-  uint32_t header;
-  omServer->Rx(&header, sizeof(header));
-  std::cout << "header: " << std::hex << header << std::endl;
-  
-  if (header != 0xfa4af1ca)
-  {
-    std::cout << "ERROR: header is not correct, skipping packet" << std::endl;
-    return;
-  }
-
-  std::vector<uint32_t> evt(650);
-  omServer->Rx(evt.data(), 2600);
-
-  std::vector<uint32_t> evt_buffer;
-
-  for (size_t i = 0; i < evt.size() - 10; i++)
-  {
-    evt_buffer.push_back((evt.at(i + 9) % (0x10000)) / 4);
-    evt_buffer.push_back(((evt.at(i + 9) >> 16) % (0x10000)) / 4);
-  }
-
-  evt_buffer = reorder(evt_buffer);
-  std::vector<uint32_t> detJ5 = std::vector<uint32_t>(evt_buffer.begin(), evt_buffer.begin() + evt_buffer.size() / 2);
-  std::vector<uint32_t> detJ7 = std::vector<uint32_t>(evt_buffer.begin() + evt_buffer.size() / 2, evt_buffer.end());
-
-  if (fShowAll->IsOn())
-  {
-    fNumber2->SetState(kTRUE);
-    fNumber3->SetState(kFALSE);
-    fEcanvas->GetCanvas()->cd();
-    fEcanvas->GetCanvas()->Clear();
-    fEcanvas->GetCanvas()->Divide(2, 1);
-
-    fEcanvas->GetCanvas()->cd(1);
-    DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-    gPad->SetGrid();
-    gPad->Modified();
-    gPad->Update();
-
-    fEcanvas->GetCanvas()->cd(2);
-    DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-    gPad->SetGrid();
-    gPad->Modified();
-    gPad->Update();
-  }
-  else
-  {
-    fNumber2->SetState(kFALSE);
-    fNumber3->SetState(kTRUE);
-    fEcanvas->GetCanvas()->cd();
-    if (fNumber3->GetNumberEntry()->GetIntNumber())
-    {
-      DoDrawOM(evt[3], evt[4] + 1, (char *)(calibLabel->GetText())->GetString(), detJ7);
-    }
-    else
-    {
-      DoDrawOM(evt[3], evt[4], (char *)(calibLabel->GetText())->GetString(), detJ5);
-    }
-    gPad->SetGrid();
-    gPad->Modified();
-    gPad->Update();
-  }
-}
-
-void MyMainFrame::JobThread()
-{
-  while(running)
-  {
-    usleep(10000);
-    DoGetUDP();
-  }
-  return;
 }
 
 MyMainFrame::~MyMainFrame()
