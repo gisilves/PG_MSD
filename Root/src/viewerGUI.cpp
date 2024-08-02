@@ -194,14 +194,14 @@ void MyMainFrame::viewer(int evt, int detector, char filename[200], char calibfi
   int is_branch_valid = 0;  
 
   TString branch_name;
-  if (detector%2)
-  { 
-    branch_name = "RAW Event J7";
+  if (detector == 0)
+  {
+    branch_name = "RAW Event";
     data_chains.at(detector)->SetBranchAddress(branch_name, &raw_event, &RAW);
   }
   else
   {
-    branch_name = "RAW Event J5";
+    branch_name = "RAW Event " + (TString) alphabet.at(detector);
     data_chains.at(detector)->SetBranchAddress(branch_name, &raw_event, &RAW);
   }
 
