@@ -147,26 +147,51 @@ int main(int argc, char *argv[])
     }
 
     for (size_t detector = 0; detector < max_detectors; detector++)
-    {
-        if (detector == 0)
+    {   
+        if (!dune)
         {
-            raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
-            raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
-        else
-        {
-            ttree_name = (TString) "raw_events_" + alphabet.at(detector);
-            raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            if(detector%2)
+            if (detector == 0)
             {
-                raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
+                branch_name = (TString) "RAW Event J5";
+                raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
+                raw_events_tree.at(detector)->Branch(branch_name, &raw_event_vector.at(detector));
+                raw_events_tree.at(detector)->SetAutoSave(0);
             }
             else
             {
-                raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
+                ttree_name = (TString) "raw_events_" + alphabet.at(detector);
+                raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+                if(detector%2)
+                {
+                    branch_name = (TString) "RAW Event J7";
+                    raw_events_tree.at(detector)->Branch(branch_name, &raw_event_vector.at(detector));
+                }
+                else
+                {
+                    branch_name = (TString) "RAW Event J5";
+                    raw_events_tree.at(detector)->Branch(branch_name, &raw_event_vector.at(detector));
+                }
+                raw_events_tree.at(detector)->SetAutoSave(0);
             }
-            raw_events_tree.at(detector)->SetAutoSave(0);
+        }
+        else
+        {   
+            if (detector == 0)
+            {
+                ttree_name = (TString) "raw_events";
+                raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+                branch_name = (TString) "RAW Event";
+                raw_events_tree.at(detector)->Branch(branch_name, &raw_event_vector.at(detector));
+                raw_events_tree.at(detector)->SetAutoSave(0);
+            }
+            else
+            {
+                ttree_name = (TString) "raw_events_" + alphabet.at(detector);
+                raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+                branch_name = (TString) "RAW Event " + alphabet.at(detector);
+                raw_events_tree.at(detector)->Branch(branch_name, &raw_event_vector.at(detector));
+                raw_events_tree.at(detector)->SetAutoSave(0);
+            }
         }
     }
 
