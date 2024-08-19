@@ -246,11 +246,6 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
       }
       else
       {
-        if (ch == 100)
-        {
-          hADC[ch]->SaveAs("test.root");
-        }
-
         pedestals->push_back(hADC[ch]->GetMean());
         rsigma->push_back(hADC[ch]->GetRMS());
         gr->SetPoint(ch, ch, hADC[ch]->GetMean());
@@ -524,7 +519,7 @@ int main(int argc, char *argv[])
   opt->setFlag("help", 'h');
   opt->setFlag("minitrb");
   opt->setFlag("verbose", 'v');
-  opt->setFlag("single");
+  opt->setFlag("multiple", 'm');
   opt->setFlag("pdf");
   opt->setFlag("fast");
   opt->setFlag("fit");
@@ -552,6 +547,7 @@ int main(int argc, char *argv[])
 
   if (opt->getFlag("multiple") || opt->getFlag('m'))
   {
+    std::cout << "\nMultiple flag activated: will save separate file for each detector" << std::endl;
     single_file = false;
   }
 
