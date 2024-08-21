@@ -20,7 +20,7 @@
 
 AnyOption *opt; // Handle the option input
 
-int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1)
+int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1, bool isDune = false)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -42,20 +42,37 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   // Read raw event from input chain TTree
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
+  TString branch_name;
 
-  if (side == 0)
+  if(!isDune)
   {
-    chain.SetBranchAddress("RAW Event J5", &raw_event, &RAW);
-  }
-  else if (side == 1)
-  {
-    chain.SetBranchAddress("RAW Event J7", &raw_event, &RAW);
+    if (side == 0)
+    {
+      chain.SetBranchAddress("RAW Event J5", &raw_event, &RAW);
+    }
+    else if (side == 1)
+    {
+      chain.SetBranchAddress("RAW Event J7", &raw_event, &RAW);
+    }
+    else
+    {
+      std::cout << "Side must be 0 or 1" << std::endl;
+      return 1;
+    }
   }
   else
   {
-    std::cout << "Side must be 0 or 1" << std::endl;
-    return 1;
+    if (board == 0 && side == 0)
+    {
+      branch_name = (TString) "RAW Event";
+    } 
+    else
+    {
+      branch_name = (TString) "RAW Event " + alphabet[2 * board + side];
+    }
+    chain.SetBranchAddress(branch_name, &raw_event, &RAW);
   }
+
 
   chain.GetEntry(0);
   int NChannels = raw_event->size();
@@ -111,6 +128,13 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   char curr6v[100];
   char curr3v[100];
   char delay[100];
+  
+
+  if (isDune)
+  {
+    side = 2 * board + side;
+    board = 0; 
+  }
 
   ofstream calfile;
   if (!pdf_only)
@@ -222,11 +246,6 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
       }
       else
       {
-        if (ch == 100)
-        {
-          hADC[ch]->SaveAs("test.root");
-        }
-
         pedestals->push_back(hADC[ch]->GetMean());
         rsigma->push_back(hADC[ch]->GetRMS());
         gr->SetPoint(ch, ch, hADC[ch]->GetMean());
@@ -480,6 +499,7 @@ int main(int argc, char *argv[])
   int NVas = -1;
 
   bool newDAQ = true;
+  bool dune = false;
   int side = 0;
 
   opt = new AnyOption();
@@ -499,10 +519,11 @@ int main(int argc, char *argv[])
   opt->setFlag("help", 'h');
   opt->setFlag("minitrb");
   opt->setFlag("verbose", 'v');
-  opt->setFlag("single");
+  opt->setFlag("multiple", 'm');
   opt->setFlag("pdf");
   opt->setFlag("fast");
   opt->setFlag("fit");
+  opt->setFlag("dune");
   opt->setOption("max_ADC");
 
   opt->setOption("output");
@@ -526,7 +547,14 @@ int main(int argc, char *argv[])
 
   if (opt->getFlag("multiple") || opt->getFlag('m'))
   {
+    std::cout << "\nMultiple flag activated: will save separate file for each detector" << std::endl;
     single_file = false;
+  }
+
+  if (opt->getFlag("dune"))
+  {
+    dune = true;
+    std::cout << "\nDUNE flag activated: up to 4 DAMPE detectors with adapter will be used" << std::endl;
   }
 
   if (opt->getValue("cn"))
@@ -612,7 +640,7 @@ int main(int argc, char *argv[])
 
   if (!newDAQ)
   {
-    compute_calibration(*chain, output_filename, *c1, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC);
+    compute_calibration(*chain, output_filename, *c1, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC, dune);
   }
   else
   {
@@ -632,11 +660,11 @@ int main(int argc, char *argv[])
         }
         if (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1)
         {
-          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC);
+          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC, dune);
         }
         else
         {
-          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, false, max_ADC);
+          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, false, max_ADC, dune);
         }
         detector_num++;
         if (ladder_side == 0)
