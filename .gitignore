@@ -1,1 +1,10 @@
 Root/.vscode
+bin/
+build/
+json/*
+output/
+data/
+*.root
+*.txt
+*.dat
+*.cal

@@ -1,0 +1,12 @@
+[submodule "submodules/cpp-generic-toolbox"]
+	path = submodules/cpp-generic-toolbox
+	url = https://git.t2k.org/ablanche/cpp-generic-toolbox.git
+	branch = main
+[submodule "submodules/simple-cpp-logger"]
+	path = submodules/simple-cpp-logger
+	url = https://git.t2k.org/ablanche/simple-cpp-logger.git
+	branch = main
+[submodule "submodules/simple-cpp-cmd-line-parser"]
+	path = submodules/simple-cpp-cmd-line-parser
+	url = https://git.t2k.org/ablanche/simple-cpp-cmd-line-parser.git
+	branch = main
