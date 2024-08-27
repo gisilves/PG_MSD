@@ -132,22 +132,7 @@ then
     rm -r $REPO_HOME/build/*
   fi  
   # Compile the code
-  echo "Compiling the code"
-  cmake ..
-  # check if cmake was successful
-  if [ $? -ne 0 ]
-  then
-    echo "CMake failed. Stopping execution."
-    exit 0
-  fi
-  nproc=$(nproc)
-  make -j $nproc
-  # check if make was successful
-  if [ $? -ne 0 ]
-  then
-    echo "Make failed. Stopping execution."
-    exit 0
-  fi
+  eval ${REPO_HOME}/scripts/compile.sh
 else 
   echo "Skipping compilation."
 fi
@@ -158,9 +143,14 @@ cd $REPO_HOME/build # executable is here, for now
 
 if [ -n "$fileName" ]
 then
-    command_to_run="./PAPERO_convert ${inputDirectory}/${fileName}.dat ${outputDirectory}/${fileName}.root --dune"
-    echo "Executing command: "$command_to_run
-    $command_to_run
+    convert_data="./PAPERO_convert ${inputDirectory}/${fileName}.dat ${outputDirectory}/${fileName}.root --dune"
+    echo "Executing command: "$convert_data
+    $convert_data
+
+    extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName}"
+    echo "Executing command: "$extract_calibration
+    $extract_calibration
+    
     exit 0
 fi
 
@@ -198,8 +188,8 @@ do
     filename=${filename%.*}
     echo "File name is: "$fileName
 
-    command_to_run="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}.root --dune"
-    echo "Executing command: "$command_to_run
-    $command_to_run
+    convert_data="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}.root --dune"
+    echo "Executing command: "$convert_data
+    $convert_data
 
 done
