@@ -26,15 +26,15 @@ The script `analyzeRuns.sh` is the main script to analyze the data.
 It comes with a --help option to show the available options.
 Example of usage:
     
-    ```bash
-    ./analyzeRuns.sh -r SCD_RUN00021_CAL_20240826_160235.dat 
-    ```
+```bash
+./analyzeRuns.sh -s json/mysettings.json -r SCD_RUN00021_CAL_20240826_160235.dat 
+```
 
-Or you can use the run numbers (**not available yet**)"
+Or you can use the run numbers (**not available yet, need to change the daq**):
         
-    ```bash
-    ./analyzeRuns.sh -f 10 -l 12
-    ```
+```bash
+./analyzeRuns.sh -f 10 -l 12
+```
 
 This will analyze the run `SCD_RUN00021_CAL_20240826_160235.dat` and produce the output in the `output` folder that has been set in the json file.
 
