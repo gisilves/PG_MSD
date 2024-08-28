@@ -45,6 +45,7 @@ The actual steps that are performed by the scripts are:
 - compile the code, stopping execution if the compilation fails;
 - convert the raw data into root files using the `PAPERO_convert` executable;
 - create the calibration file, that extracts the pedestal by channel, using the `calibration` executable;
+- read calib and root files and do some analysis, using the `dataAnalyzer` executable;
 
 ## Other tools
 
