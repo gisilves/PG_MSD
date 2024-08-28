@@ -92,6 +92,7 @@ cd $REPO_HOME
 # read from settings file the input and output paths
 inputDirectory=$(awk -F'"' '/inputDirectory/{print $4}' "$settingsFile")
 outputDirectory=$(awk -F'"' '/outputDirectory/{print $4}' "$settingsFile")
+verbose=$(awk -F'"' '/verboseMode/{print $4}' "$settingsFile")
 
 # Check if the user has selected a run name or number(s)
 if [ -z "$fileName" ] 
@@ -132,7 +133,7 @@ then
     rm -r $REPO_HOME/build/*
   fi  
   # Compile the code
-  eval ${REPO_HOME}/scripts/compile.sh
+  . ${REPO_HOME}/scripts/compile.sh
 else 
   echo "Skipping compilation."
 fi
@@ -143,15 +144,39 @@ cd $REPO_HOME/build # executable is here, for now
 
 if [ -n "$fileName" ]
 then
+  
+  # only convert if the file is not already in root format
+  if [ -f "${outputDirectory}/${fileName}.root" ]
+  then
+    echo "File ${outputDirectory}/${fileName}.root already exists. Skipping conversion."
+  else
     convert_data="./PAPERO_convert ${inputDirectory}/${fileName}.dat ${outputDirectory}/${fileName}.root --dune"
     echo "Executing command: "$convert_data
     $convert_data
+  fi
 
-    extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName}"
+  # only extract calibration if the file does not exist already
+  if [ -f "${outputDirectory}/${fileName}.cal" ]
+  then
+    echo "File ${outputDirectory}/${fileName}.cal already exists. Skipping calibration extraction."
+  else
+    extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName} --dune --fast"
     echo "Executing command: "$extract_calibration
     $extract_calibration
-    
-    exit 0
+  fi
+
+  analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}.root -c ${outputDirectory}/${fileName}.cal -o ${outputDirectory}"
+  # if verbose is true, append -v
+  if [ "$verbose" = true ]
+  then
+    echo "Verbose mode is on."
+    analyze_data+=" -v"
+  fi
+  echo "Executing command: "$analyze_data
+  $analyze_data
+  # echo "Analyzed data saved in ${outputDirectory}/${fileName}.root"
+
+  exit 0
 fi
 
 # Iterate over all the selected runs
