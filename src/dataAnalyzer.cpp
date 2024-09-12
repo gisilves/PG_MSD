@@ -188,29 +188,29 @@ int main(int argc, char* argv[]) {
             // variables
             int nDetectors = 4; // TODO improve this
             int nChannels = 384; // TODO improve this
-            std::vector <std::vector <float>*> *peak; // could be int?
+            std::vector <std::vector <float>> peak; // could be int?
             std::vector <std::vector <float>> baseline {};
             std::vector <std::vector <float>> sigma {};
 
             // save triggered hits as vector of pairs det and ch
-            std::vector <std::pair<int, int>> *triggeredHits;
+            std::vector <std::pair<int, int>> triggeredHits;
             bool extractedTriggeredHits = false;
 
             int nsigma = 12; // to consider something a valid hit
 
             // constructor and destructor
             Event() {
-                peak = new std::vector <std::vector <float>*>;
-                peak->reserve(nDetectors);
+                // peak = new std::vector <std::vector <float>*>;
+                peak.reserve(nDetectors);
                 // baseline = new std::vector <std::vector<float>*>;
                 // baseline.reserve(nDetectors);
                 // sigma = new std::vector <std::vector<float>*>;
                 // sigma->reserve(nDetectors);
-                triggeredHits = new std::vector <std::pair<int, int>>;
-                triggeredHits->reserve(nChannels*nDetectors); //  potential maximum number of hits, memory is not a problem for now
+                // triggeredHits = new std::vector <std::pair<int, int>>;
+                // triggeredHits.reserve(nChannels*nDetectors); //  potential maximum number of hits, memory is not a problem for now
                 // for (int i = 0; i < nDetectors; i++) {
-                //     peak->emplace_back(new std::vector<float>);
-                //     peak->at(i)->reserve(nChannels);
+                //     peak.emplace_back(new std::vector<float>);
+                //     peak.at(i)->reserve(nChannels);
                 //     baseline.emplace_back(new std::vector<float>);
                 //     baseline.at(i)->reserve(nChannels);
                 //     sigma->emplace_back(new std::vector<float>);
@@ -221,12 +221,12 @@ int main(int argc, char* argv[]) {
 
             ~Event() {
                 // loop over the  elements of peak and deallocate all 
-                // LogInfo << "Size of peak: " << peak->size() << std::endl;
-                // for (int i = 0; i < peak->size() ; i++){
-                //     delete peak->at(i);
+                // LogInfo << "Size of peak: " << peak.size() << std::endl;
+                // for (int i = 0; i < peak.size() ; i++){
+                //     delete peak.at(i);
                 // }
 
-                delete peak; delete triggeredHits;
+                // delete peak; delete triggeredHits;
                 // LogInfo << "Deleted peak and triggeredHits" << std::endl;
             }
 
@@ -244,35 +244,35 @@ int main(int argc, char* argv[]) {
                 // }
             }
             void SetNsigma(int _nsigma) {nsigma = _nsigma;}
-            void SetPeak(std::vector <std::vector <float>*> * _peak) {peak = _peak;}
+            void SetPeak(std::vector <std::vector <float>> _peak) {peak = _peak;}
 
             // getters
-            std::vector <std::vector <float>*> * GetPeak() {return peak;}
-            std::vector <float> * GetPeak(int _det) {return peak->at(_det);}
-            float GetPeak(int _det, int _channel) {return peak->at(_det)->at(_channel);}
+            std::vector <std::vector <float>> GetPeak() {return peak;}
+            std::vector <float> GetPeak(int _det) {return peak.at(_det);}
+            float GetPeak(int _det, int _channel) {return peak.at(_det).at(_channel);}
             std::vector <std::vector <float>> GetBaseline() {return baseline;}
             float GetBaseline(int _det, int _channel) {return baseline.at(_det).at(_channel);}
             std::vector <std::vector <float>> GetSigma() {return sigma;}
             float GetSigma(int _det, int _channel) {return sigma.at(_det).at(_channel);}
             int GetNsigma() {return nsigma;}
-            std::vector <std::pair<int, int>> * GetTriggeredHits() {return triggeredHits;}
+            std::vector <std::pair<int, int>> GetTriggeredHits() {return triggeredHits;}
 
             // methods 
             // TODO this should have a check that the size of peak is < nDetectors
-            void AddPeak(int _detector_number, std::vector <float> * _peak_oneDetector) {
-                peak->emplace(peak->begin() + _detector_number, _peak_oneDetector);
+            void AddPeak(int _detector_number, std::vector <float> _peak_oneDetector) {
+                peak.emplace(peak.begin() + _detector_number, _peak_oneDetector);
             } // one vector per detector
 
             void ExtractTriggeredHits() {
                 // loop over all the peaks in here and store the ones that are above nsigma*sigma
                 for (int detit = 0; detit < nDetectors; detit++) {
                     for (int chit = 0; chit < nChannels; chit++) {                        
-                        // LogInfo << "peak is " << peak->at(detit)->at(chit) << std::endl;
+                        // LogInfo << "peak is " << peak.at(detit)->at(chit) << std::endl;
                         // LogInfo << "baseline is " << baseline.at(detit).at(chit) << std::endl;
                         // LogInfo << "sigma is " << sigma->at(detit)->at(chit) << std::endl;
                         if (GetPeak(detit, chit) - GetBaseline(detit, chit) > nsigma * GetSigma(detit, chit)) {
                             // LogInfo << "DetId " << detit << ", channel " << chit << " triggered" << std::endl;
-                            triggeredHits->emplace_back(std::make_pair(detit, chit));
+                            triggeredHits.emplace_back(std::make_pair(detit, chit));
                         }
                     }
                 }
@@ -281,8 +281,8 @@ int main(int argc, char* argv[]) {
 
             void PrintValidHits(){
                 if (!extractedTriggeredHits) ExtractTriggeredHits();
-                for (int hitit = 0; hitit < triggeredHits->size(); hitit++) {
-                    LogInfo << "DetId " << triggeredHits->at(hitit).first << ", channel " << triggeredHits->at(hitit).second << ", peak: " << GetPeak(triggeredHits->at(hitit).first, triggeredHits->at(hitit).second) << ", baseline: " << GetBaseline(triggeredHits->at(hitit).first, triggeredHits->at(hitit).second) << ", sigma: " << GetSigma(triggeredHits->at(hitit).first, triggeredHits->at(hitit).second) << "\t";
+                for (int hitit = 0; hitit < triggeredHits.size(); hitit++) {
+                    LogInfo << "DetId " << triggeredHits.at(hitit).first << ", channel " << triggeredHits.at(hitit).second << ", peak: " << GetPeak(triggeredHits.at(hitit).first, triggeredHits.at(hitit).second) << ", baseline: " << GetBaseline(triggeredHits.at(hitit).first, triggeredHits.at(hitit).second) << ", sigma: " << GetSigma(triggeredHits.at(hitit).first, triggeredHits.at(hitit).second) << "\t";
                 }
             }
 
@@ -300,14 +300,14 @@ int main(int argc, char* argv[]) {
                 LogInfo << "Number of detectors: " << nDetectors << std::endl;
                 LogInfo << "Number of channels: " << nChannels << std::endl;
                 LogInfo << "Number of sigma: " << nsigma << std::endl;
-                LogInfo << "Size of peak: " << peak->size() << std::endl;
-                LogInfo << "Size of peak for detector 0: " << peak->at(0)->size() << std::endl;
-                LogInfo << "Size of peak for detector 1: " << peak->at(1)->size() << std::endl;
-                LogInfo << "Size of peak for detector 2: " << peak->at(2)->size() << std::endl;
-                LogInfo << "Size of peak for detector 3: " << peak->at(3)->size() << std::endl;
+                LogInfo << "Size of peak: " << peak.size() << std::endl;
+                LogInfo << "Size of peak for detector 0: " << peak.at(0).size() << std::endl;
+                LogInfo << "Size of peak for detector 1: " << peak.at(1).size() << std::endl;
+                LogInfo << "Size of peak for detector 2: " << peak.at(2).size() << std::endl;
+                LogInfo << "Size of peak for detector 3: " << peak.at(3).size() << std::endl;
                 LogInfo << "Size of baseline: " << baseline.size() << std::endl;
                 LogInfo << "Size of sigma: " << sigma.size() << std::endl;
-                LogInfo << "Size of triggered hits: " << triggeredHits->size() << std::endl;
+                LogInfo << "Size of triggered hits: " << triggeredHits.size() << std::endl;
             }
     };
 
@@ -413,7 +413,7 @@ int main(int argc, char* argv[]) {
 
         for (int detit = 0; detit < nDetectors; detit++) {
             raw_events_trees.at(detit)->GetEntry(entryit);
-            this_event.AddPeak(detit, data->at(detit));
+            this_event.AddPeak(detit, *data->at(detit));
             for (int chit = 0; chit < nChannels; chit++) {
                 // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event.GetPeak(detit, chit) << ", baseline: " << this_event.GetBaseline(detit, chit) << ", sigma: " << this_event.GetSigma(detit, chit) << "\t";
                 g_sigma->at(detit)->SetPoint(g_sigma->at(detit)->GetN(), chit, this_event.GetSigma(detit, chit));
@@ -432,11 +432,11 @@ int main(int argc, char* argv[]) {
         this_event.ExtractTriggeredHits();
 
 
-        std::vector <std::pair<int, int>> *triggeredHits = this_event.GetTriggeredHits();
-        if (triggeredHits->size() > 0){
-            for (int hitit = 0; hitit < triggeredHits->size(); hitit++) {
-                int det = triggeredHits->at(hitit).first;
-                int ch = triggeredHits->at(hitit).second;
+        std::vector <std::pair<int, int>> triggeredHits = this_event.GetTriggeredHits();
+        if (triggeredHits.size() > 0){
+            for (int hitit = 0; hitit < triggeredHits.size(); hitit++) {
+                int det = triggeredHits.at(hitit).first;
+                int ch = triggeredHits.at(hitit).second;
                 h_firingChannels->at(det)->Fill(ch);
                 h_amplitude->at(det)->Fill(this_event.GetPeak(det, ch) - this_event.GetBaseline(det, ch));
             }
@@ -477,6 +477,7 @@ int main(int argc, char* argv[]) {
     c_channelsFiring->Divide(2, 2);
 
     TCanvas *c_sigma = new TCanvas("c_sigma", "c_sigma", 800, 600);
+    c_sigma->Divide(2, 2);
 
 
     // vector of canvases for raw peak, size 6
@@ -500,10 +501,10 @@ int main(int argc, char* argv[]) {
     }
     c_channelsFiring->Update();
 
-    // for (int i = 0; i < nDetectors; i++) {
-    //     c_sigma->cd(i+1);
-    //     g_sigma->at(i)->Draw("AP");
-    // }
+    for (int i = 0; i < nDetectors; i++) {
+        c_sigma->cd(i+1);
+        g_sigma->at(i)->Draw("AP");
+    }
 
     for (int ch = 0; ch < nChannels; ch++) {
         c_rawPeak->at(ch/64)->cd(ch%64+1);
