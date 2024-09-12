@@ -184,7 +184,7 @@ for ((runit = $firstRun; runit <= $lastRun; runit++ ))
 do
     echo "runit: $runit"
     runit_5d=$(printf "%05d" "$runit")
-    filePath=$(find "$inputDirectory" -name "*run_"$runit_5d"_*.dat")
+    filePath=$(find "$inputDirectory" -name "SCD_RUN${runit_5d}_*.dat")
     
     # Stop execution if the selected run is not present in the input directory
     if [ -z "$filePath" ]
@@ -192,8 +192,6 @@ do
         echo "Run "$runit " not found. Stopping execution."
         continue
     fi
-
-#   subrun_counter=0
 
     echo "For this run number, found the following file(s):"
     echo $filePath
@@ -213,8 +211,35 @@ do
     filename=${filename%.*}
     echo "File name is: "$fileName
 
-    convert_data="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}.root --dune"
-    echo "Executing command: "$convert_data
-    $convert_data
+    if [ -f "${outputDirectory}/${fileName}.root" ]
+    then
+        echo "File ${outputDirectory}/${fileName}.root already exists. Skipping conversion."
+    else
+        convert_data="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}.root --dune"
+        echo "Executing command: "$convert_data
+        $convert_data
+    fi
 
+    if [ -f "${outputDirectory}/${fileName}.cal" ]
+    then
+        echo "File ${outputDirectory}/${fileName}.cal already exists. Skipping calibration extraction."
+    else
+        extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName} --dune --fast"
+        echo "Executing command: "$extract_calibration
+        $extract_calibration
+    fi
+
+    analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}.root -c ${outputDirectory}/${fileName}.cal -o ${outputDirectory}"
+    # if verbose is true, append -v
+    if [ "$verbose" = true ]
+    then
+        echo "Verbose mode is on."
+        analyze_data+=" -v"
+    fi
+    echo "Executing command: "$analyze_data
+    $analyze_data
+
+ 
 done
+
+echo "All runs have been analyzed. Exiting."

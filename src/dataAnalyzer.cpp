@@ -174,10 +174,10 @@ int main(int argc, char* argv[]) {
     }
 
     // Entries should always be the same for all detectors
-    if (nEntries.at(0) != nEntries.at(1) || nEntries.at(0) != nEntries.at(2) || nEntries.at(0) != nEntries.at(3)) {
-        LogError << "Error: number of entries is different for the detectors! Something went wrong" << std::endl;
-        return 1;
-    }
+    // if (nEntries.at(0) != nEntries.at(1) || nEntries.at(0) != nEntries.at(2) || nEntries.at(0) != nEntries.at(3)) {
+    //     LogError << "Error: number of entries is different for the detectors! Something went wrong" << std::endl;
+    //     return 1;
+    // }
 
     // each branch has a vector, that corresponds to the list of channels
     // let's have the concept of event. Will go in a class
@@ -196,7 +196,7 @@ int main(int argc, char* argv[]) {
             std::vector <std::pair<int, int>> *triggeredHits;
             bool extractedTriggeredHits = false;
 
-            int nsigma = 8; // to consider something a valid hit
+            int nsigma = 12; // to consider something a valid hit
 
             // constructor and destructor
             Event() {
@@ -219,11 +219,30 @@ int main(int argc, char* argv[]) {
 
             }
 
-            ~Event() {delete peak; delete triggeredHits;}
+            ~Event() {
+                // loop over the  elements of peak and deallocate all 
+                // LogInfo << "Size of peak: " << peak->size() << std::endl;
+                // for (int i = 0; i < peak->size() ; i++){
+                //     delete peak->at(i);
+                // }
+
+                delete peak; delete triggeredHits;
+                // LogInfo << "Deleted peak and triggeredHits" << std::endl;
+            }
 
             // setters
             void SetBaseline(std::vector <std::vector <float>> _baseline) {baseline = _baseline;}
-            void SetSigma(std::vector <std::vector <float>> _sigma) {sigma = _sigma;}
+            void SetSigma(std::vector <std::vector <float>> _sigma) {
+                sigma = _sigma;
+                // for ( int i = 0; i < nDetectors; i++) {
+                //     for (int j = 0; j < nChannels; j++) {
+                //         float this_sigma = sigma.at(i).at(j);
+                //         if (this_sigma < 2 || this_sigma > 5) {
+                //             sigma.at(i).at(j) = 3.; // default value
+                //         }
+                //     }
+                // }
+            }
             void SetNsigma(int _nsigma) {nsigma = _nsigma;}
             void SetPeak(std::vector <std::vector <float>*> * _peak) {peak = _peak;}
 
@@ -309,6 +328,51 @@ int main(int argc, char* argv[]) {
         h_firingChannels->emplace_back(this_h_firingChannels);
     }
 
+    // plot values of sigma per channel in a tgraph
+    std::vector <TGraph*> *g_sigma = new std::vector <TGraph*>;
+    g_sigma->reserve(nDetectors);
+    for (int i = 0; i < nDetectors; i++) {
+        TGraph *this_g_sigma = new TGraph(nChannels);
+        this_g_sigma->SetTitle(Form("Sigma (Detector %d)", i));
+        this_g_sigma->GetXaxis()->SetTitle("Channel");
+        this_g_sigma->GetYaxis()->SetTitle("Sigma");
+        g_sigma->emplace_back(this_g_sigma);
+    }
+
+    // raw peak for each channel
+    std::vector <std::vector <TH1F*>*> *h_rawPeak = new std::vector <std::vector <TH1F*>*>;
+    h_rawPeak->reserve(nDetectors);
+    for (int i = 0; i < nDetectors; i++) {
+        LogInfo << "Detector " << i << std::endl;
+        std::vector  <TH1F*> *this_h_rawPeak_vector = new std::vector <TH1F*>;
+        for (int j = 0; j < nChannels; j++) {
+            // LogInfo << "Channel " << j << std::endl;
+            TH1F *this_h_rawPeak = new TH1F(Form("Raw peak (Detector %d, Channel %d)", i, j), Form("Raw peak (Detector %d, Channel %d)", i, j), 1000, 0, 2000);
+            this_h_rawPeak->GetXaxis()->SetTitle("Peak");
+            this_h_rawPeak->GetYaxis()->SetTitle("Counts");
+            this_h_rawPeak->GetYaxis()->SetRangeUser(0,5);
+            // fill color blue
+            this_h_rawPeak->SetFillColor(kBlue);
+            this_h_rawPeak_vector->emplace_back(this_h_rawPeak);
+        }
+        h_rawPeak->emplace_back(this_h_rawPeak_vector);
+    }
+
+    LogInfo << "Create histo raw peak" << std::endl;
+        
+
+
+
+    std::vector <TH1F*> *h_amplitude = new std::vector <TH1F*>;
+    h_amplitude->reserve(nDetectors);
+    for (int i = 0; i < nDetectors; i++) {
+        TH1F *this_h_amplitude = new TH1F(Form("Amplitude (Detector %d)", i), Form("Amplitude (Detector %d)", i), 100, 0, 1000);
+        this_h_amplitude->GetXaxis()->SetTitle("Amplitude");
+        this_h_amplitude->GetYaxis()->SetTitle("Counts");
+        h_amplitude->emplace_back(this_h_amplitude);
+    }
+
+
     // loop over the entries to get the peak. For each entry, store the values in the event
     // TODO temporary, do the real thing
 
@@ -331,9 +395,15 @@ int main(int argc, char* argv[]) {
     raw_events_trees.at(2)->SetBranchAddress("RAW Event C", &data->at(2));
     raw_events_trees.at(3)->SetBranchAddress("RAW Event D", &data->at(3));
     
-    for (int entryit = 0; entryit < nEntries.at(0); entryit++) {
+    int limit = nEntries.at(0);
+    int setLimit = 250000;
+    if (limit > setLimit) limit = setLimit;
+
+    for (int entryit = 0; entryit < limit; entryit++) {
 
         Event this_event; // across detectors
+
+        if (entryit % 10000 == 0 ) LogInfo << "Entry " << entryit << std::endl;
 
         this_event.SetBaseline(baseline);
         this_event.SetSigma(baseline_sigma); 
@@ -344,8 +414,16 @@ int main(int argc, char* argv[]) {
         for (int detit = 0; detit < nDetectors; detit++) {
             raw_events_trees.at(detit)->GetEntry(entryit);
             this_event.AddPeak(detit, data->at(detit));
+            for (int chit = 0; chit < nChannels; chit++) {
+                // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event.GetPeak(detit, chit) << ", baseline: " << this_event.GetBaseline(detit, chit) << ", sigma: " << this_event.GetSigma(detit, chit) << "\t";
+                g_sigma->at(detit)->SetPoint(g_sigma->at(detit)->GetN(), chit, this_event.GetSigma(detit, chit));
+                h_rawPeak->at(detit)->at(chit)->Fill(this_event.GetPeak(detit, chit));
+
+            }
         }
         
+        
+
         // if (verbose) this_event.PrintInfo(); // this should rather be debug
 
         
@@ -360,6 +438,7 @@ int main(int argc, char* argv[]) {
                 int det = triggeredHits->at(hitit).first;
                 int ch = triggeredHits->at(hitit).second;
                 h_firingChannels->at(det)->Fill(ch);
+                h_amplitude->at(det)->Fill(this_event.GetPeak(det, ch) - this_event.GetBaseline(det, ch));
             }
         }
 
@@ -397,12 +476,72 @@ int main(int argc, char* argv[]) {
     TCanvas *c_channelsFiring = new TCanvas("c_channelsFiring", "c_channelsFiring", 800, 600);
     c_channelsFiring->Divide(2, 2);
 
+    TCanvas *c_sigma = new TCanvas("c_sigma", "c_sigma", 800, 600);
+
+
+    // vector of canvases for raw peak, size 6
+
+    std::vector <TCanvas*> *c_rawPeak = new std::vector <TCanvas*>;
+    c_rawPeak->reserve(6);
+    for (int i = 0; i < 6; i++) {
+        TCanvas *this_c_rawPeak = new TCanvas(Form("c_rawPeak%d", i), Form("c_rawPeak%d", i), 800, 600);
+        this_c_rawPeak->Divide(8,8);
+        c_rawPeak->emplace_back(this_c_rawPeak);
+    }
+
+    TCanvas *c_amplitude = new TCanvas("c_amplitude", "c_amplitude", 800, 600);
+    c_amplitude->Divide(2, 2);
+
+
     LogInfo << "Drawing histograms" << std::endl;
     for (int i = 0; i < nDetectors; i++) {
         c_channelsFiring->cd(i+1);
         h_firingChannels->at(i)->Draw();
     }
     c_channelsFiring->Update();
+
+    // for (int i = 0; i < nDetectors; i++) {
+    //     c_sigma->cd(i+1);
+    //     g_sigma->at(i)->Draw("AP");
+    // }
+
+    for (int ch = 0; ch < nChannels; ch++) {
+        c_rawPeak->at(ch/64)->cd(ch%64+1);
+        h_rawPeak->at(0)->at(ch)->Draw();
+    }
+
+
+    //     c_rawPeak0->cd(ch+1);
+    //     h_rawPeak->at(0)->at(ch)->Draw();
+    // }
+
+    // int counter = 1;
+    // for (int ch = 48; ch < 96; ch++) {
+    //     c_rawPeak1->cd(counter);
+    //     h_rawPeak->at(0)->at(ch)->Draw();
+    //     counter ++;
+    // }
+
+    // counter = 1;
+    // for (int ch = 96; ch < 144; ch++) {
+    //     c_rawPeak2->cd(counter);
+    //     h_rawPeak->at(0)->at(ch)->Draw();
+    //     counter ++;
+    // }
+
+    // counter = 1;
+    // for (int ch = 144; ch < 192; ch++) {
+    //     c_rawPeak3->cd(counter);
+    //     h_rawPeak->at(0)->at(ch)->Draw();
+    //     counter ++;
+    // }
+
+
+
+    for (int i = 0; i < nDetectors; i++) {
+        c_amplitude->cd(i+1);
+        h_amplitude->at(i)->Draw();
+    }
 
     // run the app
     LogInfo << "Running the app" << std::endl;
