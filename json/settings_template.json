@@ -1,6 +1,9 @@
 {
-    "inputDirectory": "/home/virgolaema/dune/beam-monitor/oca-pDUNE-DAQ/data/",
-    "outputDirectory": "/home/virgolaema/dune/beam-monitor/converted-data/",
-    "threshold": 500,
-    "verboseMode": "false"
+    "inputDirectory": "/your/input/path/",
+    "outputDirectory": "/your/output/path/",
+    "threshold": "500",
+    "nSigma":"20",
+    "showPlots":"false",
+    "verboseMode": "false",
+    "debugMode":"false"
 }
