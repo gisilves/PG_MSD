@@ -4,11 +4,11 @@
 // NP02 beam monitor.                //
 ///////////////////////////////////////
 
-#include <iostream>
-#include <string>
-#include <vector>
-#include <fstream>
-#include <sstream>
+// #include <iostream>
+// #include <string>
+// #include <vector>
+// #include <fstream>
+// #include <sstream>
 
 #include "TFile.h"
 #include "TTree.h"
@@ -21,6 +21,7 @@
 
 #include "CmdLineParser.h"
 #include "Logger.h"
+#include "event.h"
 
 LoggerInit([]{
   Logger::getUserHeader() << "[" << FILENAME << "]";
@@ -34,13 +35,16 @@ int main(int argc, char* argv[]) {
 
     clp.addDummyOption("Main options");
     // clp.addOption("runNumber", {"-n", "--run-number"}, "Specify run number.");
-    clp.addOption("appSettings",    {"-s", "--app-settings"},   "Specify application settings file path.");
+    clp.addOption("appSettings",    {"-j", "--json-settings"},   "Specify application settings file path.");
     clp.addOption("inputRootFile",  {"-r", "--root-file"},      "Root converted data");
     clp.addOption("inputCalFile",   {"-c", "--cal-file"},       "Calibration file.");
     clp.addOption("outputDir",      {"-o", "--output"},         "Specify output directory path");
+    clp.addOption("nSigma",         {"-s", "--n-sigma"},        "Number of sigmas above pedestal to consider signal");
 
     clp.addDummyOption("Triggers");
-    clp.addTriggerOption("verboseMode", {"-v"}, "RunVerboseMode, bool");
+    clp.addTriggerOption("verboseMode",     {"-v"},             "RunVerboseMode, bool");
+    clp.addTriggerOption("debugMode",       {"-d"},             "RunDebugMode, bool");
+    clp.addTriggerOption("showPlots",       {"--show-plots"},   "Show plots in interactive root session, bool");
 
     clp.addDummyOption();
 
@@ -58,6 +62,7 @@ int main(int argc, char* argv[]) {
     LogInfo << clp.getValueSummary() << std::endl << std::endl;
 
     bool verbose = clp.isOptionTriggered("verboseMode");
+    bool debug = clp.isOptionTriggered("debugMode");
 
     ///////////////////////////
     // Some variables
@@ -179,138 +184,6 @@ int main(int argc, char* argv[]) {
     //     return 1;
     // }
 
-    // each branch has a vector, that corresponds to the list of channels
-    // let's have the concept of event. Will go in a class
-
-    class Event {
-        public:
-            
-            // variables
-            int nDetectors = 4; // TODO improve this
-            int nChannels = 384; // TODO improve this
-            std::vector <std::vector <float>> peak; // could be int?
-            std::vector <std::vector <float>> baseline {};
-            std::vector <std::vector <float>> sigma {};
-
-            // save triggered hits as vector of pairs det and ch
-            std::vector <std::pair<int, int>> triggeredHits;
-            bool extractedTriggeredHits = false;
-
-            int nsigma = 12; // to consider something a valid hit
-
-            // constructor and destructor
-            Event() {
-                // peak = new std::vector <std::vector <float>*>;
-                peak.reserve(nDetectors);
-                // baseline = new std::vector <std::vector<float>*>;
-                // baseline.reserve(nDetectors);
-                // sigma = new std::vector <std::vector<float>*>;
-                // sigma->reserve(nDetectors);
-                // triggeredHits = new std::vector <std::pair<int, int>>;
-                // triggeredHits.reserve(nChannels*nDetectors); //  potential maximum number of hits, memory is not a problem for now
-                // for (int i = 0; i < nDetectors; i++) {
-                //     peak.emplace_back(new std::vector<float>);
-                //     peak.at(i)->reserve(nChannels);
-                //     baseline.emplace_back(new std::vector<float>);
-                //     baseline.at(i)->reserve(nChannels);
-                //     sigma->emplace_back(new std::vector<float>);
-                //     sigma->at(i)->reserve(nChannels);
-                // }
-
-            }
-
-            ~Event() {
-                // loop over the  elements of peak and deallocate all 
-                // LogInfo << "Size of peak: " << peak.size() << std::endl;
-                // for (int i = 0; i < peak.size() ; i++){
-                //     delete peak.at(i);
-                // }
-
-                // delete peak; delete triggeredHits;
-                // LogInfo << "Deleted peak and triggeredHits" << std::endl;
-            }
-
-            // setters
-            void SetBaseline(std::vector <std::vector <float>> _baseline) {baseline = _baseline;}
-            void SetSigma(std::vector <std::vector <float>> _sigma) {
-                sigma = _sigma;
-                // for ( int i = 0; i < nDetectors; i++) {
-                //     for (int j = 0; j < nChannels; j++) {
-                //         float this_sigma = sigma.at(i).at(j);
-                //         if (this_sigma < 2 || this_sigma > 5) {
-                //             sigma.at(i).at(j) = 3.; // default value
-                //         }
-                //     }
-                // }
-            }
-            void SetNsigma(int _nsigma) {nsigma = _nsigma;}
-            void SetPeak(std::vector <std::vector <float>> _peak) {peak = _peak;}
-
-            // getters
-            std::vector <std::vector <float>> GetPeak() {return peak;}
-            std::vector <float> GetPeak(int _det) {return peak.at(_det);}
-            float GetPeak(int _det, int _channel) {return peak.at(_det).at(_channel);}
-            std::vector <std::vector <float>> GetBaseline() {return baseline;}
-            float GetBaseline(int _det, int _channel) {return baseline.at(_det).at(_channel);}
-            std::vector <std::vector <float>> GetSigma() {return sigma;}
-            float GetSigma(int _det, int _channel) {return sigma.at(_det).at(_channel);}
-            int GetNsigma() {return nsigma;}
-            std::vector <std::pair<int, int>> GetTriggeredHits() {return triggeredHits;}
-
-            // methods 
-            // TODO this should have a check that the size of peak is < nDetectors
-            void AddPeak(int _detector_number, std::vector <float> _peak_oneDetector) {
-                peak.emplace(peak.begin() + _detector_number, _peak_oneDetector);
-            } // one vector per detector
-
-            void ExtractTriggeredHits() {
-                // loop over all the peaks in here and store the ones that are above nsigma*sigma
-                for (int detit = 0; detit < nDetectors; detit++) {
-                    for (int chit = 0; chit < nChannels; chit++) {                        
-                        // LogInfo << "peak is " << peak.at(detit)->at(chit) << std::endl;
-                        // LogInfo << "baseline is " << baseline.at(detit).at(chit) << std::endl;
-                        // LogInfo << "sigma is " << sigma->at(detit)->at(chit) << std::endl;
-                        if (GetPeak(detit, chit) - GetBaseline(detit, chit) > nsigma * GetSigma(detit, chit)) {
-                            // LogInfo << "DetId " << detit << ", channel " << chit << " triggered" << std::endl;
-                            triggeredHits.emplace_back(std::make_pair(detit, chit));
-                        }
-                    }
-                }
-                extractedTriggeredHits = true;
-            }
-
-            void PrintValidHits(){
-                if (!extractedTriggeredHits) ExtractTriggeredHits();
-                for (int hitit = 0; hitit < triggeredHits.size(); hitit++) {
-                    LogInfo << "DetId " << triggeredHits.at(hitit).first << ", channel " << triggeredHits.at(hitit).second << ", peak: " << GetPeak(triggeredHits.at(hitit).first, triggeredHits.at(hitit).second) << ", baseline: " << GetBaseline(triggeredHits.at(hitit).first, triggeredHits.at(hitit).second) << ", sigma: " << GetSigma(triggeredHits.at(hitit).first, triggeredHits.at(hitit).second) << "\t";
-                }
-            }
-
-            void PrintInfo() {
-                for (int detit = 0; detit < nDetectors; detit++) {
-                    for (int chit = 0; chit < nChannels; chit++) {
-                        LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << GetPeak(detit, chit) << ", baseline: " << GetBaseline(detit, chit) << ", sigma: " << GetSigma(detit, chit) << "\t";
-            
-                    }
-                    LogInfo << std::endl;
-                }
-            }
-
-            void PrintOverview() {
-                LogInfo << "Number of detectors: " << nDetectors << std::endl;
-                LogInfo << "Number of channels: " << nChannels << std::endl;
-                LogInfo << "Number of sigma: " << nsigma << std::endl;
-                LogInfo << "Size of peak: " << peak.size() << std::endl;
-                LogInfo << "Size of peak for detector 0: " << peak.at(0).size() << std::endl;
-                LogInfo << "Size of peak for detector 1: " << peak.at(1).size() << std::endl;
-                LogInfo << "Size of peak for detector 2: " << peak.at(2).size() << std::endl;
-                LogInfo << "Size of peak for detector 3: " << peak.at(3).size() << std::endl;
-                LogInfo << "Size of baseline: " << baseline.size() << std::endl;
-                LogInfo << "Size of sigma: " << sigma.size() << std::endl;
-                LogInfo << "Size of triggered hits: " << triggeredHits.size() << std::endl;
-            }
-    };
-
     ///////////////////////////
     
     /// Create some objects to plot results
@@ -336,6 +209,8 @@ int main(int argc, char* argv[]) {
         this_g_sigma->SetTitle(Form("Sigma (Detector %d)", i));
         this_g_sigma->GetXaxis()->SetTitle("Channel");
         this_g_sigma->GetYaxis()->SetTitle("Sigma");
+        this_g_sigma->SetMarkerStyle(20);
+        this_g_sigma->SetMarkerSize(0.8);
         g_sigma->emplace_back(this_g_sigma);
     }
 
@@ -396,7 +271,7 @@ int main(int argc, char* argv[]) {
     raw_events_trees.at(3)->SetBranchAddress("RAW Event D", &data->at(3));
     
     int limit = nEntries.at(0);
-    int setLimit = 250000;
+    int setLimit = 50000; // TODO from json settings
     if (limit > setLimit) limit = setLimit;
 
     for (int entryit = 0; entryit < limit; entryit++) {
@@ -407,6 +282,7 @@ int main(int argc, char* argv[]) {
 
         this_event.SetBaseline(baseline);
         this_event.SetSigma(baseline_sigma); 
+        this_event.SetNSigma(clp.getOptionVal<int>("nSigma"));
 
         // clear data
         for (int detit = 0; detit < nDetectors; detit++)   data->at(detit)->clear();
@@ -421,15 +297,11 @@ int main(int argc, char* argv[]) {
 
             }
         }
-        
-        
-
-        // if (verbose) this_event.PrintInfo(); // this should rather be debug
-
-        
-        if (verbose) this_event.PrintOverview();
 
         this_event.ExtractTriggeredHits();
+
+        if (verbose) this_event.PrintOverview();        
+        if (debug) this_event.PrintInfo(); // this should rather be debug
 
 
         std::vector <std::pair<int, int>> triggeredHits = this_event.GetTriggeredHits();
@@ -443,29 +315,12 @@ int main(int argc, char* argv[]) {
         }
 
         // print values minus baseline for this event
-        // if (verbose) this_event.PrintValidHits();      
-
-        // events->emplace_back(this_event);
+        if (debug) this_event.PrintValidHits();      
         
         if (verbose) LogInfo << "Stored entry " << entryit << " in the vector of Events" << std::endl;
     }
 
-    LogInfo << "Stored all entries in the vector of Events" << std::endl;
-    // events->at(0).PrintInfo();
-
-    // something wrong with memoeory here
-
-    // // print values minus baseline for each event in events
-    // for (int eventit = 0; eventit < events->size(); eventit++) {
-    //     LogInfo << "Event " << eventit << std::endl;
-    //     events->at(eventit).PrintInfo();
-    //     for (int detit = 0; detit < nDetectors; detit++) {
-    //         for (int chit = 0; chit < nChannels; chit++) {
-    //             LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << events->at(eventit).GetPeak(detit, chit) << ", baseline: " << events->at(eventit).GetBaseline(detit, chit) << ", sigma: " << events->at(eventit).GetSigma(detit, chit) << "\t";
-    //         }
-    //         LogInfo << std::endl;
-    //     }
-    // }
+    LogInfo << "Read all entries" << std::endl;
     
     ///////////////////////////
 
@@ -506,37 +361,10 @@ int main(int argc, char* argv[]) {
         g_sigma->at(i)->Draw("AP");
     }
 
-    for (int ch = 0; ch < nChannels; ch++) {
-        c_rawPeak->at(ch/64)->cd(ch%64+1);
-        h_rawPeak->at(0)->at(ch)->Draw();
-    }
-
-
-    //     c_rawPeak0->cd(ch+1);
+    // for (int ch = 0; ch < nChannels; ch++) {
+    //     c_rawPeak->at(ch/64)->cd(ch%64+1);
     //     h_rawPeak->at(0)->at(ch)->Draw();
     // }
-
-    // int counter = 1;
-    // for (int ch = 48; ch < 96; ch++) {
-    //     c_rawPeak1->cd(counter);
-    //     h_rawPeak->at(0)->at(ch)->Draw();
-    //     counter ++;
-    // }
-
-    // counter = 1;
-    // for (int ch = 96; ch < 144; ch++) {
-    //     c_rawPeak2->cd(counter);
-    //     h_rawPeak->at(0)->at(ch)->Draw();
-    //     counter ++;
-    // }
-
-    // counter = 1;
-    // for (int ch = 144; ch < 192; ch++) {
-    //     c_rawPeak3->cd(counter);
-    //     h_rawPeak->at(0)->at(ch)->Draw();
-    //     counter ++;
-    // }
-
 
 
     for (int i = 0; i < nDetectors; i++) {
@@ -544,9 +372,36 @@ int main(int argc, char* argv[]) {
         h_amplitude->at(i)->Draw();
     }
 
+    // create a pdf report containing firing channels, sigma and amplitude
+    // std::string outputDir = clp.getOptionVal<std::string>("outputDir");
+    // LogInfo << "Output directory: " << outputDir << std::endl;
+
+    // // output filename same as inpu root file, but .pdf
+    // std::string output_filename = outputDir + "/" + input_root_filename.substr(input_root_filename.find_last_of("/\\") + 1) + "_report.pdf";
+
+    // LogInfo << "Output filename: " << output_filename << std::endl;
+
+    // c_channelsFiring->Print(Form("%s(", output_filename.c_str()), "pdf");
+    // c_sigma->Print(output_filename.c_str(), "pdf");
+    // for (int i = 0; i < 6; i++) {
+    //     c_rawPeak->at(i)->Print(output_filename.c_str(), "pdf");
+    // }
+    // c_amplitude->Print(output_filename.c_str(), "pdf");
+    // c_channelsFiring->Print(output_filename.c_str(), "pdf");
+    
+    // LogInfo << "Printed histograms to " << outputDir << output_filename << std::endl;
+
+
+    // TODO add pdf report
+
+
+
     // run the app
-    LogInfo << "Running the app" << std::endl;
-    app->Run();
+    if (clp.isOptionTriggered("showPlots")){
+        LogInfo << "Running the app" << std::endl;
+        app->Run();
+    }
+    else { LogInfo << "If you wish to see the plots, you need to set showPlots option to true.\n";}
 
     return 0;
 }
