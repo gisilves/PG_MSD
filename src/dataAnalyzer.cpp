@@ -233,11 +233,6 @@ int main(int argc, char* argv[]) {
         h_rawPeak->emplace_back(this_h_rawPeak_vector);
     }
 
-    LogInfo << "Create histo raw peak" << std::endl;
-        
-
-
-
     std::vector <TH1F*> *h_amplitude = new std::vector <TH1F*>;
     h_amplitude->reserve(nDetectors);
     for (int i = 0; i < nDetectors; i++) {
@@ -247,6 +242,9 @@ int main(int argc, char* argv[]) {
         h_amplitude->emplace_back(this_h_amplitude);
     }
 
+    TH1F *h_hitsInEvent = new TH1F("Hits in event", "Hits in event", 10, -0.5, 10);
+    h_hitsInEvent->GetXaxis()->SetTitle("Hits");
+    h_hitsInEvent->GetYaxis()->SetTitle("Counts");
 
     // loop over the entries to get the peak. For each entry, store the values in the event
     // TODO temporary, do the real thing
@@ -274,53 +272,68 @@ int main(int argc, char* argv[]) {
     int setLimit = 50000; // TODO from json settings
     if (limit > setLimit) limit = setLimit;
 
+    int hitsInEvent = 0;
+    int triggeredEvents = 0;
+    
     for (int entryit = 0; entryit < limit; entryit++) {
 
-        Event this_event; // across detectors
+        hitsInEvent = 0;
+        
+        Event * this_event; // across detectors
+        this_event = new Event();
 
         if (entryit % 10000 == 0 ) LogInfo << "Entry " << entryit << std::endl;
 
-        this_event.SetBaseline(baseline);
-        this_event.SetSigma(baseline_sigma); 
-        this_event.SetNSigma(clp.getOptionVal<int>("nSigma"));
+        this_event->SetBaseline(baseline);
+        this_event->SetSigma(baseline_sigma); 
+        this_event->SetNSigma(clp.getOptionVal<int>("nSigma"));
 
         // clear data
         for (int detit = 0; detit < nDetectors; detit++)   data->at(detit)->clear();
 
         for (int detit = 0; detit < nDetectors; detit++) {
             raw_events_trees.at(detit)->GetEntry(entryit);
-            this_event.AddPeak(detit, *data->at(detit));
+            this_event->AddPeak(detit, *data->at(detit));
             for (int chit = 0; chit < nChannels; chit++) {
-                // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event.GetPeak(detit, chit) << ", baseline: " << this_event.GetBaseline(detit, chit) << ", sigma: " << this_event.GetSigma(detit, chit) << "\t";
-                g_sigma->at(detit)->SetPoint(g_sigma->at(detit)->GetN(), chit, this_event.GetSigma(detit, chit));
-                h_rawPeak->at(detit)->at(chit)->Fill(this_event.GetPeak(detit, chit));
+                // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event->GetPeak(detit, chit) << ", baseline: " << this_event->GetBaseline(detit, chit) << ", sigma: " << this_event->GetSigma(detit, chit) << "\t";
+                g_sigma->at(detit)->SetPoint(g_sigma->at(detit)->GetN(), chit, this_event->GetSigma(detit, chit));
+                h_rawPeak->at(detit)->at(chit)->Fill(this_event->GetPeak(detit, chit));
 
             }
         }
 
-        this_event.ExtractTriggeredHits();
+        this_event->ExtractTriggeredHits();
 
-        if (verbose) this_event.PrintOverview();        
-        if (debug) this_event.PrintInfo(); // this should rather be debug
+        if (verbose) this_event->PrintOverview();        
+        if (debug) this_event->PrintInfo(); // this should rather be debug
 
 
-        std::vector <std::pair<int, int>> triggeredHits = this_event.GetTriggeredHits();
+        std::vector <std::pair<int, int>> triggeredHits = this_event->GetTriggeredHits();
         if (triggeredHits.size() > 0){
             for (int hitit = 0; hitit < triggeredHits.size(); hitit++) {
+                triggeredEvents++;
+                hitsInEvent++;
                 int det = triggeredHits.at(hitit).first;
                 int ch = triggeredHits.at(hitit).second;
                 h_firingChannels->at(det)->Fill(ch);
-                h_amplitude->at(det)->Fill(this_event.GetPeak(det, ch) - this_event.GetBaseline(det, ch));
+                h_amplitude->at(det)->Fill(this_event->GetPeak(det, ch) - this_event->GetBaseline(det, ch));
             }
         }
 
+        h_hitsInEvent->Fill(hitsInEvent);
+
         // print values minus baseline for this event
-        if (debug) this_event.PrintValidHits();      
+        if (debug) this_event->PrintValidHits();      
         
         if (verbose) LogInfo << "Stored entry " << entryit << " in the vector of Events" << std::endl;
+
+        delete this_event;
+
     }
 
     LogInfo << "Read all entries" << std::endl;
+
+    LogInfo << "Number of triggered events: " << (double) triggeredEvents/limit *100 << "%" << std::endl;
     
     ///////////////////////////
 
@@ -348,6 +361,8 @@ int main(int argc, char* argv[]) {
     TCanvas *c_amplitude = new TCanvas("c_amplitude", "c_amplitude", 800, 600);
     c_amplitude->Divide(2, 2);
 
+    TCanvas *c_hitsInEvent = new TCanvas("c_hitsInEvent", "c_hitsInEvent", 800, 600);
+
 
     LogInfo << "Drawing histograms" << std::endl;
     for (int i = 0; i < nDetectors; i++) {
@@ -361,16 +376,21 @@ int main(int argc, char* argv[]) {
         g_sigma->at(i)->Draw("AP");
     }
 
-    // for (int ch = 0; ch < nChannels; ch++) {
-    //     c_rawPeak->at(ch/64)->cd(ch%64+1);
-    //     h_rawPeak->at(0)->at(ch)->Draw();
-    // }
+    // note that only detector 0 is being plotted
+    for (int ch = 0; ch < nChannels; ch++) {
+        c_rawPeak->at(ch/64)->cd(ch%64+1);
+        h_rawPeak->at(0)->at(ch)->Draw();
+    }
 
 
     for (int i = 0; i < nDetectors; i++) {
         c_amplitude->cd(i+1);
         h_amplitude->at(i)->Draw();
     }
+
+    c_hitsInEvent->cd();
+    gPad->SetLogy();
+    h_hitsInEvent->Draw();
 
     // create a pdf report containing firing channels, sigma and amplitude
     // std::string outputDir = clp.getOptionVal<std::string>("outputDir");
@@ -390,11 +410,6 @@ int main(int argc, char* argv[]) {
     // c_channelsFiring->Print(output_filename.c_str(), "pdf");
     
     // LogInfo << "Printed histograms to " << outputDir << output_filename << std::endl;
-
-
-    // TODO add pdf report
-
-
 
     // run the app
     if (clp.isOptionTriggered("showPlots")){

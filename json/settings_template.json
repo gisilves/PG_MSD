@@ -1,9 +1,8 @@
 {
     "inputDirectory": "/your/input/path/",
     "outputDirectory": "/your/output/path/",
-    "threshold": "500",
     "nSigma":"20",
-    "showPlots":"false",
+    "showPlots":"true",
     "verboseMode": "false",
     "debugMode":"false"
 }
