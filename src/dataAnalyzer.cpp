@@ -214,6 +214,19 @@ int main(int argc, char* argv[]) {
         g_sigma->emplace_back(this_g_sigma);
     }
 
+    // plot baseline
+    std::vector <TGraph*> *g_baseline = new std::vector <TGraph*>;
+    g_baseline->reserve(nDetectors);
+    for (int i = 0; i < nDetectors; i++) {
+        TGraph *this_g_baseline = new TGraph(nChannels);
+        this_g_baseline->SetTitle(Form("Sigma (Detector %d)", i));
+        this_g_baseline->GetXaxis()->SetTitle("Channel");
+        this_g_baseline->GetYaxis()->SetTitle("Sigma");
+        this_g_baseline->SetMarkerStyle(20);
+        this_g_baseline->SetMarkerSize(0.8);
+        g_baseline->emplace_back(this_g_baseline);
+    }
+
     // raw peak for each channel
     std::vector <std::vector <TH1F*>*> *h_rawPeak = new std::vector <std::vector <TH1F*>*>;
     h_rawPeak->reserve(nDetectors);
@@ -297,6 +310,7 @@ int main(int argc, char* argv[]) {
             for (int chit = 0; chit < nChannels; chit++) {
                 // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event->GetPeak(detit, chit) << ", baseline: " << this_event->GetBaseline(detit, chit) << ", sigma: " << this_event->GetSigma(detit, chit) << "\t";
                 g_sigma->at(detit)->SetPoint(g_sigma->at(detit)->GetN(), chit, this_event->GetSigma(detit, chit));
+                g_baseline->at(detit)->SetPoint(g_baseline->at(detit)->GetN(), chit, this_event->GetBaseline(detit, chit));
                 h_rawPeak->at(detit)->at(chit)->Fill(this_event->GetPeak(detit, chit));
 
             }
@@ -347,15 +361,20 @@ int main(int argc, char* argv[]) {
     TCanvas *c_sigma = new TCanvas("c_sigma", "c_sigma", 800, 600);
     c_sigma->Divide(2, 2);
 
+    TCanvas *c_baseline = new TCanvas("c_baseline", "c_baseline", 800, 600);
+    c_baseline->Divide(2, 2);
+
 
     // vector of canvases for raw peak, size 6
 
     std::vector <TCanvas*> *c_rawPeak = new std::vector <TCanvas*>;
     c_rawPeak->reserve(6);
-    for (int i = 0; i < 6; i++) {
-        TCanvas *this_c_rawPeak = new TCanvas(Form("c_rawPeak%d", i), Form("c_rawPeak%d", i), 800, 600);
-        this_c_rawPeak->Divide(8,8);
-        c_rawPeak->emplace_back(this_c_rawPeak);
+    if (verbose){
+        for (int i = 0; i < 6; i++) {
+            TCanvas *this_c_rawPeak = new TCanvas(Form("c_rawPeak%d", i), Form("c_rawPeak%d", i), 800, 600);
+            this_c_rawPeak->Divide(8,8);
+            c_rawPeak->emplace_back(this_c_rawPeak);
+        }
     }
 
     TCanvas *c_amplitude = new TCanvas("c_amplitude", "c_amplitude", 800, 600);
@@ -376,10 +395,17 @@ int main(int argc, char* argv[]) {
         g_sigma->at(i)->Draw("AP");
     }
 
-    // note that only detector 0 is being plotted
-    for (int ch = 0; ch < nChannels; ch++) {
-        c_rawPeak->at(ch/64)->cd(ch%64+1);
-        h_rawPeak->at(0)->at(ch)->Draw();
+    for (int i = 0; i < nDetectors; i++) {
+        c_baseline->cd(i+1);
+        g_baseline->at(i)->Draw("AP");
+    }
+
+    // note that only raw peaks of detector 0 are being plotted
+    if (verbose){
+        for (int ch = 0; ch < nChannels; ch++) {
+            c_rawPeak->at(ch/64)->cd(ch%64+1);
+            h_rawPeak->at(0)->at(ch)->Draw();
+        }
     }
 
 
