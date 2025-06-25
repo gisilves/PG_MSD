@@ -4,7 +4,7 @@
 #include <TQObject.h>
 #include <RQ_OBJECT.h>
 #include "TGraph.h"
-#include "event.h"
+#include "ocaEvent.h"
 #include <thread>
 
 class TGWindow;

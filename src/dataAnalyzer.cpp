@@ -21,7 +21,7 @@
 
 #include "CmdLineParser.h"
 #include "Logger.h"
-#include "event.h"
+#include "ocaEvent.h"
 
 LoggerInit([]{
   Logger::getUserHeader() << "[" << FILENAME << "]";
