@@ -17,7 +17,7 @@ set( OCA_LIBS "ocaAnaLibs" )
 set( SRC_FILES
     # ${CMAKE_CURRENT_SOURCE_DIR}/src/calibration.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/anyoption.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/event.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ocaEvent.cpp
 )
 
 add_library( ${OCA_LIBS} STATIC ${SRC_FILES} )
