@@ -1,6 +1,6 @@
 {
-    "inputDirectory": "/your/input/path/",
-    "outputDirectory": "/your/output/path/",
+    "inputDirectory": "/Users/nadrino/Documents/Work/Repositories/oca-pDUNE-dataAnalyzer/input",
+    "outputDirectory": "/Users/nadrino/Documents/Work/Repositories/oca-pDUNE-dataAnalyzer/output",
     "nSigma":"20",
     "showPlots":"true",
     "verboseMode": "false",

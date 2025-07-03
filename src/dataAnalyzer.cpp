@@ -150,14 +150,14 @@ int main(int argc, char* argv[]) {
     LogInfo << "Root file: " << input_root_filename << std::endl;   
     TFile *input_root_file = new TFile(input_root_filename.c_str(), "READ");
     // check if the file is open correctly
-    if (!input_root_file->IsOpen()) {
+    if( !input_root_file->IsOpen() ){
         LogError << "Error: file not open" << std::endl;
         return 1;
     }
 
     // get trees
     // TODO change at converter level, I don't like the names
-    std::vector <TTree*> raw_events_trees = std::vector <TTree*>();
+    std::vector<TTree*> raw_events_trees = std::vector <TTree*>();
     raw_events_trees.reserve(nDetectors);
     TTree *these_raw_events = (TTree*)input_root_file->Get("raw_events");
     raw_events_trees.emplace_back(these_raw_events);
