@@ -134,7 +134,7 @@ int main(int argc, char *argv[]){
 
   outputFile->cd();
   auto* outputTree = new TTree("events", "events");
-  auto* outputZeroSupprTree = new TTree("eventsZeroSuppr", "eventsZeroSuppr");
+  TTree* outputZeroSupprTree{nullptr};
 
   unsigned int rawPeakValue[nDetectors][nChannels];
   BeamMonitorEvent bmEventCalibBuffer{};
@@ -147,6 +147,7 @@ int main(int argc, char *argv[]){
     outputTree->Branch("peakValue", &bmEventCalibBuffer.peakValue[0][0], Form("peakValue[%d][%d]/D", nDetectors, nChannels));
 
     if( not std::isnan(threshold) ) {
+      outputZeroSupprTree = new TTree("eventsZeroSuppr", "eventsZeroSuppr");
       outputZeroSupprTree->Branch("eventIdx", &eventIdx);
       outputZeroSupprTree->Branch("peakValueZeroSuppr", &bmEventCalibZeroSupprBuffer.peakValue[0][0], Form("peakValueZeroSuppr[%d][%d]/D", nDetectors, nChannels));
       outputZeroSupprTree->Branch("peakValue", &bmEventCalibBuffer.peakValue[0][0], Form("peakValue[%d][%d]/D", nDetectors, nChannels));
@@ -184,7 +185,7 @@ int main(int argc, char *argv[]){
     outputTree->Fill();
   }
   outputTree->Write(outputTree->GetName(), TObject::kOverwrite);
-  outputZeroSupprTree->Write(outputZeroSupprTree->GetName(), TObject::kOverwrite);
+  if(outputZeroSupprTree != nullptr){ outputZeroSupprTree->Write(outputZeroSupprTree->GetName(), TObject::kOverwrite); }
 
   LogInfo << "Output writen as " << outputFile->GetPath() << std::endl;
 }
