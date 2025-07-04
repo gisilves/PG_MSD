@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <cstdlib>
 
+#include "GenericToolbox.Root.h"
 #include "GenericToolbox.Utils.h"
 
 
@@ -135,6 +136,10 @@ int main(int argc, char **argv){
   }
 
   std::unique_ptr<TFile> outputRootFile = std::make_unique<TFile>(outputRootFilePath.c_str(), "RECREATE");
+
+  if( not calibFilePath.empty() ) {
+    GenericToolbox::writeInTFile(outputRootFile.get(), TNamed("calibFilePath", calibFilePath.c_str()));
+  }
 
   outputRootFile->cd();
   auto* tree = new TTree("events", "events");
