@@ -130,8 +130,9 @@ int main(int argc, char **argv){
     auto data = read_event(inputCalFile, offset, int(bmEvent.eventSize), verbose, false);
     data = reorder_DUNE(data);
 
-    // strange? too much data? it's greater than 4 detectors
-    // size_t adc_length = data.size() / 4;
+    // should be the amount of channel
+    size_t nbOfValuesPerDet = 2 * data.size() / ADC_N;
+    LogThrowIf(nbOfValuesPerDet - N_CHANNELS != 0, "Invalid data size: " << nbOfValuesPerDet - N_CHANNELS);
 
     for (size_t det = 0; det < N_DETECTORS; ++det) {
       memcpy(&bmEvent.peakValue[det][0], &data[det * N_CHANNELS], N_CHANNELS * sizeof(unsigned int));
