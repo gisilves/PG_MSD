@@ -24,7 +24,7 @@ struct BeamMonitorEventBuffer {
   unsigned long triggerId{0};
   uint64_t offset{0};
 
-  uint32_t peakValue[N_DETECTORS][N_CHANNELS];
+  uint32_t peakValue[N_DETECTORS][N_CHANNELS]{};
 
   template<typename... Args> void readTuple(const std::tuple<Args...>& t_) {
     isGood = std::get<0>(t_);
