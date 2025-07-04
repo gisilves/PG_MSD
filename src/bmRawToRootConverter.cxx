@@ -105,7 +105,7 @@ int main(int argc, char **argv){
   // tree->Branch("size", &bmEvent.eventSize);
   // tree->Branch("fwVersion", &bmEvent.fwVersion);
   tree->Branch("triggerNumber", &bmEvent.triggerNumber);
-  tree->Branch("boardId", &bmEvent.boardId);
+  // tree->Branch("boardId", &bmEvent.boardId); // always board 0
   tree->Branch("timestamp", &bmEvent.timestamp);
   tree->Branch("extTimestamp", &bmEvent.extTimestamp);
   tree->Branch("triggerId", &bmEvent.triggerId);
