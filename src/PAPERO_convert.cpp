@@ -128,8 +128,12 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
-    // foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+#if ROOT_VERSION_CODE >= ROOT_VERSION(6,32,0)
     foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kZLIB);
+#else
+    foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+#endif
+
 
     // Initialize TTree(s)
     std::vector<unsigned int> raw_event_buffer;
