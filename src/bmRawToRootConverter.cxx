@@ -170,9 +170,9 @@ int main(int argc, char **argv){
     tree->Branch("peakAdc", &bmEvent.peakAdc, Form("peakAdc[%d][%d]/i", N_DETECTORS, N_CHANNELS));
 
     if( not calibFilePath.empty() ){
-      tree->Branch("peak", &bmEvent.peak, Form("peak[%d][%d]/d", N_DETECTORS, N_CHANNELS));
+      tree->Branch("peak", &bmEvent.peak, Form("peak[%d][%d]/D", N_DETECTORS, N_CHANNELS));
       if( zeroSuppress ) {
-        tree->Branch("peakZeroSuppr", &bmEvent.peakZeroSuppr, Form("peak[%d][%d]/d", N_DETECTORS, N_CHANNELS));
+        tree->Branch("peakZeroSuppr", &bmEvent.peakZeroSuppr, Form("peak[%d][%d]/D", N_DETECTORS, N_CHANNELS));
       }
     }
   }
@@ -287,6 +287,9 @@ int main(int argc, char **argv){
         "Calibration covariance matrix",
         "correlation",
         "Channel #", "Channel #");
+
+      corrHist->SetMinimum(-1);
+      corrHist->SetMaximum(1);
       corrHist->SetDrawOption("COLZ");
       GenericToolbox::fixTH2display(corrHist);
       corrHist->Write("correlationMatrix");
