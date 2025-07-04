@@ -102,8 +102,8 @@ int main(int argc, char **argv){
   outputRootFile->cd();
   auto* tree = new TTree("events", "events");
 
-  tree->Branch("size", &bmEvent.eventSize);
-  tree->Branch("fwVersion", &bmEvent.fwVersion);
+  // tree->Branch("size", &bmEvent.eventSize);
+  // tree->Branch("fwVersion", &bmEvent.fwVersion);
   tree->Branch("triggerNumber", &bmEvent.triggerNumber);
   tree->Branch("boardId", &bmEvent.boardId);
   tree->Branch("timestamp", &bmEvent.timestamp);
