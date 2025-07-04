@@ -266,8 +266,6 @@ int main(int argc, char *argv[])
         evt_retValues = read_de10_header(file, offset, verbose); // read de10 header
         is_good = std::get<0>(evt_retValues);
 
-        DEBUG_VAR(file.tellg());
-
         if (is_good)
         {
             boards_read++;
@@ -310,10 +308,7 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    DEBUG_VAR(file.tellg());
-                    DEBUG_VAR(offset);
                     raw_event_buffer = reorder_DUNE(read_event(file, offset, evt_size, verbose, false));
-                    DEBUG_VAR(file.tellg());
                 }
             }
 
@@ -362,10 +357,6 @@ int main(int argc, char *argv[])
                 boards_read = 0;
                 evtnum++;
                 offset = (uint64_t)file.tellg() + padding_offset + 8;
-                DEBUG_VAR(file.tellg());
-                DEBUG_VAR(padding_offset);
-                DEBUG_VAR(offset);
-                break;
             }
             else
             {
