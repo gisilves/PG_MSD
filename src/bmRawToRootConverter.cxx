@@ -99,6 +99,7 @@ int main(int argc, char **argv){
   double peakStdDev[N_DETECTORS][N_CHANNELS]{};
 
   if( not calibFilePath.empty() ){
+    LogInfo << "Reading calibration data from " << calibFilePath << std::endl;
     int detectorIdx; int channelIdx; double baseline; double stddev;
     std::unique_ptr<TFile> calibFile = std::make_unique<TFile>(calibFilePath.c_str(), "READ");
     LogThrowIf(calibFile==nullptr, "Can't open calibration file.");
@@ -107,7 +108,7 @@ int main(int argc, char **argv){
 
     calibTree->SetBranchAddress("detectorIdx", &detectorIdx);
     calibTree->SetBranchAddress("channelIdx", &channelIdx);
-    calibTree->SetBranchAddress("baseline", &peakBaseline);
+    calibTree->SetBranchAddress("baseline", &baseline);
     calibTree->SetBranchAddress("stddev", &stddev);
 
     int nCalibEntries = int(calibTree->GetEntries());
@@ -216,15 +217,15 @@ int main(int argc, char **argv){
     LogThrowIf(nbOfValuesPerDet - N_CHANNELS != 0, "Invalid data size: " << nbOfValuesPerDet - N_CHANNELS);
 
     bool skip{true}; // if zeroSuppress and at no signal is over the threshold
-    for (size_t det = 0; det < N_DETECTORS; ++det) {
-      memcpy(&bmEvent.peakAdc[det][0], &data[det * N_CHANNELS], N_CHANNELS * sizeof(unsigned int));
+    for (size_t iDet = 0; iDet < N_DETECTORS; ++iDet) {
+      memcpy(&bmEvent.peakAdc[iDet][0], &data[iDet * N_CHANNELS], N_CHANNELS * sizeof(unsigned int));
 
       if( not calibFilePath.empty() ) {
         for( size_t iCh = 0; iCh < N_CHANNELS; ++iCh ) {
-          bmEvent.peak[det][iCh] = static_cast<double>(bmEvent.peakAdc[det][iCh]) - peakBaseline[det][iCh];
+          bmEvent.peak[iDet][iCh] = static_cast<double>(bmEvent.peakAdc[iDet][iCh]) - peakBaseline[iDet][iCh];
 
-          if( zeroSuppress and bmEvent.peak[det][iCh] >= peakStdDev[det][iCh]*threshold ) {
-            bmEvent.peakZeroSuppr[det][iCh] = bmEvent.peak[det][iCh];
+          if( zeroSuppress and bmEvent.peak[iDet][iCh] >= peakStdDev[iDet][iCh]*threshold ) {
+            bmEvent.peakZeroSuppr[iDet][iCh] = bmEvent.peak[iDet][iCh];
             skip = false;
           }
         }
