@@ -141,7 +141,7 @@ int main(int argc, char **argv){
     tree->Fill();
 
     // next offset
-    offset = (uint64_t) inputCalFile.tellg() + padding_offset + 8;
+    offset = static_cast<uint64_t>(inputCalFile.tellg()) + padding_offset + 8;
 
   }
   tree->Write(tree->GetName(), TObject::kOverwrite);
