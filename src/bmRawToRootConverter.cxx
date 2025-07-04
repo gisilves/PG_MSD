@@ -221,7 +221,7 @@ int main(int argc, char **argv){
 
       if( not calibFilePath.empty() ) {
         for( size_t iCh = 0; iCh < N_CHANNELS; ++iCh ) {
-          bmEvent.peak[det][iCh] = static_cast<double>(bmEvent.peakAdc[det][iCh])/peakBaseline[det][iCh];
+          bmEvent.peak[det][iCh] = static_cast<double>(bmEvent.peakAdc[det][iCh]) - peakBaseline[det][iCh];
 
           if( zeroSuppress and bmEvent.peak[det][iCh] >= peakStdDev[det][iCh]*threshold ) {
             bmEvent.peakZeroSuppr[det][iCh] = bmEvent.peak[det][iCh];
