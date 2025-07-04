@@ -6,6 +6,8 @@
 #define BMRAWTOROOTCONVERTER_H
 
 #define ADC_N 10
+#define N_DETECTORS 4
+#define N_CHANNELS 384
 
 #include <tuple>
 #include <cstdint>
@@ -21,6 +23,8 @@ struct BeamMonitorEventBuffer {
   unsigned long extTimestamp{0};
   unsigned long triggerId{0};
   uint64_t offset{0};
+
+  uint32_t peakValue[N_DETECTORS][N_CHANNELS];
 
   template<typename... Args> void readTuple(const std::tuple<Args...>& t_) {
     isGood = std::get<0>(t_);

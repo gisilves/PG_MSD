@@ -8,6 +8,9 @@
 #include "CmdLineParser.h"
 #include "Logger.h"
 
+#include "TFile.h"
+#include "TTree.h"
+
 #include <filesystem>
 #include <cstdlib>
 
@@ -75,6 +78,20 @@ int main(int argc, char **argv){
 
   }
 
+  std::unique_ptr<TFile> outputRootFile = std::make_unique<TFile>(outputRootFilePath.c_str(), "RECREATE");
+
+  outputRootFile->cd();
+  auto* tree = new TTree("events", "events");
+
+  tree->Branch("size", &bmEvent.eventSize);
+  tree->Branch("fwVersion", &bmEvent.fwVersion);
+  tree->Branch("triggerNumber", &bmEvent.triggerNumber);
+  tree->Branch("boardId", &bmEvent.boardId);
+  tree->Branch("timestamp", &bmEvent.timestamp);
+  tree->Branch("extTimestamp", &bmEvent.extTimestamp);
+  tree->Branch("triggerId", &bmEvent.triggerId);
+  tree->Branch("peak", &bmEvent.peakValue, Form("peak[%d][%d]/i", N_DETECTORS, N_CHANNELS));
+
   LogInfo << "Reading " << nEntries << " entries..." << std::endl;
   inputCalFile = std::fstream(inputCalFilePath, std::ios::in | std::ios::out | std::ios::binary);
   offset = seek_first_evt_header(inputCalFile, 0, verbose);
@@ -92,11 +109,17 @@ int main(int argc, char **argv){
 
     offset = bmEvent.offset;
     read_event(inputCalFile, offset, int(bmEvent.eventSize), verbose, false);
+
+
+
+    tree->Fill();
+
+    // next offset
     offset = (uint64_t) inputCalFile.tellg() + padding_offset + 8;
 
   }
+  tree->Write(tree->GetName(), TObject::kOverwrite);
 
-  DEBUG_VAR(nEntries);
-
+  LogInfo << "Written " << outputRootFile->GetPath() << std::endl;
   return EXIT_SUCCESS;
 }
