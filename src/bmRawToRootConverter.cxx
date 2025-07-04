@@ -48,7 +48,9 @@ int main(int argc, char **argv){
   parser.addDummyOption("Optional");
   parser.addOption("outputFolder", {"-o"}, "Output folder where the ROOT file will be writen.");
   parser.addOption("calibrationFile", {"-c"}, "Use calibration ROOT file (calib data processed by this app).");
+  parser.addOption("threshold", {"-t"}, "Skip event with all channel peaks < baseline + threshold*std-dev (requires calib file)");
   parser.addTriggerOption("writeCalibData", {"--is-calib"}, "Will compute the baseline, the std-dev and create the calib TTree");
+  parser.addTriggerOption("skipEventTree", {"--skip-event"}, "Don't write the events TTree (useful if calib)");
   parser.addTriggerOption("verbose", {"-v"}, "Enable verbode");
 
   LogInfo << parser.getDescription().str() << std::endl;
@@ -68,7 +70,11 @@ int main(int argc, char **argv){
     calibFilePath = parser.getOptionVal<std::string>("calibrationFile");
   }
   bool verbose = parser.isOptionTriggered("verbose");
+  bool skipEventTree = parser.isOptionTriggered("skipEventTree");
   bool writeCalibData = parser.isOptionTriggered("writeCalibData");
+  bool zeroSuppress = parser.isOptionTriggered("threshold");
+  double threshold{std::nan("unset")};
+  if(zeroSuppress) threshold = parser.getOptionVal<double>("threshold");
 
   LogExitIf(
     writeCalibData and not calibFilePath.empty(),
@@ -84,14 +90,14 @@ int main(int argc, char **argv){
   LogWarning << inputDatFilePath << " -> " << outputRootFilePath << std::endl;
 
   // calib (write or read)
-  double peakBaseline[N_DETECTORS][N_CHANNELS];
-  double peakStdDev[N_DETECTORS][N_CHANNELS];
+  double peakBaseline[N_DETECTORS][N_CHANNELS]{};
+  double peakStdDev[N_DETECTORS][N_CHANNELS]{};
 
   if( not calibFilePath.empty() ){
     int detectorIdx; int channelIdx; double baseline; double stddev;
-    std::unique_ptr<TFile> calibFile = std::make_unique<TFile>(inputDatFilePath.c_str(), "READ");
+    std::unique_ptr<TFile> calibFile = std::make_unique<TFile>(calibFilePath.c_str(), "READ");
     LogThrowIf(calibFile==nullptr, "Can't open calibration file.");
-    auto *calibTree = calibFile->Get<TTree>("events");
+    auto *calibTree = calibFile->Get<TTree>("calibration");
     LogThrowIf(calibTree==nullptr, "Can't open calibration tree.");
 
     calibTree->SetBranchAddress("detectorIdx", &detectorIdx);
@@ -142,19 +148,26 @@ int main(int argc, char **argv){
   }
 
   outputRootFile->cd();
-  auto* tree = new TTree("events", "events");
+  TTree* tree{nullptr};
 
-  // tree->Branch("size", &bmEvent.eventSize);
-  // tree->Branch("fwVersion", &bmEvent.fwVersion);
-  tree->Branch("triggerNumber", &bmEvent.triggerNumber);
-  // tree->Branch("boardId", &bmEvent.boardId); // always board 0
-  tree->Branch("timestamp", &bmEvent.timestamp);
-  tree->Branch("extTimestamp", &bmEvent.extTimestamp);
-  tree->Branch("triggerId", &bmEvent.triggerId);
-  tree->Branch("peakAdc", &bmEvent.peakAdc, Form("peakAdc[%d][%d]/i", N_DETECTORS, N_CHANNELS));
+  if( not skipEventTree ) {
+    tree = new TTree("events", "events");
 
-  if( not calibFilePath.empty() ){
-    tree->Branch("peak", &bmEvent.peak, Form("peak[%d][%d]/i", N_DETECTORS, N_CHANNELS));
+    // tree->Branch("size", &bmEvent.eventSize);
+    // tree->Branch("fwVersion", &bmEvent.fwVersion);
+    tree->Branch("triggerNumber", &bmEvent.triggerNumber);
+    // tree->Branch("boardId", &bmEvent.boardId); // always board 0
+    tree->Branch("timestamp", &bmEvent.timestamp);
+    tree->Branch("extTimestamp", &bmEvent.extTimestamp);
+    tree->Branch("triggerId", &bmEvent.triggerId);
+    tree->Branch("peakAdc", &bmEvent.peakAdc, Form("peakAdc[%d][%d]/i", N_DETECTORS, N_CHANNELS));
+
+    if( not calibFilePath.empty() ){
+      tree->Branch("peak", &bmEvent.peak, Form("peak[%d][%d]/d", N_DETECTORS, N_CHANNELS));
+      if( zeroSuppress ) {
+        tree->Branch("peakZeroSuppr", &bmEvent.peakZeroSuppr, Form("peak[%d][%d]/d", N_DETECTORS, N_CHANNELS));
+      }
+    }
   }
 
   LogInfo << "Reading " << nEntries << " entries..." << std::endl;
@@ -180,15 +193,24 @@ int main(int argc, char **argv){
     size_t nbOfValuesPerDet = 2 * data.size() / ADC_N;
     LogThrowIf(nbOfValuesPerDet - N_CHANNELS != 0, "Invalid data size: " << nbOfValuesPerDet - N_CHANNELS);
 
+    bool skip{true}; // if zeroSuppress and at no signal is over the threshold
     for (size_t det = 0; det < N_DETECTORS; ++det) {
       memcpy(&bmEvent.peakAdc[det][0], &data[det * N_CHANNELS], N_CHANNELS * sizeof(unsigned int));
 
       if( not calibFilePath.empty() ) {
         for( size_t iCh = 0; iCh < N_CHANNELS; ++iCh ) {
           bmEvent.peak[det][iCh] = static_cast<double>(bmEvent.peakAdc[det][iCh])/peakBaseline[det][iCh];
+
+          if( zeroSuppress and bmEvent.peak[det][iCh] >= peakStdDev[det][iCh]*threshold ) {
+            bmEvent.peakZeroSuppr[det][iCh] = bmEvent.peak[det][iCh];
+            skip = false;
+          }
         }
       }
     }
+    if( zeroSuppress and skip ){ continue; } // skip TTree::Fill();
+
+    if( not skipEventTree ){ tree->Fill(); }
 
     if( writeCalibData ){
       for( int iDet = 0 ; iDet < N_DETECTORS ; iDet++ ) {
@@ -200,21 +222,22 @@ int main(int argc, char **argv){
       }
     }
 
-    tree->Fill();
-
     // next offset
     offset = static_cast<uint64_t>(inputCalFile.tellg()) + padding_offset + 8;
 
   }
-  tree->Write(tree->GetName(), TObject::kOverwrite);
+  if( not skipEventTree ){ tree->Write(tree->GetName(), TObject::kOverwrite); }
 
   if( writeCalibData ){
     for( int iDet = 0 ; iDet < N_DETECTORS ; iDet++ ) {
       for( int iCh = 0 ; iCh < N_CHANNELS ; iCh++ ) {
-        peakStdDev[iDet][iCh] -= std::pow(peakBaseline[iDet][iCh], 2);
+        peakStdDev[iDet][iCh] -= peakBaseline[iDet][iCh]*peakBaseline[iDet][iCh];
         peakStdDev[iDet][iCh] = std::sqrt(peakStdDev[iDet][iCh]);
+
       }
     }
+
+
 
     outputRootFile->cd();
     auto* outCalibTree = new TTree("calibration", "calibration");
