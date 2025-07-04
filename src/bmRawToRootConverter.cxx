@@ -49,7 +49,9 @@ int main(int argc, char **argv){
   parser.addOption("outputFolder", {"-o"}, "Output folder where the ROOT file will be writen.");
   parser.addOption("calibrationFile", {"-c"}, "Use calibration ROOT file (calib data processed by this app).");
   parser.addOption("threshold", {"-t"}, "Skip event with all channel peaks < baseline + threshold*std-dev (requires calib file)");
+  parser.addOption("maxNbEvents", {"-me"}, "Stop after reading N events");
   parser.addTriggerOption("writeCalibData", {"--is-calib"}, "Will compute the baseline, the std-dev and create the calib TTree");
+  parser.addTriggerOption("calcCovCalib", {"--cov"}, "Calculate covariance matrix of the std-dev");
   parser.addTriggerOption("skipEventTree", {"--skip-event"}, "Don't write the events TTree (useful if calib)");
   parser.addTriggerOption("verbose", {"-v"}, "Enable verbode");
 
@@ -69,10 +71,13 @@ int main(int argc, char **argv){
   if(parser.isOptionTriggered("calibrationFile")) {
     calibFilePath = parser.getOptionVal<std::string>("calibrationFile");
   }
+  int nMaxEvents{-1};
+  if(parser.isOptionTriggered("maxNbEvents") ){ nMaxEvents = parser.getOptionVal<int>("maxNbEvents"); }
   bool verbose = parser.isOptionTriggered("verbose");
   bool skipEventTree = parser.isOptionTriggered("skipEventTree");
   bool writeCalibData = parser.isOptionTriggered("writeCalibData");
   bool zeroSuppress = parser.isOptionTriggered("threshold");
+  bool calcCovCalib = parser.isOptionTriggered("calcCovCalib");
   double threshold{std::nan("unset")};
   if(zeroSuppress) threshold = parser.getOptionVal<double>("threshold");
 
@@ -128,6 +133,8 @@ int main(int argc, char **argv){
   while( not inputCalFile.eof() ) {
     nEntries++;
 
+    if( nMaxEvents != -1 and nEntries == nMaxEvents ){ break; }
+
     // check for event header if this is the first board
     if( not read_evt_header(inputCalFile, offset, verbose) ){ break; }
 
@@ -170,6 +177,19 @@ int main(int argc, char **argv){
     }
   }
 
+  std::unique_ptr<TMatrixD> covMatrix{nullptr};
+  if( calcCovCalib ){
+    covMatrix = std::make_unique<TMatrixD>(
+      N_DETECTORS*N_CHANNELS,
+      N_DETECTORS*N_CHANNELS
+      );
+    for(int iFlat = 0; iFlat < N_DETECTORS*N_CHANNELS; ++iFlat ) {
+      for(int jFlat = 0; jFlat < N_DETECTORS*N_CHANNELS; ++jFlat ) {
+        (*covMatrix)[iFlat][jFlat] = 0;
+      }
+    }
+  }
+
   LogInfo << "Reading " << nEntries << " entries..." << std::endl;
   inputCalFile = std::fstream(inputDatFilePath, std::ios::in | std::ios::out | std::ios::binary);
   offset = seek_first_evt_header(inputCalFile, 0, verbose);
@@ -177,6 +197,8 @@ int main(int argc, char **argv){
   while( not inputCalFile.eof() ) {
     iEvent++;
     GenericToolbox::displayProgressBar(iEvent, nEntries, "Writing events...");
+
+    if( iEvent == nEntries ){ break; }
 
     // check for event header if this is the first board
     if( not read_evt_header(inputCalFile, offset, verbose) ){ break; }
@@ -215,9 +237,17 @@ int main(int argc, char **argv){
     if( writeCalibData ){
       for( int iDet = 0 ; iDet < N_DETECTORS ; iDet++ ) {
         for( int iCh = 0 ; iCh < N_CHANNELS ; iCh++ ) {
-          double val_i = static_cast<double>(bmEvent.peakAdc[iDet][iCh]) / static_cast<double>(nEntries);
+          auto val_i = static_cast<double>(bmEvent.peakAdc[iDet][iCh]);
           peakBaseline[iDet][iCh] += val_i;
-          peakStdDev[iDet][iCh] += val_i * val_i * static_cast<double>(nEntries);
+          peakStdDev[iDet][iCh] += val_i * val_i;
+
+          if( covMatrix != nullptr ) {
+            int iFlat = iDet*N_CHANNELS+iCh;
+            for (int jFlat = iFlat; jFlat < N_DETECTORS * N_CHANNELS; ++jFlat) {
+              auto val_j = static_cast<double>(bmEvent.peakAdc[jFlat / N_CHANNELS][jFlat % N_CHANNELS]);
+              (*covMatrix)[iFlat][jFlat] += val_i * val_j;
+            }
+          }
         }
       }
     }
@@ -229,15 +259,39 @@ int main(int argc, char **argv){
   if( not skipEventTree ){ tree->Write(tree->GetName(), TObject::kOverwrite); }
 
   if( writeCalibData ){
-    for( int iDet = 0 ; iDet < N_DETECTORS ; iDet++ ) {
-      for( int iCh = 0 ; iCh < N_CHANNELS ; iCh++ ) {
-        peakStdDev[iDet][iCh] -= peakBaseline[iDet][iCh]*peakBaseline[iDet][iCh];
-        peakStdDev[iDet][iCh] = std::sqrt(peakStdDev[iDet][iCh]);
-
+    LogInfo << "Writing calibration data..." << std::endl;
+    for (int iDet = 0; iDet < N_DETECTORS; ++iDet) {
+      for (int iCh = 0; iCh < N_CHANNELS; ++iCh) {
+        peakBaseline[iDet][iCh] /= double(nEntries);
+        peakStdDev[iDet][iCh] = std::sqrt(
+          peakStdDev[iDet][iCh] / double(nEntries) - peakBaseline[iDet][iCh] * peakBaseline[iDet][iCh]
+        );
       }
     }
 
+    if( covMatrix != nullptr ) {
+      LogInfo << "Writing correlation matrix..." << std::endl;
+      for (int i = 0; i < N_DETECTORS * N_CHANNELS; ++i) {
+        for (int j = i; j < N_DETECTORS * N_CHANNELS; ++j) {
+          double mean_i = peakBaseline[i / N_CHANNELS][i % N_CHANNELS];
+          double mean_j = peakBaseline[j / N_CHANNELS][j % N_CHANNELS];
+          (*covMatrix)[i][j] = ((*covMatrix)[i][j] / double(nEntries)) - mean_i * mean_j;
+          (*covMatrix)[j][i] = (*covMatrix)[i][j];
+        }
+      }
 
+      outputRootFile->cd();
+      auto* corr = GenericToolbox::convertToCorrelationMatrix(covMatrix.get());
+      auto* corrHist = GenericToolbox::convertTMatrixDtoTH2D(
+        corr,
+        "Calibration covariance matrix",
+        "correlation",
+        "Channel #", "Channel #");
+      corrHist->SetDrawOption("COLZ");
+      GenericToolbox::fixTH2display(corrHist);
+      corrHist->Write("correlationMatrix");
+      delete corrHist;
+    }
 
     outputRootFile->cd();
     auto* outCalibTree = new TTree("calibration", "calibration");

@@ -54,6 +54,12 @@ target_include_directories( bmRawToRootConverter PRIVATE ${CMAKE_CURRENT_SOURCE_
 target_link_libraries( bmRawToRootConverter ${OCA_LIBS} )
 install( TARGETS bmRawToRootConverter DESTINATION bin )
 
+cmessage( STATUS "Creating bmApplyCalibration..." )
+add_executable( bmApplyCalibration ${CMAKE_CURRENT_SOURCE_DIR}/src/bmApplyCalibration.cxx)
+target_include_directories( bmApplyCalibration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( bmApplyCalibration ${OCA_LIBS} )
+install( TARGETS bmApplyCalibration DESTINATION bin )
+
 cmessage( STATUS "Creating bmConvertToFlatTree app..." )
 add_executable( bmConvertToFlatTree ${CMAKE_CURRENT_SOURCE_DIR}/src/bmConvertToFlatTree.cpp)
 target_include_directories( bmConvertToFlatTree PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
