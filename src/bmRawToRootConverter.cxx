@@ -17,6 +17,25 @@
 #include "GenericToolbox.Utils.h"
 
 
+template <typename T>
+std::vector<T> reorder_DUNE(std::vector<T> const &v)
+{
+  std::vector<T> reordered_vec(v.size());
+  int j = 0;
+  constexpr int order[] = {1, 0, 3, 2, 4, 8, 6, 5, 9, 7};
+  for (int ch = 0; ch < 192; ch++)
+  {
+    for (int adc : order)
+    {
+      reordered_vec.at(adc * 192 + ch) = v.at(j);
+      j++;
+    }
+  }
+  return reordered_vec;
+}
+
+
+
 int main(int argc, char **argv){
   LogInfo << "Running raw to ROOT converter..." << std::endl;
 
@@ -108,9 +127,16 @@ int main(int argc, char **argv){
     if( not bmEvent.isGood ){ continue; }
 
     offset = bmEvent.offset;
-    read_event(inputCalFile, offset, int(bmEvent.eventSize), verbose, false);
+    auto data = read_event(inputCalFile, offset, int(bmEvent.eventSize), verbose, false);
+    data = reorder_DUNE(data);
 
+    size_t adc_length = data.size() / N_DETECTORS;
 
+    for (size_t det = 0; det < N_DETECTORS; ++det) {
+      for (size_t ch = 0; ch < N_CHANNELS; ++ch) {
+        bmEvent.peakValue[det][ch] = data[det * adc_length + ch];
+      }
+    }
 
     tree->Fill();
 
