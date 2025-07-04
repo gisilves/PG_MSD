@@ -6,7 +6,7 @@
 #define BMRAWTOROOTCONVERTER_H
 
 #define ADC_N 10
-#define N_DETECTORS 4
+#define N_DETECTORS 3
 #define N_CHANNELS 384
 
 #include <tuple>

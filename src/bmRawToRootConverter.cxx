@@ -130,12 +130,11 @@ int main(int argc, char **argv){
     auto data = read_event(inputCalFile, offset, int(bmEvent.eventSize), verbose, false);
     data = reorder_DUNE(data);
 
-    size_t adc_length = data.size() / N_DETECTORS;
+    // strange? too much data? it's greater than 4 detectors
+    // size_t adc_length = data.size() / 4;
 
     for (size_t det = 0; det < N_DETECTORS; ++det) {
-      for (size_t ch = 0; ch < N_CHANNELS; ++ch) {
-        bmEvent.peakValue[det][ch] = data[det * adc_length + ch];
-      }
+      memcpy(&bmEvent.peakValue[det][0], &data[det * N_CHANNELS], N_CHANNELS * sizeof(unsigned int));
     }
 
     tree->Fill();
