@@ -15,7 +15,7 @@ cleanCompile=false
 # Function to print help message
 print_help() {
     echo "*****************************************************************************"
-    echo "Usage: ./createOutputTree.sh -f <first_run> [-l <last_run>] -j <settings_file> [-h]"
+    echo "Usage: $0 -f <first_run> [-l <last_run>] -j <settings_file> [-h]"
     echo "  -p | --home-path      path to the code home directory (/your/path/tof-reco, no / at the end). There is no default."
     echo "  -r | --run-name       full run name, with ot without .dat"
     echo "  -f | --first-run      first run number"

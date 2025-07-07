@@ -38,6 +38,12 @@ Or you can use the run numbers (**not available yet, need to change the daq**):
 
 This will analyze the run `SCD_RUN00021_CAL_20240826_160235.dat` and produce the output in the `output` folder that has been set in the json file.
 
+There is then an app to convert from raw data to root files, `bmRawToRootConverter.sh`, for further analysis:
+
+```bash
+./bmRawToRootConverter.sh -j json/mysettings.json -r 21
+```
+
 ## Structure
 
 The actual steps that are performed by the scripts are:
