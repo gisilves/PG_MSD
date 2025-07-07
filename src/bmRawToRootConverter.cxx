@@ -173,11 +173,16 @@ int main(int argc, char **argv){
     tree->Branch("extTimestamp", &bmEvent.extTimestamp);
     tree->Branch("triggerId", &bmEvent.triggerId);
     tree->Branch("peakAdc", &bmEvent.peakAdc, Form("peakAdc[%d][%d]/i", N_DETECTORS, N_CHANNELS));
+    tree->Branch("peakAdcSum", &bmEvent.peakAdcSum, Form("peakAdcSum[%d]/i", N_DETECTORS));
 
     if( not calibFilePath.empty() ){
       tree->Branch("peak", &bmEvent.peak, Form("peak[%d][%d]/D", N_DETECTORS, N_CHANNELS));
+      tree->Branch("peakSum", &bmEvent.peakSum, Form("peakSum[%d]/D", N_DETECTORS));
       if( zeroSuppress ) {
-        tree->Branch("peakZeroSuppr", &bmEvent.peakZeroSuppr, Form("peak[%d][%d]/D", N_DETECTORS, N_CHANNELS));
+        tree->Branch("peakZeroSuppr", &bmEvent.peakZeroSuppr, Form("peakZeroSuppr[%d][%d]/D", N_DETECTORS, N_CHANNELS));
+        tree->Branch("peakZeroSupprSum", &bmEvent.peakZeroSupprSum, Form("peakZeroSupprSum[%d]/D", N_DETECTORS));
+        tree->Branch("xBarycenter", &bmEvent.xBarycenter, Form("xBarycenter[%d]/D", N_DETECTORS));
+        tree->Branch("yBarycenter", &bmEvent.yBarycenter, Form("yBarycenter/D"));
       }
     }
   }
@@ -222,17 +227,43 @@ int main(int argc, char **argv){
     LogThrowIf(nbOfValuesPerDet - N_CHANNELS != 0, "Invalid data size: " << nbOfValuesPerDet - N_CHANNELS);
 
     bool skip{true}; // if zeroSuppress and at no signal is over the threshold
+    bmEvent.yBarycenter=0;
     for (size_t iDet = 0; iDet < N_DETECTORS; ++iDet) {
       memcpy(&bmEvent.peakAdc[iDet][0], &data[iDet * N_CHANNELS], N_CHANNELS * sizeof(unsigned int));
+      bmEvent.peakAdcSum[iDet] = std::accumulate(
+              &bmEvent.peakAdc[iDet][0],
+              &bmEvent.peakAdc[iDet][N_CHANNELS],
+              static_cast<uint32_t>(0)
+            );
 
       if( not calibFilePath.empty() ) {
+        bmEvent.xBarycenter[iDet] = 0;
         for( size_t iCh = 0; iCh < N_CHANNELS; ++iCh ) {
           bmEvent.peak[iDet][iCh] = static_cast<double>(bmEvent.peakAdc[iDet][iCh]) - peakBaseline[iDet][iCh];
 
           if( zeroSuppress and bmEvent.peak[iDet][iCh] >= peakStdDev[iDet][iCh]*threshold ) {
             bmEvent.peakZeroSuppr[iDet][iCh] = bmEvent.peak[iDet][iCh];
+            bmEvent.xBarycenter[iDet] += double(iCh)*bmEvent.peakZeroSuppr[iDet][iCh];
             skip = false;
           }
+        }
+
+        bmEvent.peakSum[iDet] = std::accumulate(
+              &bmEvent.peak[iDet][0],
+              &bmEvent.peak[iDet][N_CHANNELS],
+              0.0
+            );
+        if( zeroSuppress ) {
+          bmEvent.peakZeroSupprSum[iDet] = std::accumulate(
+              &bmEvent.peakZeroSuppr[iDet][0],
+              &bmEvent.peakZeroSuppr[iDet][N_CHANNELS],
+              0.0
+            );
+
+          bmEvent.xBarycenter[iDet] /= bmEvent.peakZeroSupprSum[iDet];
+          bmEvent.xBarycenter[iDet] -= double(N_CHANNELS)/2.;
+
+          bmEvent.yBarycenter += std::sin(double(iDet)*15.*M_PI/180.)*bmEvent.xBarycenter[iDet]/2.; // 2 detectors will give this info
         }
       }
     }

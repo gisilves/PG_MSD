@@ -25,8 +25,13 @@ struct BeamMonitorEventBuffer {
   uint64_t offset{0};
 
   uint32_t peakAdc[N_DETECTORS][N_CHANNELS]{};
+  uint32_t peakAdcSum[N_DETECTORS]{};
   double peak[N_DETECTORS][N_CHANNELS]{};
+  double peakSum[N_DETECTORS]{};
   double peakZeroSuppr[N_DETECTORS][N_CHANNELS]{};
+  double peakZeroSupprSum[N_DETECTORS]{};
+  double xBarycenter[N_DETECTORS]{};
+  double yBarycenter{};
 
   template<typename... Args> void readTuple(const std::tuple<Args...>& t_) {
     isGood = std::get<0>(t_);
