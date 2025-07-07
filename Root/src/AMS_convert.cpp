@@ -79,7 +79,11 @@ int main(int argc, char *argv[])
     TFile *foutput = new TFile(opt->getArgv(1), "RECREATE", "Foot data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
+#if ROOT_VERSION_CODE >= ROOT_VERSION(6,32,0)
+    foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kZLIB);
+#else
     foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+#endif
 
     TTree *raw_events_tree = new TTree("raw_events", "raw_events");
     raw_events_tree->Branch("RAW Event J5", &raw_event_buffer);

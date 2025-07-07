@@ -8,6 +8,7 @@
 #include <ctime>
 #include <tuple>
 
+#include "Logger.h"
 #include "PAPERO.h"
 
 #define max_detectors 16
@@ -128,7 +129,12 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
+#if ROOT_VERSION_CODE >= ROOT_VERSION(6,32,0)
+    foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kZLIB);
+#else
     foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+#endif
+
 
     // Initialize TTree(s)
     std::vector<unsigned int> raw_event_buffer;
@@ -251,9 +257,11 @@ int main(int argc, char *argv[])
         if (evt_to_read > 0 && evtnum == evt_to_read) // stop reading after the number of events specified
             break;
 
-        if (boards_read == 0)
-            if (!read_evt_header(file, offset, verbose)) // check for event header if this is the first board
+        if (boards_read == 0) {
+            if( !read_evt_header(file, offset, verbose) ) // check for event header if this is the first board
                 break;
+        }
+
 
         evt_retValues = read_de10_header(file, offset, verbose); // read de10 header
         is_good = std::get<0>(evt_retValues);

@@ -47,6 +47,12 @@ add_executable( dataAnalyzer ${CMAKE_CURRENT_SOURCE_DIR}/src/dataAnalyzer.cpp)
 target_include_directories( dataAnalyzer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
 target_link_libraries( dataAnalyzer ${OCA_LIBS} )
 
+cmessage( STATUS "Creating bmRawToRootConverter app..." )
+add_executable( bmRawToRootConverter ${CMAKE_CURRENT_SOURCE_DIR}/src/bmRawToRootConverter.cxx)
+target_include_directories( bmRawToRootConverter PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( bmRawToRootConverter ${OCA_LIBS} )
+install( TARGETS bmRawToRootConverter DESTINATION bin )
+
 ###############################################################3
 
 
