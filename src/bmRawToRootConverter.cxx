@@ -173,7 +173,7 @@ int main(int argc, char **argv){
     tree->Branch("extTimestamp", &bmEvent.extTimestamp);
     tree->Branch("triggerId", &bmEvent.triggerId);
     tree->Branch("peakAdc", &bmEvent.peakAdc, Form("peakAdc[%d][%d]/i", N_DETECTORS, N_CHANNELS));
-    tree->Branch("peakAdcSum", &bmEvent.peakAdcSum, Form("peakAdcSum[%d]/i", N_DETECTORS));
+    // tree->Branch("peakAdcSum", &bmEvent.peakAdcSum, Form("peakAdcSum[%d]/i", N_DETECTORS));
 
     if( not calibFilePath.empty() ){
       tree->Branch("peak", &bmEvent.peak, Form("peak[%d][%d]/D", N_DETECTORS, N_CHANNELS));
