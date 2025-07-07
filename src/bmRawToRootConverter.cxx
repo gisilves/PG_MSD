@@ -98,12 +98,14 @@ int main(int argc, char **argv){
   double peakBaseline[N_DETECTORS][N_CHANNELS]{};
   double peakStdDev[N_DETECTORS][N_CHANNELS]{};
 
+  std::unique_ptr<TFile> calibFile{nullptr};
+  TTree *calibTree{nullptr};
   if( not calibFilePath.empty() ){
     LogInfo << "Reading calibration data from " << calibFilePath << std::endl;
     int detectorIdx; int channelIdx; double baseline; double stddev;
-    std::unique_ptr<TFile> calibFile = std::make_unique<TFile>(calibFilePath.c_str(), "READ");
+    calibFile = std::make_unique<TFile>(calibFilePath.c_str(), "READ");
     LogThrowIf(calibFile==nullptr, "Can't open calibration file.");
-    auto *calibTree = calibFile->Get<TTree>("calibration");
+    calibTree = calibFile->Get<TTree>("calibration");
     LogThrowIf(calibTree==nullptr, "Can't open calibration tree.");
 
     calibTree->SetBranchAddress("detectorIdx", &detectorIdx);
@@ -152,7 +154,9 @@ int main(int argc, char **argv){
   std::unique_ptr<TFile> outputRootFile = std::make_unique<TFile>(outputRootFilePath.c_str(), "RECREATE");
 
   if( not calibFilePath.empty() ) {
+    outputRootFile->cd();
     GenericToolbox::writeInTFile(outputRootFile.get(), TNamed("calibFilePath", calibFilePath.c_str()));
+    calibTree->CloneTree()->Write();
   }
 
   outputRootFile->cd();
@@ -195,6 +199,7 @@ int main(int argc, char **argv){
   inputCalFile = std::fstream(inputDatFilePath, std::ios::in | std::ios::out | std::ios::binary);
   offset = seek_first_evt_header(inputCalFile, 0, verbose);
   auto iEvent{nEntries}; iEvent = 0;
+  auto nWriten{iEvent};
   while( not inputCalFile.eof() ) {
     iEvent++;
     GenericToolbox::displayProgressBar(iEvent, nEntries, "Writing events...");
@@ -233,7 +238,7 @@ int main(int argc, char **argv){
     }
     if( zeroSuppress and skip ){ continue; } // skip TTree::Fill();
 
-    if( not skipEventTree ){ tree->Fill(); }
+    if( not skipEventTree ){ tree->Fill(); nWriten++; }
 
     if( writeCalibData ){
       for( int iDet = 0 ; iDet < N_DETECTORS ; iDet++ ) {
@@ -257,7 +262,10 @@ int main(int argc, char **argv){
     offset = static_cast<uint64_t>(inputCalFile.tellg()) + padding_offset + 8;
 
   }
-  if( not skipEventTree ){ tree->Write(tree->GetName(), TObject::kOverwrite); }
+  if( not skipEventTree ) {
+    LogInfo << nWriten << " events have been writen." << std::endl;
+    tree->Write(tree->GetName(), TObject::kOverwrite);
+  }
 
   if( writeCalibData ){
     LogInfo << "Writing calibration data..." << std::endl;
