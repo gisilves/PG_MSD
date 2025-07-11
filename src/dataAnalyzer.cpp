@@ -219,9 +219,9 @@ int main(int argc, char* argv[]) {
     g_baseline->reserve(nDetectors);
     for (int i = 0; i < nDetectors; i++) {
         TGraph *this_g_baseline = new TGraph(nChannels);
-        this_g_baseline->SetTitle(Form("Sigma (Detector %d)", i));
+        this_g_baseline->SetTitle(Form("Baseline (Detector %d)", i));
         this_g_baseline->GetXaxis()->SetTitle("Channel");
-        this_g_baseline->GetYaxis()->SetTitle("Sigma");
+        this_g_baseline->GetYaxis()->SetTitle("Baseline");
         this_g_baseline->SetMarkerStyle(20);
         this_g_baseline->SetMarkerSize(0.8);
         g_baseline->emplace_back(this_g_baseline);
