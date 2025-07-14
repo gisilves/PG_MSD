@@ -211,7 +211,7 @@ do
       $extract_calibration
   fi
 
-  analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}.root -c ${outputDirectory}/${fileName}.cal -o ${outputDirectory} -s ${nsigma}"
+  analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}.root -c ${outputDirectory}/${fileName}.cal -o ${outputDirectory} -s ${nsigma} -n ${runit} -j ${settingsFile}"
   
   if [ "$verbose" = true ]
   then

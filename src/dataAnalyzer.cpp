@@ -18,6 +18,7 @@
 #include "TCanvas.h"
 #include "TGraph.h"
 #include "TApplication.h"
+#include "TStyle.h"
 
 #include "CmdLineParser.h"
 #include "Logger.h"
@@ -34,7 +35,7 @@ int main(int argc, char* argv[]) {
     clp.getDescription() << "> This program takes a root file and a calibration file and analyzes it." << std::endl;
 
     clp.addDummyOption("Main options");
-    // clp.addOption("runNumber", {"-n", "--run-number"}, "Specify run number.");
+    clp.addOption("runNumber", {"-n", "--run-number"}, "Specify run number.");
     clp.addOption("appSettings",    {"-j", "--json-settings"},   "Specify application settings file path.");
     clp.addOption("inputRootFile",  {"-r", "--root-file"},      "Root converted data");
     clp.addOption("inputCalFile",   {"-c", "--cal-file"},       "Calibration file.");
@@ -190,6 +191,9 @@ int main(int argc, char* argv[]) {
 
     // Root app
     TApplication *app = new TApplication("app", &argc, argv);
+
+    // set root to displat overflow and underflow in stat box
+    gStyle->SetOptStat("emruo"); // e: entries, m:
 
     // Create a vector of TF1 objects to show the channels that fire, one for each detector
     std::vector <TH1F*> *h_firingChannels = new std::vector <TH1F*>;
@@ -355,32 +359,33 @@ int main(int argc, char* argv[]) {
 
     // create a canvas
     LogInfo << "Creating canvas" << std::endl;
-    TCanvas *c_channelsFiring = new TCanvas("c_channelsFiring", "c_channelsFiring", 800, 600);
+    std::string runNumber = clp.getOptionVal<std::string>("runNumber");
+
+    // Update canvas titles
+    TCanvas *c_channelsFiring = new TCanvas(Form("c_channelsFiring_Run%s", runNumber.c_str()), Form("Channels Firing (Run %s)", runNumber.c_str()), 800, 600);
     c_channelsFiring->Divide(2, 2);
 
-    TCanvas *c_sigma = new TCanvas("c_sigma", "c_sigma", 800, 600);
+    TCanvas *c_sigma = new TCanvas(Form("c_sigma_Run%s", runNumber.c_str()), Form("Sigma (Run %s)", runNumber.c_str()), 800, 600);
     c_sigma->Divide(2, 2);
 
-    TCanvas *c_baseline = new TCanvas("c_baseline", "c_baseline", 800, 600);
+    TCanvas *c_baseline = new TCanvas(Form("c_baseline_Run%s", runNumber.c_str()), Form("Baseline (Run %s)", runNumber.c_str()), 800, 600);
     c_baseline->Divide(2, 2);
 
-
-    // vector of canvases for raw peak, size 6
-
-    std::vector <TCanvas*> *c_rawPeak = new std::vector <TCanvas*>;
+    // Update raw peak canvas titles
+    std::vector<TCanvas*> *c_rawPeak = new std::vector<TCanvas*>;
     c_rawPeak->reserve(6);
-    if (verbose){
+    if (verbose) {
         for (int i = 0; i < 6; i++) {
-            TCanvas *this_c_rawPeak = new TCanvas(Form("c_rawPeak%d", i), Form("c_rawPeak%d", i), 800, 600);
-            this_c_rawPeak->Divide(8,8);
+            TCanvas *this_c_rawPeak = new TCanvas(Form("c_rawPeak%d_Run%s", i, runNumber.c_str()), Form("Raw Peak %d (Run %s)", i, runNumber.c_str()), 800, 600);
+            this_c_rawPeak->Divide(8, 8);
             c_rawPeak->emplace_back(this_c_rawPeak);
         }
     }
 
-    TCanvas *c_amplitude = new TCanvas("c_amplitude", "c_amplitude", 800, 600);
+    TCanvas *c_amplitude = new TCanvas(Form("c_amplitude_Run%s", runNumber.c_str()), Form("Amplitude (Run %s)", runNumber.c_str()), 800, 600);
     c_amplitude->Divide(2, 2);
 
-    TCanvas *c_hitsInEvent = new TCanvas("c_hitsInEvent", "c_hitsInEvent", 800, 600);
+    TCanvas *c_hitsInEvent = new TCanvas(Form("c_hitsInEvent_Run%s", runNumber.c_str()), Form("Hits in Event (Run %s)", runNumber.c_str()), 800, 600);
 
 
     LogInfo << "Drawing histograms" << std::endl;
@@ -419,25 +424,36 @@ int main(int argc, char* argv[]) {
     h_hitsInEvent->Draw();
 
     // create a pdf report containing firing channels, sigma and amplitude
-    // std::string outputDir = clp.getOptionVal<std::string>("outputDir");
-    // LogInfo << "Output directory: " << outputDir << std::endl;
+    std::string outputDir = clp.getOptionVal<std::string>("outputDir");
+    LogInfo << "Output directory: " << outputDir << std::endl;
+    // output filename same as input root file, but remove .root and add suffixes for each plot type
+    std::string input_file_base = input_root_filename.substr(input_root_filename.find_last_of("/\\") + 1);
+    size_t lastdot = input_file_base.find_last_of(".");
+    if (lastdot != std::string::npos) {
+        input_file_base = input_file_base.substr(0, lastdot);
+    }
+    // Output filenames for each plot type
+    std::string output_filename_channelsFiring = outputDir + "/" + input_file_base + "_channelsFiring.pdf";
+    std::string output_filename_sigma = outputDir + "/" + input_file_base + "_sigma.pdf";
+    std::string output_filename_baseline = outputDir + "/" + input_file_base + "_baseline.pdf";
+    std::string output_filename_amplitude = outputDir + "/" + input_file_base + "_amplitude.pdf";
+    std::string output_filename_hitsInEvent = outputDir + "/" + input_file_base + "_hitsInEvent.pdf";
 
-    // // output filename same as inpu root file, but .pdf
-    // std::string output_filename = outputDir + "/" + input_root_filename.substr(input_root_filename.find_last_of("/\\") + 1) + "_report.pdf";
+    LogInfo << "Output filenames: " << std::endl;
+    LogInfo << "Channels Firing: " << output_filename_channelsFiring << std::endl;
+    LogInfo << "Sigma: " << output_filename_sigma << std::endl;
+    LogInfo << "Baseline: " << output_filename_baseline << std::endl;
+    LogInfo << "Amplitude: " << output_filename_amplitude << std::endl;
+    LogInfo << "Hits in Event: " << output_filename_hitsInEvent << std::endl;
 
-    // LogInfo << "Output filename: " << output_filename << std::endl;
+    // save the canvases to pdf
+    c_channelsFiring->SaveAs(output_filename_channelsFiring.c_str());
+    c_sigma->SaveAs(output_filename_sigma.c_str());
+    c_baseline->SaveAs(output_filename_baseline.c_str());
+    c_amplitude->SaveAs(output_filename_amplitude.c_str());
+    c_hitsInEvent->SaveAs(output_filename_hitsInEvent.c_str());
 
-    // c_channelsFiring->Print(Form("%s(", output_filename.c_str()), "pdf");
-    // c_sigma->Print(output_filename.c_str(), "pdf");
-    // for (int i = 0; i < 6; i++) {
-    //     c_rawPeak->at(i)->Print(output_filename.c_str(), "pdf");
-    // }
-    // c_amplitude->Print(output_filename.c_str(), "pdf");
-    // c_channelsFiring->Print(output_filename.c_str(), "pdf");
-    
-    // LogInfo << "Printed histograms to " << outputDir << output_filename << std::endl;
-
-    // run the app
+    LogInfo << "Printed histograms to " << outputDir << std::endl;
     if (clp.isOptionTriggered("showPlots")){
         LogInfo << "Running the app" << std::endl;
         app->Run();
