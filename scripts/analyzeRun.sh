@@ -1,10 +1,11 @@
 #!/bin/bash
 
-REPO_HOME=$(git rev-parse --show-toplevel) # does not have / at the end. 
+export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source $SCRIPTS_DIR/init.sh
 
 # Set the default input and output directories, to be overwritten by the settings
 inputDirectory="" 
-outputDirectory=$REPO_HOME"/output/"
+outputDirectory=$HOME_DIR"/output/"
 
 # Initialize variables
 settingsFile=""
@@ -33,7 +34,7 @@ print_help() {
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
-      -p|--home-path)      REPO_HOME="$2"; shift 2 ;;
+      -p|--home-path)      HOME_DIR="$2"; shift 2 ;;
       -s|--n-sigma)        nsigma="$2"; shift 2 ;;
       -r|--run-name)       fileName="$2"; shift 2 ;;
       -f|--first-run)      firstRun="$2"; shift 2 ;;
@@ -57,12 +58,12 @@ fi
 # if sourceLxplus is true, source the lxplus environment.
 # if [ "$sourceLxplus" = true ]; then  
 #   echo "Sourcing the lxplus environment"
-#   source $REPO_HOME/scripts/source-lxplus.sh
+#   source $HOME_DIR/scripts/source-lxplus.sh
 # fi
 
-echo "Home is ${REPO_HOME}."
-echo "Currently in $(pwd), moving to ${REPO_HOME} to run the script." # might not be necessary if using always absolute paths
-cd $REPO_HOME
+echo "Home is ${HOME_DIR}."
+echo "Currently in $(pwd), moving to ${HOME_DIR} to run the script." # might not be necessary if using always absolute paths
+cd $HOME_DIR
 
 # read from settings file the input and output paths
 inputDirectory=$(awk -F'"' '/inputDirectory/{print $4}' "$settingsFile")
@@ -106,24 +107,24 @@ if [ "$noCompile" = false ]
 then
   echo "Currently we are in"
   pwd
-  mkdir -p $REPO_HOME/build
+  mkdir -p $HOME_DIR/build
   echo "Moving into build directory"
-  cd $REPO_HOME/build;
+  cd $HOME_DIR/build;
 
   if [ "$cleanCompile" = true ]
   then
     echo "Cleaning the build directory"
-    rm -r $REPO_HOME/build/*
+    rm -r $HOME_DIR/build/*
   fi  
   # Compile the code
-  . ${REPO_HOME}/scripts/compile.sh
+  . ${HOME_DIR}/scripts/compile.sh
 else 
   echo "Skipping compilation."
 fi
 
 ################################################
 # Execute the code
-cd $REPO_HOME/build # executable is here, for now
+cd $HOME_DIR/build # executable is here, for now
 
 if [ -n "$fileName" ]
 then

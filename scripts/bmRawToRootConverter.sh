@@ -2,7 +2,8 @@
 
 # Thin wrapper for bmRawToRootConverter executable, matching README usage
 
-REPO_HOME=$(git rev-parse --show-toplevel)
+export SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source $SCRIPTS_DIR/init.sh
 
 inputDirectory=""
 outputDirectory=""
@@ -76,7 +77,7 @@ fi
 baseName=$(basename "$inputFile" .dat)
 outputFile="$outputDirectory/${baseName}.root"
 
-echo "Home directory: $REPO_HOME"
+echo "Home directory: $HOME_DIR"
 
 ################################################
 # Compile the code, with checks
@@ -84,24 +85,24 @@ if [ "$noCompile" = false ]
 then
   echo "Currently we are in"
   pwd
-  mkdir -p $REPO_HOME/build
+  mkdir -p $HOME_DIR/build
   echo "Moving into build directory"
-  cd $REPO_HOME/build;
+  cd $HOME_DIR/build;
 
   if [ "$cleanCompile" = true ]
   then
     echo "Cleaning the build directory"
-    rm -r $REPO_HOME/build/*
+    rm -r $HOME_DIR/build/*
   fi  
   # Compile the code
-  . ${REPO_HOME}/scripts/compile.sh
+  . ${HOME_DIR}/scripts/compile.sh
 else 
   echo "Skipping compilation."
 fi
 
 ################################################
 # Execute the code
-cd $REPO_HOME/build || exit 1 # Ensure we are in the build directory
+cd $HOME_DIR/build || exit 1 # Ensure we are in the build directory
 
 # Ensure output directory exists
 mkdir -p "$outputDirectory"
@@ -111,7 +112,7 @@ mkdir -p "$outputDirectory"
 cd "$outputDirectory"
 
 # Use full path for input file
-cmd="${REPO_HOME}/build/bmRawToRootConverter -i $inputFile"
+cmd="${HOME_DIR}/build/bmRawToRootConverter -i $inputFile"
 if $isCalib; then
     cmd+=" --is-calib"
 fi
