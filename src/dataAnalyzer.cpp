@@ -19,6 +19,7 @@
 #include "TGraph.h"
 #include "TApplication.h"
 #include "TStyle.h"
+#include "TSystem.h"
 
 #include "CmdLineParser.h"
 #include "Logger.h"
@@ -286,7 +287,7 @@ int main(int argc, char* argv[]) {
     raw_events_trees.at(3)->SetBranchAddress("RAW Event D", &data->at(3));
     
     int limit = nEntries.at(0);
-    int setLimit = 50000; // TODO from json settings
+    int setLimit = 1000000; // TODO from json settings
     if (limit > setLimit) limit = setLimit;
 
     int hitsInEvent = 0;
@@ -313,8 +314,6 @@ int main(int argc, char* argv[]) {
             this_event->AddPeak(detit, *data->at(detit));
             for (int chit = 0; chit < nChannels; chit++) {
                 // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event->GetPeak(detit, chit) << ", baseline: " << this_event->GetBaseline(detit, chit) << ", sigma: " << this_event->GetSigma(detit, chit) << "\t";
-                g_sigma->at(detit)->SetPoint(g_sigma->at(detit)->GetN(), chit, this_event->GetSigma(detit, chit));
-                g_baseline->at(detit)->SetPoint(g_baseline->at(detit)->GetN(), chit, this_event->GetBaseline(detit, chit));
                 h_rawPeak->at(detit)->at(chit)->Fill(this_event->GetPeak(detit, chit));
 
             }
@@ -359,7 +358,40 @@ int main(int argc, char* argv[]) {
 
     // create a canvas
     LogInfo << "Creating canvas" << std::endl;
-    std::string runNumber = clp.getOptionVal<std::string>("runNumber");
+    std::string runNumber = "99999"; // fallback value
+    if (clp.isOptionTriggered("runNumber")) {
+        runNumber = clp.getOptionVal<std::string>("runNumber");
+        LogInfo << "Using provided run number: " << runNumber << std::endl;
+    } else {
+        LogInfo << "No run number provided, using fallback: " << runNumber << std::endl;
+    }
+
+    // Populate sigma and baseline TGraphs with the correct values per channel
+    LogInfo << "Populating sigma and baseline graphs" << std::endl;
+    for (int detit = 0; detit < nDetectors; detit++) {
+        for (int chit = 0; chit < nChannels; chit++) {
+            g_sigma->at(detit)->SetPoint(chit, chit, baseline_sigma.at(detit).at(chit));
+            g_baseline->at(detit)->SetPoint(chit, chit, baseline.at(detit).at(chit));
+        }
+        // Update graph titles with run number
+        g_sigma->at(detit)->SetTitle(Form("Sigma (Detector %d) - Run %s", detit, runNumber.c_str()));
+        g_baseline->at(detit)->SetTitle(Form("Baseline (Detector %d) - Run %s", detit, runNumber.c_str()));
+    }
+
+    // Update histogram titles with run number
+    LogInfo << "Updating histogram titles with run number" << std::endl;
+    for (int i = 0; i < nDetectors; i++) {
+        h_firingChannels->at(i)->SetTitle(Form("Firing channels (Detector %d) - Run %s", i, runNumber.c_str()));
+        h_amplitude->at(i)->SetTitle(Form("Amplitude (Detector %d) - Run %s", i, runNumber.c_str()));
+        
+        // Update raw peak histogram titles if in verbose mode
+        if (verbose) {
+            for (int j = 0; j < nChannels; j++) {
+                h_rawPeak->at(i)->at(j)->SetTitle(Form("Raw peak (Detector %d, Channel %d) - Run %s", i, j, runNumber.c_str()));
+            }
+        }
+    }
+    h_hitsInEvent->SetTitle(Form("Hits in event - Run %s", runNumber.c_str()));
 
     // Update canvas titles
     TCanvas *c_channelsFiring = new TCanvas(Form("c_channelsFiring_Run%s", runNumber.c_str()), Form("Channels Firing (Run %s)", runNumber.c_str()), 800, 600);
@@ -425,37 +457,70 @@ int main(int argc, char* argv[]) {
 
     // create a pdf report containing firing channels, sigma and amplitude
     std::string outputDir = clp.getOptionVal<std::string>("outputDir");
-    LogInfo << "Output directory: " << outputDir << std::endl;
-    // output filename same as input root file, but remove .root and add suffixes for each plot type
+    // LogInfo << "Output directory: " << outputDir << std::endl;
+    // output filename same as input root file, but remove .root and create single PDF report
     std::string input_file_base = input_root_filename.substr(input_root_filename.find_last_of("/\\") + 1);
     size_t lastdot = input_file_base.find_last_of(".");
     if (lastdot != std::string::npos) {
         input_file_base = input_file_base.substr(0, lastdot);
     }
-    // Output filenames for each plot type
-    std::string output_filename_channelsFiring = outputDir + "/" + input_file_base + "_channelsFiring.pdf";
-    std::string output_filename_sigma = outputDir + "/" + input_file_base + "_sigma.pdf";
-    std::string output_filename_baseline = outputDir + "/" + input_file_base + "_baseline.pdf";
-    std::string output_filename_amplitude = outputDir + "/" + input_file_base + "_amplitude.pdf";
-    std::string output_filename_hitsInEvent = outputDir + "/" + input_file_base + "_hitsInEvent.pdf";
+    // Single PDF report filename
+    std::string output_filename_report = outputDir + "/" + input_file_base + "_" + std::to_string(clp.getOptionVal<int>("nSigma")) + "sigma_report.pdf";
 
-    LogInfo << "Output filenames: " << std::endl;
-    LogInfo << "Channels Firing: " << output_filename_channelsFiring << std::endl;
-    LogInfo << "Sigma: " << output_filename_sigma << std::endl;
-    LogInfo << "Baseline: " << output_filename_baseline << std::endl;
-    LogInfo << "Amplitude: " << output_filename_amplitude << std::endl;
-    LogInfo << "Hits in Event: " << output_filename_hitsInEvent << std::endl;
+    LogInfo << "Output PDF report: " << output_filename_report << std::endl;
+    
+    // Check output directory permissions
+    if (system(("test -w " + outputDir).c_str()) != 0) {
+        LogError << "Output directory " << outputDir << " is not writable!" << std::endl;
+        return 1;
+    }
 
-    // save the canvases to pdf
-    c_channelsFiring->SaveAs(output_filename_channelsFiring.c_str());
-    c_sigma->SaveAs(output_filename_sigma.c_str());
-    c_baseline->SaveAs(output_filename_baseline.c_str());
-    c_amplitude->SaveAs(output_filename_amplitude.c_str());
-    c_hitsInEvent->SaveAs(output_filename_hitsInEvent.c_str());
+    LogInfo << "Saving canvases to multi-page pdf report" << std::endl;
+    
+    // Ensure output directory exists
+    system(("mkdir -p " + outputDir).c_str());
+    
+    // save the canvases to a multi-page pdf report with error handling
+    try {
+        // Check that all canvases are valid before attempting to save
+        if (!c_channelsFiring || !c_sigma || !c_baseline || !c_amplitude || !c_hitsInEvent) {
+            LogError << "One or more canvases are null, cannot save plots" << std::endl;
+            return 1;
+        }
+        
+        LogInfo << "Creating multi-page PDF report..." << std::endl;
+        
+        // Page 1: Channels firing plot
+        c_channelsFiring->Update();
+        c_channelsFiring->SaveAs((output_filename_report + "(").c_str());
+        
+        // Page 2: Sigma plot
+        c_sigma->Update();
+        c_sigma->SaveAs(output_filename_report.c_str());
+        
+        // Page 3: Baseline plot
+        c_baseline->Update();
+        c_baseline->SaveAs(output_filename_report.c_str());
+        
+        // Page 4: Amplitude plot
+        c_amplitude->Update();
+        c_amplitude->SaveAs(output_filename_report.c_str());
+        
+        // Page 5: Hits in event plot (final page)
+        c_hitsInEvent->Update();
+        c_hitsInEvent->SaveAs((output_filename_report + ")").c_str());
+        
+        LogInfo << "Multi-page PDF report saved successfully: " << output_filename_report << std::endl;
+    } catch (const std::exception& e) {
+        LogError << "Error saving PDF report: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        LogError << "Unknown error occurred while saving PDF report" << std::endl;
+        return 1;
+    }
 
-    LogInfo << "Printed histograms to " << outputDir << std::endl;
     if (clp.isOptionTriggered("showPlots")){
-        LogInfo << "Running the app" << std::endl;
+        LogInfo << "Running root viewer..." << std::endl;
         app->Run();
     }
     else { LogInfo << "If you wish to see the plots, you need to set showPlots option to true.\n";}

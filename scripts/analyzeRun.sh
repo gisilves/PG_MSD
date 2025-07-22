@@ -18,6 +18,7 @@ print_help() {
     echo "Usage: $0 -f <first_run> [-l <last_run>] -j <settings_file> [-h]"
     echo "  -p | --home-path      path to the code home directory (/your/path/tof-reco, no / at the end). There is no default."
     echo "  -r | --run-name       full run name, with ot without .dat"
+    echo "  -s | --n-sigma       number of sigma to use for the analysis. Will overwrite whatever is in json settings."
     echo "  -f | --first-run      first run number"
     echo "  -l | --last-run       last run number" 
     echo "  -j | --json-settings  json settings file to run this app"
@@ -32,44 +33,17 @@ print_help() {
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
     case "$1" in
-      -p|--home-path)
-        REPO_HOME="$2"
-        shift 2
-        ;;
-      -r|--run-name)
-        fileName="$2"
-        shift 2
-        ;;
-      -f|--first-run)
-        firstRun="$2"
-        shift 2
-        ;;
-      -l|--last-run)
-        lastRun="$2"
-        shift 2
-        ;;
-      -j|--json-settings)
-        settingsFile="$2"
-        shift 2
-        ;;
-      --no-compile)
-        noCompile=true
-        shift
-        ;;
-      --clean-compile)
-        cleanCompile=true
-        shift
-        ;;
-      --source-lxplus)
-        sourceLxplus=true
-        shift
-        ;;
-      -h|--help)
-        print_help
-        ;;
-      *)
-        shift
-        ;;
+      -p|--home-path)      REPO_HOME="$2"; shift 2 ;;
+      -s|--n-sigma)        nsigma="$2"; shift 2 ;;
+      -r|--run-name)       fileName="$2"; shift 2 ;;
+      -f|--first-run)      firstRun="$2"; shift 2 ;;
+      -l|--last-run)       lastRun="$2"; shift 2 ;;
+      -j|--json-settings)  settingsFile="$2"; shift 2 ;;
+      --no-compile)        noCompile=true; shift ;;
+      --clean-compile)     cleanCompile=true; shift ;;
+      --source-lxplus)     sourceLxplus=true; shift ;;
+      -h|--help)           print_help ;;
+      *)                   shift ;;
     esac
 done
 
@@ -95,7 +69,12 @@ inputDirectory=$(awk -F'"' '/inputDirectory/{print $4}' "$settingsFile")
 outputDirectory=$(awk -F'"' '/outputDirectory/{print $4}' "$settingsFile")
 verbose=$(awk -F'"' '/verboseMode/{print $4}' "$settingsFile")
 debug=$(awk -F'"' '/debugMode/{print $4}' "$settingsFile")
-nsigma=$(awk -F'"' '/nSigma/{print $4}' "$settingsFile") # TODO add fallback if not defined
+
+# Only read nsigma from settings if not provided via command line
+if [ -z "$nsigma" ]; then
+    nsigma=$(awk -F'"' '/nSigma/{print $4}' "$settingsFile") # TODO add fallback if not defined
+fi
+
 showPlots=$(awk -F'"' '/showPlots/{print $4}' "$settingsFile") # TODO add fallback if not defined
 
 # Check if the user has selected a run name or number(s)
