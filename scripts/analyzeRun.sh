@@ -136,42 +136,42 @@ fi
 # Iterate over all the selected runs
 for ((runit = $firstRun; runit <= $lastRun; runit++ ))
 do
-  if [ -z $fileName ]
-  then
-    echo "Looking for files by run number"
-    echo "runit: $runit"
-    runit_5d=$(printf "%05d" "$runit")
-    filePath=$(find "$inputDirectory" -name "SCD_RUN${runit_5d}_*.dat")
-    
-    # Stop execution if the selected run is not present in the input directory
-    if [ -z "$filePath" ]
-    then
-        echo "Run "$runit " not found. Stopping execution."
-        continue
-    fi
-
-    echo "For this run number, found the following file(s):"
-    echo $filePath
-
-    echo "Dealing with file: "$filePath
-    echo "outputDirectory: "$outputDirectory
+  # if [ -z $fileName ]
+  # then
+  echo "Looking for files by run number"
+  echo "runit: $runit"
+  runit_5d=$(printf "%05d" "$runit")
+  filePath=$(find "$inputDirectory" -name "SCD_RUN${runit_5d}_*.dat")
   
-
-    # in case it doesn't exist, creating output directory
-    mkdir -p $outputDirectory
-
-    echo ""
-    echo "Currently we are in"
-    pwd
-    echo ""
-
-    fileName=$(basename $filePath)
-    fileName=${fileName%.*}
-    echo "File name is: "$fileName
-  else
-    echo "Received a single file path ${fileName}"
-    filePath="${inputDirectory}/${fileName}.dat"
+  # Stop execution if the selected run is not present in the input directory
+  if [ -z "$filePath" ]
+  then
+      echo "Run "$runit " not found. Stopping execution."
+      continue
   fi
+
+  echo "For this run number, found the following file(s):"
+  echo $filePath
+
+  echo "Dealing with file: "$filePath
+  echo "outputDirectory: "$outputDirectory
+
+
+  # in case it doesn't exist, creating output directory
+  mkdir -p $outputDirectory
+
+  echo ""
+  echo "Currently we are in"
+  pwd
+  echo ""
+
+  fileName=$(basename $filePath)
+  fileName=${fileName%.*}
+  echo "File name is: "$fileName
+  # else
+    # echo "Received a single file path ${fileName}"
+    # filePath="${inputDirectory}/${fileName}.dat"
+  # fi
 
   if [ -f "${outputDirectory}/${fileName}.root" ]
   then
