@@ -16,6 +16,12 @@ else
     export SRC_DIR=$HOME_DIR"/src/"
     export BUILD_DIR=$HOME_DIR"/build/"
 
+    # if in lxplus, source the image to get a ROOT version that works
+    if [[ $HOSTNAME == lxplus* ]]; then
+        echo "Sourcing the ROOT image for lxplus"
+        source $SCRIPTS_DIR/lxpus-image.sh
+    fi
+
     export INIT_DONE=true
 
     echo "init.sh finished"

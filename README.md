@@ -25,7 +25,8 @@ To use the code in your local machine, you need to have:
 - gcc version at least 11, or a recent clang;
 
 If needed, install or update these packages.
-In lxplus (recommended), all dependencies are fine.
+In lxplus (recommended), all dependencies are fine when sourcing an image through `source scripts/lxplus-image.sh`. 
+This is done automatically in the `init.sh` script, called by any other script, so it's not needed to run it manually.
 
 ## Usage
 
