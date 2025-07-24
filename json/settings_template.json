@@ -1,8 +1,13 @@
 {
     "inputDirectory": "/eos/user/e/evilla/dune/np02-beam-monitor/",
     "outputDirectory": "/your/output/directory/here",
-    "nSigma":"5",
-    "showPlots":"true",
-    "verboseMode": "false",
-    "debugMode":"false"
+
+    "maxEvents":10,
+    "nSigma":5,
+    "maskEdgeChannels":true,
+
+    "showPlots":true,
+    "verboseMode": false,
+    "debugMode":false
 }
+
