@@ -78,9 +78,11 @@ else
     then
         echo "  Make failed. Stopping execution."
         echo ""
+        cd $pwd # go back to the original directory
         exit 0
     fi
-
+    
+    cd $pwd # go back to the original directory
     echo "  Compilation successful!"
     echo ""
 

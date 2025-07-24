@@ -54,12 +54,13 @@ then
   exit 0
 fi
 
-# THIS MIGHT BECOME NECESSARY LATER
-# if sourceLxplus is true, source the lxplus environment.
-# if [ "$sourceLxplus" = true ]; then  
-#   echo "Sourcing the lxplus environment"
-#   source $HOME_DIR/scripts/source-lxplus.sh
-# fi
+####################
+# Find the settings file
+echo "Looking for settings file $settingsFile. If execution stops, it means that the file was not found."
+findSettings_command="$SCRIPTS_DIR/findSettings.sh -j $settingsFile"
+# last line of the output of findSettings.sh is the full path of the settings file
+settingsFile=$(. $findSettings_command | tail -n 1)
+echo -e "Settings file found, full path is: $settingsFile \n"
 
 echo "Home is ${HOME_DIR}."
 echo "Currently in $(pwd), moving to ${HOME_DIR} to run the script." # might not be necessary if using always absolute paths
@@ -76,8 +77,6 @@ if [ -z "$nsigma" ]; then
     nsigma=$(awk -F'"' '/nSigma/{print $4}' "$settingsFile") # TODO add fallback if not defined
 fi
 
-showPlots=$(awk -F'"' '/showPlots/{print $4}' "$settingsFile") # TODO add fallback if not defined
-
 # Check if the user has selected a run name or number(s)
 if [ -z "$fileName" ] 
 then
@@ -86,7 +85,7 @@ then
     echo "Please select a run number (or an interval) from command line to convert the data into ROOT format. 
     You can select only the first run, or both the first and the last run.
     Usage: 
-    $ ./analyzeRuns.sh -f <first_run> [-l <last_run>] -j <json_settings_file> [-h]"
+     $0 -f <first_run> [-l <last_run>] -j <json_settings_file> [-h]"
     exit 0
     fi
     if [ -z "$lastRun" ]
@@ -102,25 +101,11 @@ else
 fi
 
 ################################################
-# Compile the code, with checks
-if [ "$noCompile" = false ]
-then
-  echo "Currently we are in"
-  pwd
-  mkdir -p $HOME_DIR/build
-  echo "Moving into build directory"
-  cd $HOME_DIR/build;
-
-  if [ "$cleanCompile" = true ]
-  then
-    echo "Cleaning the build directory"
-    rm -r $HOME_DIR/build/*
-  fi  
-  # Compile the code
-  . ${HOME_DIR}/scripts/compile.sh
-else 
-  echo "Skipping compilation."
-fi
+# Compile the code if requested
+compile_command="$SCRIPTS_DIR/compile.sh -p $HOME_DIR --no-compile $noCompile --clean-compile $cleanCompile"
+echo "Compiling the code with the following command:"
+echo $compile_command
+. $compile_command || exit
 
 ################################################
 # Execute the code
@@ -203,11 +188,6 @@ do
   then
       echo "Debug mode is on."
       analyze_data+=" -d"
-  fi
-
-  if [ "$showPlots" = true ]
-  then
-      analyze_data+=" --show-plots"
   fi
 
   echo "Executing command: "$analyze_data
