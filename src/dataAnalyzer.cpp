@@ -21,6 +21,8 @@
 #include "TStyle.h"
 #include "TSystem.h"
 
+#include <nlohmann/json.hpp>
+
 #include "CmdLineParser.h"
 #include "Logger.h"
 #include "ocaEvent.h"
@@ -46,7 +48,6 @@ int main(int argc, char* argv[]) {
     clp.addDummyOption("Triggers");
     clp.addTriggerOption("verboseMode",     {"-v"},             "RunVerboseMode, bool");
     clp.addTriggerOption("debugMode",       {"-d"},             "RunDebugMode, bool");
-    clp.addTriggerOption("showPlots",       {"--show-plots"},   "Show plots in interactive root session, bool");
 
     clp.addDummyOption();
 
@@ -65,6 +66,25 @@ int main(int argc, char* argv[]) {
 
     bool verbose = clp.isOptionTriggered("verboseMode");
     bool debug = clp.isOptionTriggered("debugMode");
+    
+    // read json settings
+    std::string jsonSettingsFile = "";
+    std::ifstream i(jsonSettingsFile);
+    nlohmann::json jsonSettings;
+    if (clp.isOptionTriggered("appSettings")) {
+        jsonSettingsFile = clp.getOptionVal<std::string>("appSettings");
+        LogInfo << "Reading JSON settings from: " << jsonSettingsFile << std::endl;
+        i.open(jsonSettingsFile);
+        if (i.is_open()) {
+            i >> jsonSettings;
+            LogInfo << "JSON settings loaded successfully." << std::endl;
+        } else {
+            LogError << "Failed to read JSON settings from: " << jsonSettingsFile << std::endl;
+            return 1;
+        }
+    } else {
+        LogInfo << "No JSON settings file provided, using default values." << std::endl;
+    }
 
     ///////////////////////////
     // Some variables
@@ -260,6 +280,18 @@ int main(int argc, char* argv[]) {
         h_amplitude->emplace_back(this_h_amplitude);
     }
 
+    // Add 2D histogram for amplitude vs channel
+    std::vector <TH2F*> *h_amplitudeVsChannel = new std::vector <TH2F*>;
+    h_amplitudeVsChannel->reserve(nDetectors);
+    for (int i = 0; i < nDetectors; i++) {
+        TH2F *this_h_amplitudeVsChannel = new TH2F(Form("Amplitude vs Channel (Detector %d)", i), 
+                                                   Form("Amplitude vs Channel (Detector %d)", i), 
+                                                   nChannels, 0, nChannels, 100, 0, 1000);
+        this_h_amplitudeVsChannel->GetXaxis()->SetTitle("Channel");
+        this_h_amplitudeVsChannel->GetYaxis()->SetTitle("Amplitude");
+        h_amplitudeVsChannel->emplace_back(this_h_amplitudeVsChannel);
+    }
+
     TH1F *h_hitsInEvent = new TH1F("Hits in event", "Hits in event", 10, -0.5, 10);
     h_hitsInEvent->GetXaxis()->SetTitle("Hits");
     h_hitsInEvent->GetYaxis()->SetTitle("Counts");
@@ -287,8 +319,33 @@ int main(int argc, char* argv[]) {
     raw_events_trees.at(3)->SetBranchAddress("RAW Event D", &data->at(3));
     
     int limit = nEntries.at(0);
-    int setLimit = 1000000; // TODO from json settings
-    if (limit > setLimit) limit = setLimit;
+    int maxEvents = 1e9; // default value
+    // Overwrite maxEvents if present in json settings file
+    if (jsonSettings.contains("maxEvents")) {
+        maxEvents = jsonSettings["maxEvents"].get<int>();
+        LogInfo << "Overwriting maxEvents from JSON: " << maxEvents << std::endl;
+    } else {
+        LogInfo << "Using default maxEvents: " << maxEvents << std::endl;
+    }
+    if (limit > maxEvents) limit = maxEvents;
+
+    // Check if edge channels should be masked
+    bool maskEdgeChannels = false;
+    if (jsonSettings.contains("maskEdgeChannels")) {
+        maskEdgeChannels = jsonSettings["maskEdgeChannels"].get<bool>();
+        LogInfo << "Mask edge channels: " << (maskEdgeChannels ? "true" : "false") << std::endl;
+    } else {
+        LogInfo << "Using default maskEdgeChannels: false" << std::endl;
+    }
+
+    // Function to check if a channel is an edge channel (chip boundaries)
+    auto isEdgeChannel = [](int channel) -> bool {
+        // Edge channels are at chip boundaries: 0, 63, 64, 127, 128, 191, 192, 255, 256, 319, 320, 383
+        // Each chip has 64 channels, so edge channels are: 0, 63 of each chip
+        int chipNumber = channel / 64;
+        int channelInChip = channel % 64;
+        return (channelInChip == 0 || channelInChip == 1 || channelInChip == 62 || channelInChip == 63); // it seems also the ones next are noisy
+    };
 
     int hitsInEvent = 0;
     int triggeredEvents = 0;
@@ -313,6 +370,10 @@ int main(int argc, char* argv[]) {
             raw_events_trees.at(detit)->GetEntry(entryit);
             this_event->AddPeak(detit, *data->at(detit));
             for (int chit = 0; chit < nChannels; chit++) {
+                // Skip edge channels if masking is enabled
+                if (maskEdgeChannels && isEdgeChannel(chit)) {
+                    continue;
+                }
                 // LogInfo << "DetId " << detit << ", channel " << chit << ", peak: " << this_event->GetPeak(detit, chit) << ", baseline: " << this_event->GetBaseline(detit, chit) << ", sigma: " << this_event->GetSigma(detit, chit) << "\t";
                 h_rawPeak->at(detit)->at(chit)->Fill(this_event->GetPeak(detit, chit));
 
@@ -332,8 +393,16 @@ int main(int argc, char* argv[]) {
                 hitsInEvent++;
                 int det = triggeredHits.at(hitit).first;
                 int ch = triggeredHits.at(hitit).second;
+                
+                // Skip edge channels if masking is enabled
+                if (maskEdgeChannels && isEdgeChannel(ch)) {
+                    continue;
+                }
+                
+                float amplitude = this_event->GetPeak(det, ch) - this_event->GetBaseline(det, ch);
                 h_firingChannels->at(det)->Fill(ch);
-                h_amplitude->at(det)->Fill(this_event->GetPeak(det, ch) - this_event->GetBaseline(det, ch));
+                h_amplitude->at(det)->Fill(amplitude);
+                h_amplitudeVsChannel->at(det)->Fill(ch, amplitude);
             }
         }
 
@@ -383,6 +452,7 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < nDetectors; i++) {
         h_firingChannels->at(i)->SetTitle(Form("Firing channels (Detector %d) - Run %s", i, runNumber.c_str()));
         h_amplitude->at(i)->SetTitle(Form("Amplitude (Detector %d) - Run %s", i, runNumber.c_str()));
+        h_amplitudeVsChannel->at(i)->SetTitle(Form("Amplitude vs Channel (Detector %d) - Run %s", i, runNumber.c_str()));
         
         // Update raw peak histogram titles if in verbose mode
         if (verbose) {
@@ -416,6 +486,9 @@ int main(int argc, char* argv[]) {
 
     TCanvas *c_amplitude = new TCanvas(Form("c_amplitude_Run%s", runNumber.c_str()), Form("Amplitude (Run %s)", runNumber.c_str()), 800, 600);
     c_amplitude->Divide(2, 2);
+
+    TCanvas *c_amplitudeVsChannel = new TCanvas(Form("c_amplitudeVsChannel_Run%s", runNumber.c_str()), Form("Amplitude vs Channel (Run %s)", runNumber.c_str()), 800, 600);
+    c_amplitudeVsChannel->Divide(2, 2);
 
     TCanvas *c_hitsInEvent = new TCanvas(Form("c_hitsInEvent_Run%s", runNumber.c_str()), Form("Hits in Event (Run %s)", runNumber.c_str()), 800, 600);
 
@@ -451,6 +524,11 @@ int main(int argc, char* argv[]) {
         h_amplitude->at(i)->Draw();
     }
 
+    for (int i = 0; i < nDetectors; i++) {
+        c_amplitudeVsChannel->cd(i+1);
+        h_amplitudeVsChannel->at(i)->Draw("COLZ");
+    }
+
     c_hitsInEvent->cd();
     gPad->SetLogy();
     h_hitsInEvent->Draw();
@@ -483,7 +561,7 @@ int main(int argc, char* argv[]) {
     // save the canvases to a multi-page pdf report with error handling
     try {
         // Check that all canvases are valid before attempting to save
-        if (!c_channelsFiring || !c_sigma || !c_baseline || !c_amplitude || !c_hitsInEvent) {
+        if (!c_channelsFiring || !c_sigma || !c_baseline || !c_amplitude || !c_amplitudeVsChannel || !c_hitsInEvent) {
             LogError << "One or more canvases are null, cannot save plots" << std::endl;
             return 1;
         }
@@ -506,7 +584,11 @@ int main(int argc, char* argv[]) {
         c_amplitude->Update();
         c_amplitude->SaveAs(output_filename_report.c_str());
         
-        // Page 5: Hits in event plot (final page)
+        // Page 5: Amplitude vs Channel plot
+        c_amplitudeVsChannel->Update();
+        c_amplitudeVsChannel->SaveAs(output_filename_report.c_str());
+        
+        // Page 6: Hits in event plot (final page)
         c_hitsInEvent->Update();
         c_hitsInEvent->SaveAs((output_filename_report + ")").c_str());
         
@@ -519,10 +601,20 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (clp.isOptionTriggered("showPlots")){
+    // Check if showPlots is enabled in JSON settings
+    bool showPlots = false;
+    if (jsonSettings.contains("showPlots")) {
+        showPlots = jsonSettings["showPlots"].get<bool>();
+        LogInfo << "Show plots: " << (showPlots ? "true" : "false") << std::endl;
+    } else {
+        LogInfo << "Using default showPlots: false" << std::endl;
+    }
+
+    if (showPlots) {
         LogInfo << "Running root viewer..." << std::endl;
         app->Run();
     }
+    
     else { LogInfo << "If you wish to see the plots, you need to set showPlots option to true.\n";}
 
     return 0;

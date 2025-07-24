@@ -4,7 +4,8 @@ Software to analyze the data coming from the beam NP02 beam plug tracker.
 The DAQ is [here](https://github.com/emanuele-villa/oca-pDUNE-DAQ/tree/master).
 This code has been forked from the one originally written by INFN Perugia.
 
-The data can be found at `/eos/user/e/evilla/dune/np02-beam-monitor`, ask for the url if needed.
+The data can be found at `/eos/user/e/evilla/dune/np02-beam-monitor`, request access to emanuele.villa@cern.ch.
+Ask Emanuele for the url if you want to download from web interface.
 
 ## Install
 
