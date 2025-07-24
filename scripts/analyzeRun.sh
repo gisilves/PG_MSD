@@ -12,6 +12,7 @@ settingsFile=""
 fileName=""
 noCompile=false
 cleanCompile=false
+nsigma=5 # Default value for nSigma
 
 # Function to print help message
 print_help() {

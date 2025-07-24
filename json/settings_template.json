@@ -2,7 +2,7 @@
     "inputDirectory": "/eos/user/e/evilla/dune/np02-beam-monitor/",
     "outputDirectory": "/your/output/directory/here",
 
-    "maxEvents":100000000000,
+    "maxEvents":100000000,
     "nSigma":5,
     "maskEdgeChannels":true,
 

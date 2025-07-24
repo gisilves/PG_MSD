@@ -322,8 +322,13 @@ int main(int argc, char* argv[]) {
     int maxEvents = 1e9; // default value
     // Overwrite maxEvents if present in json settings file
     if (jsonSettings.contains("maxEvents")) {
-        maxEvents = jsonSettings["maxEvents"].get<int>();
-        LogInfo << "Overwriting maxEvents from JSON: " << maxEvents << std::endl;
+        // Check if the value is a number and handle it properly
+        if (jsonSettings["maxEvents"].is_number_integer()) {
+            maxEvents = jsonSettings["maxEvents"];
+            LogInfo << "Overwriting maxEvents from JSON: " << maxEvents << std::endl;
+        } else {
+            LogError << "maxEvents in JSON is not a valid integer, using default: " << maxEvents << std::endl;
+        }
     } else {
         LogInfo << "Using default maxEvents: " << maxEvents << std::endl;
     }
@@ -614,7 +619,6 @@ int main(int argc, char* argv[]) {
         LogInfo << "Running root viewer..." << std::endl;
         app->Run();
     }
-    
     else { LogInfo << "If you wish to see the plots, you need to set showPlots option to true.\n";}
 
     return 0;
