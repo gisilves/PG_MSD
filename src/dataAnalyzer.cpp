@@ -393,8 +393,8 @@ int main(int argc, char* argv[]) {
 
         std::vector <std::pair<int, int>> triggeredHits = this_event->GetTriggeredHits();
         if (triggeredHits.size() > 0){
+            triggeredEvents++;
             for (int hitit = 0; hitit < triggeredHits.size(); hitit++) {
-                triggeredEvents++;
                 hitsInEvent++;
                 int det = triggeredHits.at(hitit).first;
                 int ch = triggeredHits.at(hitit).second;

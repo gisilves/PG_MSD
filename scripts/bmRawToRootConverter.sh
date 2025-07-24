@@ -60,6 +60,15 @@ if [ -z "$settingsFile" ] || [ -z "$runNumber" ]; then
     print_help
 fi
 
+####################
+# Find the settings file
+echo "Looking for settings file $settingsFile. If execution stops, it means that the file was not found."
+findSettings_command="$SCRIPTS_DIR/findSettings.sh -j $settingsFile"
+# last line of the output of findSettings.sh is the full path of the settings file
+settingsFile=$(. $findSettings_command | tail -n 1)
+echo -e "Settings file found, full path is: $settingsFile \n"
+####################
+
 # Read input/output directories from JSON settings
 inputDirectory=$(awk -F'"' '/inputDirectory/{print $4}' "$settingsFile")
 outputDirectory=$(awk -F'"' '/outputDirectory/{print $4}' "$settingsFile")
@@ -80,25 +89,11 @@ outputFile="$outputDirectory/${baseName}.root"
 echo "Home directory: $HOME_DIR"
 
 ################################################
-# Compile the code, with checks
-if [ "$noCompile" = false ]
-then
-  echo "Currently we are in"
-  pwd
-  mkdir -p $HOME_DIR/build
-  echo "Moving into build directory"
-  cd $HOME_DIR/build;
-
-  if [ "$cleanCompile" = true ]
-  then
-    echo "Cleaning the build directory"
-    rm -r $HOME_DIR/build/*
-  fi  
-  # Compile the code
-  . ${HOME_DIR}/scripts/compile.sh
-else 
-  echo "Skipping compilation."
-fi
+# Compile the code if requested
+compile_command="$SCRIPTS_DIR/compile.sh -p $HOME_DIR --no-compile $noCompile --clean-compile $cleanCompile"
+echo "Compiling the code with the following command:"
+echo $compile_command
+. $compile_command || exit
 
 ################################################
 # Execute the code

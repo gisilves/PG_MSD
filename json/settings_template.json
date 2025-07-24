@@ -1,6 +1,6 @@
 {
     "inputDirectory": "/eos/user/e/evilla/dune/np02-beam-monitor/",
-    "outputDirectory": "/your/output/directory/here",
+    "outputDirectory": "../output/",
 
     "maxEvents":100000000,
     "nSigma":5,
