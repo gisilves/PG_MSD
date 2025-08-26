@@ -20,6 +20,7 @@
 #include "TApplication.h"
 #include "TStyle.h"
 #include "TSystem.h"
+#include "TMarker.h"
 #include <cmath>
 #include <algorithm>
 
@@ -367,18 +368,47 @@ int main(int argc, char* argv[]) {
     int hitsInEvent = 0;
     int triggeredEvents = 0;
     
-    // Geometry / interpolation setup for detectors 0 (-15°), 1 (+15°), 2 (0°)
+    // Geometry / interpolation setup
+    // Strip orientations relative to the global X axis:
+    //  - Detector 2 strips run along X (0°)
+    //  - Detector 0,1 strips are inclined by -15° and +15° w.r.t. X
+    // We project along the normal to strips (orientation +90°) when forming u = x cosθ + y sinθ.
     const int geomDetN = 3;
-    const double detAnglesDeg[geomDetN] = {-15.0, +15.0, 0.0};
-    double detAnglesRad[geomDetN];
-    for (int i=0;i<geomDetN;i++) detAnglesRad[i] = detAnglesDeg[i]*M_PI/180.0;
+    const double stripAnglesDeg[geomDetN] = {-15.0, +15.0, 0.0};
+    double normalAnglesRad[geomDetN];
+    for (int i=0;i<geomDetN;i++) normalAnglesRad[i] = (stripAnglesDeg[i] + 90.0) * M_PI/180.0;
     // Physical pitch: 10 cm across strip-normal over nChannels
     double channelPitch = 100.0 / nChannels; // mm per strip
     
+    // Optional per-detector plane offsets (x0,y0) in mm to express true global coordinates.
+    // JSON key: planeOffsetsMm: [ [x0,y0], [x1,y1], [x2,y2] ]
+    std::vector<std::pair<double,double>> planeOffsets(geomDetN, {0.0, 0.0});
+    if (jsonSettings.contains("planeOffsetsMm") && jsonSettings["planeOffsetsMm"].is_array()) {
+        for (int i = 0; i < geomDetN && i < (int)jsonSettings["planeOffsetsMm"].size(); ++i) {
+            const auto &elt = jsonSettings["planeOffsetsMm"][i];
+            if (elt.is_array() && elt.size() >= 2 && elt[0].is_number() && elt[1].is_number()) {
+                planeOffsets[i].first  = elt[0].get<double>(); // x0
+                planeOffsets[i].second = elt[1].get<double>(); // y0
+            }
+        }
+    }
+
+    // Optional 2D centers axis ranges; defaults widened to capture shifted distributions
+    double centersXmin = -250.0, centersXmax = 0.0; // mm (align right edge near 0 by default)
+    double centersYmin = -120.0, centersYmax = 120.0; // mm
+    if (jsonSettings.contains("centersAxisRanges") && jsonSettings["centersAxisRanges"].is_object()) {
+        const auto &ax = jsonSettings["centersAxisRanges"];
+        if (ax.contains("xmin") && ax["xmin"].is_number()) centersXmin = ax["xmin"].get<double>();
+        if (ax.contains("xmax") && ax["xmax"].is_number()) centersXmax = ax["xmax"].get<double>();
+        if (ax.contains("ymin") && ax["ymin"].is_number()) centersYmin = ax["ymin"].get<double>();
+        if (ax.contains("ymax") && ax["ymax"].is_number()) centersYmax = ax["ymax"].get<double>();
+    }
+    
     // Histograms to accumulate reconstructed centers (in mm)
-    // Further increase bin size (coarser bins): 120 mm range with 40 bins => 3 mm/bin
-    TH2F *h_recoCenter_3 = new TH2F("h_recoCenter_3", "Interpolated centers (exactly 3 clusters, 1 per detector);X [mm];Y [mm]", 40, -60.0, 60.0, 40, -60.0, 60.0);
-    TH2F *h_recoCenter_2to3 = new TH2F("h_recoCenter_2to3", "Interpolated centers (2 or 3 clusters);X [mm];Y [mm]", 40, -60.0, 60.0, 40, -60.0, 60.0);
+    // Use configurable axis ranges to ensure the full distribution is visible
+    const int centersBinsX = 20, centersBinsY = 20; // keep finer bins
+    TH2F *h_recoCenter_3 = new TH2F("h_recoCenter_3", "Interpolated centers (exactly 3 clusters, 1 per detector);X [mm];Y [mm]", centersBinsX, centersXmin, centersXmax, centersBinsY, centersYmin, centersYmax);
+    TH2F *h_recoCenter_2to3 = new TH2F("h_recoCenter_2to3", "Interpolated centers (2 or 3 clusters);X [mm];Y [mm]", centersBinsX, centersXmin, centersXmax, centersBinsY, centersYmin, centersYmax);
     TGraph *g_recoCenters_3 = new TGraph();
     g_recoCenters_3->SetName("g_recoCenters_3");
     g_recoCenters_3->SetTitle("Interpolated centers (exactly 3 clusters, 1 per detector);X [mm];Y [mm]");
@@ -492,18 +522,20 @@ int main(int argc, char* argv[]) {
                 firstTrigChan[2] = (c2.second.first >= 0 ? (c2.second.first + c2.second.second)/2 : -1);
                 triggeredEvents++;
                 hitsInEvent = (int)(detHits[0].size() + detHits[1].size() + detHits[2].size());
-            // Reconstruct (x,y) from projections u_i = x cosθ_i + y sinθ_i, with u_i centered around detector origin.
-            // Center channel indices so that strip centers map to u = 0 at detector center.
-            double centerOffset = (nChannels * channelPitch) / 2.0; // 50 mm
+            // Reconstruct (x,y) from projections u_i = x cosθ_i + y sinθ_i, using absolute/global coordinates.
             // Accumulate for least squares if >=2 detectors
             double Scc=0, Sss=0, Scs=0, Su_c=0, Su_s=0; int used=0;
             // Temporary storage for exactly-2-detector direct solve
             double c_a=0,s_a=0,u_a=0,c_b=0,s_b=0,u_b=0; int pairCount=0;
-            for (int i=0;i<geomDetN;i++) {
+        for (int i=0;i<geomDetN;i++) {
                 if (firstTrigChan[i] >= 0) {
-                    double u = ( (firstTrigChan[i] + 0.5) * channelPitch ) - centerOffset; // mm
-                    double c = cos(detAnglesRad[i]);
-                    double s = sin(detAnglesRad[i]);
+            // Channel-centered u: middle channel maps to u=0 (e.g., det2 center at y=0)
+            double u_meas = ( (firstTrigChan[i] + 0.5) - (nChannels/2.0) ) * channelPitch; // mm
+            // Project along the normal to the strips
+            double c = cos(normalAnglesRad[i]);
+            double s = sin(normalAnglesRad[i]);
+            // Account for detector plane offsets: x0,y0 shift into RHS as u_eff = u_meas + x0*c + y0*s
+            double u = u_meas + (planeOffsets[i].first * c + planeOffsets[i].second * s);
                     Scc += c*c; Sss += s*s; Scs += c*s; Su_c += u*c; Su_s += u*s; used++;
                     if (pairCount==0) {c_a=c; s_a=s; u_a=u; pairCount=1;} else if (pairCount==1){c_b=c; s_b=s; u_b=u; pairCount=2;}
                 }
@@ -629,15 +661,21 @@ int main(int argc, char* argv[]) {
     TCanvas *c_recoCenter_3 = new TCanvas("c_recoCenter_3", "Interpolated Centers (exactly 3)", 700, 500);
     c_recoCenter_3->cd();
     h_recoCenter_3->Draw("COLZ");
-    g_recoCenters_3->SetMarkerColor(kBlack);
-    g_recoCenters_3->Draw("P SAME");
+    // Mark global origin for reference
+    TMarker *centerMarker3 = new TMarker(0.0, 0.0, kFullCircle);
+    centerMarker3->SetMarkerColor(kRed);
+    centerMarker3->SetMarkerSize(1.2);
+    centerMarker3->Draw("SAME");
     c_recoCenter_3->Update();
 
     TCanvas *c_recoCenter_2to3 = new TCanvas("c_recoCenter_2to3", "Interpolated Centers (2 or 3)", 700, 500);
     c_recoCenter_2to3->cd();
     h_recoCenter_2to3->Draw("COLZ");
-    g_recoCenters_2to3->SetMarkerColor(kBlack);
-    g_recoCenters_2to3->Draw("P SAME");
+    // Mark global origin for reference
+    TMarker *centerMarker23 = new TMarker(0.0, 0.0, kFullCircle);
+    centerMarker23->SetMarkerColor(kRed);
+    centerMarker23->SetMarkerSize(1.2);
+    centerMarker23->Draw("SAME");
     c_recoCenter_2to3->Update();
 
     LogInfo << "Drawing histograms" << std::endl;
