@@ -403,6 +403,21 @@ int main(int argc, char* argv[]) {
         if (ax.contains("ymin") && ax["ymin"].is_number()) centersYmin = ax["ymin"].get<double>();
         if (ax.contains("ymax") && ax["ymax"].is_number()) centersYmax = ax["ymax"].get<double>();
     }
+
+    // Optional flip of the displayed Y coordinate (useful to have channel 0 at highest Y)
+    bool flipY = false;
+    if (jsonSettings.contains("flipY")) {
+        try {
+            if (jsonSettings["flipY"].is_boolean()) flipY = jsonSettings["flipY"].get<bool>();
+            else if (jsonSettings["flipY"].is_string()) {
+                std::string v = jsonSettings["flipY"].get<std::string>();
+                std::transform(v.begin(), v.end(), v.begin(), ::tolower);
+                flipY = (v == "true" || v == "1" || v == "yes" || v == "y");
+            } else if (jsonSettings["flipY"].is_number_integer()) {
+                flipY = (jsonSettings["flipY"].get<int>() != 0);
+            }
+        } catch (...) { /* keep default */ }
+    }
     
     // Histograms to accumulate reconstructed centers (in mm)
     // Use configurable axis ranges to ensure the full distribution is visible
@@ -530,7 +545,8 @@ int main(int argc, char* argv[]) {
         for (int i=0;i<geomDetN;i++) {
                 if (firstTrigChan[i] >= 0) {
             // Channel-centered u: middle channel maps to u=0 (e.g., det2 center at y=0)
-            double u_meas = ( (firstTrigChan[i] + 0.5) - (nChannels/2.0) ) * channelPitch; // mm
+            // Map channel 0 to highest +u (about +5 cm), channel N-1 to lowest -u (about -5 cm)
+            double u_meas = ( (nChannels/2.0) - (firstTrigChan[i] + 0.5) ) * channelPitch; // mm
             // Project along the normal to the strips
             double c = cos(normalAnglesRad[i]);
             double s = sin(normalAnglesRad[i]);
@@ -560,6 +576,7 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (haveXY) {
+                if (flipY) cy = -cy; // flip Y orientation if requested
                 // Fill 2-or-3 clusters map always
                 h_recoCenter_2to3->Fill(cx, cy);
                 g_recoCenters_2to3->SetPoint(g_recoCenters_2to3->GetN(), cx, cy);
