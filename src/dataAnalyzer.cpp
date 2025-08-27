@@ -24,6 +24,7 @@
 #include <cmath>
 #include <algorithm>
 #include <filesystem>
+#include <cstdlib>
 
 #include <nlohmann/json.hpp>
 
@@ -385,10 +386,20 @@ int main(int argc, char* argv[]) {
     // Preferred source: parameters/geometry.json (or a path provided by settings as geometryParamsPath)
     // Backward compatibility: if file not found, fall back to JSON key planeOffsetsMm.
     std::vector<std::pair<double,double>> planeOffsets(geomDetN, {0.0, 0.0});
-    // Hardcoded default path for geometry parameters (plane offsets)
-    // Try a few sensible locations depending on the working dir and settings file path
+    // Remember which geometry file we end up using (for reading other parameters like axis ranges)
+    std::string usedGeomPath;
+    // Geometry parameters (plane offsets): prefer HOME_DIR/parameters/geometry.json from env,
+    // then try a few sensible relative locations depending on the working dir and settings file path
     std::vector<std::string> geomCandidates;
     {
+        // Highest priority: HOME_DIR env var set by scripts/init.sh
+        if (const char* envHome = std::getenv("HOME_DIR")) {
+            try {
+                std::filesystem::path hp(envHome);
+                auto p = (hp / "parameters/geometry.json").string();
+                geomCandidates.emplace_back(p);
+            } catch (...) {}
+        }
         // current and parent relative locations
         geomCandidates.emplace_back("parameters/geometry.json");
         geomCandidates.emplace_back("../parameters/geometry.json");
@@ -418,6 +429,8 @@ int main(int argc, char* argv[]) {
                     }
                     LogInfo << "Loaded plane offsets from: " << geomPath << std::endl;
                     loadedFromFile = true;
+                    // Remember which geometry file we used so we can read other parameters (e.g. axis ranges)
+                    usedGeomPath = geomPath;
                     break;
                 }
             }
@@ -442,15 +455,24 @@ int main(int argc, char* argv[]) {
         LogInfo << "Plane offset det " << ioff << ": (x0,y0) = (" << planeOffsets[ioff].first << ", " << planeOffsets[ioff].second << ") mm" << std::endl;
     }
 
-    // Optional 2D centers axis ranges; defaults widened to capture shifted distributions
-    double centersXmin = -250.0, centersXmax = 0.0; // mm (align right edge near 0 by default)
-    double centersYmin = -120.0, centersYmax = 120.0; // mm
-    if (jsonSettings.contains("centersAxisRanges") && jsonSettings["centersAxisRanges"].is_object()) {
-        const auto &ax = jsonSettings["centersAxisRanges"];
-        if (ax.contains("xmin") && ax["xmin"].is_number()) centersXmin = ax["xmin"].get<double>();
-        if (ax.contains("xmax") && ax["xmax"].is_number()) centersXmax = ax["xmax"].get<double>();
-        if (ax.contains("ymin") && ax["ymin"].is_number()) centersYmin = ax["ymin"].get<double>();
-        if (ax.contains("ymax") && ax["ymax"].is_number()) centersYmax = ax["ymax"].get<double>();
+    // 2D centers axis ranges; now sourced from parameters/geometry.json (if present)
+    // Defaults aligned to requested view: X [-80, 30], Y [-60, 60]
+    double centersXmin = -80.0, centersXmax = 30.0; // mm
+    double centersYmin = -60.0, centersYmax = 60.0; // mm
+    if (!usedGeomPath.empty()) {
+        try {
+            std::ifstream finAx(usedGeomPath);
+            if (finAx) {
+                nlohmann::json gjs2; finAx >> gjs2;
+                if (gjs2.contains("centersAxisRanges") && gjs2["centersAxisRanges"].is_object()) {
+                    const auto &ax = gjs2["centersAxisRanges"];
+                    if (ax.contains("xmin") && ax["xmin"].is_number()) centersXmin = ax["xmin"].get<double>();
+                    if (ax.contains("xmax") && ax["xmax"].is_number()) centersXmax = ax["xmax"].get<double>();
+                    if (ax.contains("ymin") && ax["ymin"].is_number()) centersYmin = ax["ymin"].get<double>();
+                    if (ax.contains("ymax") && ax["ymax"].is_number()) centersYmax = ax["ymax"].get<double>();
+                }
+            }
+        } catch (...) { /* keep defaults */ }
     }
 
     // Optional flip of the displayed Y coordinate (useful to have channel 0 at highest Y)
