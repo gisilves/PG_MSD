@@ -23,6 +23,7 @@
 #include "TMarker.h"
 #include <cmath>
 #include <algorithm>
+#include <filesystem>
 
 #include <nlohmann/json.hpp>
 
@@ -380,17 +381,65 @@ int main(int argc, char* argv[]) {
     // Physical pitch: 10 cm across strip-normal over nChannels
     double channelPitch = 100.0 / nChannels; // mm per strip
     
-    // Optional per-detector plane offsets (x0,y0) in mm to express true global coordinates.
-    // JSON key: planeOffsetsMm: [ [x0,y0], [x1,y1], [x2,y2] ]
+    // Per-detector plane offsets (x0,y0) in mm to express true global coordinates.
+    // Preferred source: parameters/geometry.json (or a path provided by settings as geometryParamsPath)
+    // Backward compatibility: if file not found, fall back to JSON key planeOffsetsMm.
     std::vector<std::pair<double,double>> planeOffsets(geomDetN, {0.0, 0.0});
-    if (jsonSettings.contains("planeOffsetsMm") && jsonSettings["planeOffsetsMm"].is_array()) {
-        for (int i = 0; i < geomDetN && i < (int)jsonSettings["planeOffsetsMm"].size(); ++i) {
-            const auto &elt = jsonSettings["planeOffsetsMm"][i];
-            if (elt.is_array() && elt.size() >= 2 && elt[0].is_number() && elt[1].is_number()) {
-                planeOffsets[i].first  = elt[0].get<double>(); // x0
-                planeOffsets[i].second = elt[1].get<double>(); // y0
+    // Hardcoded default path for geometry parameters (plane offsets)
+    // Try a few sensible locations depending on the working dir and settings file path
+    std::vector<std::string> geomCandidates;
+    {
+        // current and parent relative locations
+        geomCandidates.emplace_back("parameters/geometry.json");
+        geomCandidates.emplace_back("../parameters/geometry.json");
+        // derive from settings file path if available
+        try {
+            if (!jsonSettingsFile.empty()) {
+                std::filesystem::path sp(jsonSettingsFile);
+                auto repoRoot = sp.parent_path().parent_path(); // json/.. -> repo root
+                auto fromSettings = (repoRoot / "parameters/geometry.json").string();
+                geomCandidates.emplace_back(fromSettings);
             }
+        } catch (...) {}
+    }
+    bool loadedFromFile = false;
+    for (const auto &geomPath : geomCandidates) {
+        try {
+            std::ifstream gfin(geomPath);
+            if (gfin) {
+                nlohmann::json gjs; gfin >> gjs;
+                if (gjs.contains("planeOffsetsMm") && gjs["planeOffsetsMm"].is_array()) {
+                    for (int i = 0; i < geomDetN && i < (int)gjs["planeOffsetsMm"].size(); ++i) {
+                        const auto &elt = gjs["planeOffsetsMm"][i];
+                        if (elt.is_array() && elt.size() >= 2 && elt[0].is_number() && elt[1].is_number()) {
+                            planeOffsets[i].first  = elt[0].get<double>(); // x0
+                            planeOffsets[i].second = elt[1].get<double>(); // y0
+                        }
+                    }
+                    LogInfo << "Loaded plane offsets from: " << geomPath << std::endl;
+                    loadedFromFile = true;
+                    break;
+                }
+            }
+        } catch (...) {
+            // try next
         }
+    }
+    if (!loadedFromFile) {
+        LogInfo << "No parameters/geometry.json found in standard locations; falling back to JSON settings if available." << std::endl;
+        if (jsonSettings.contains("planeOffsetsMm") && jsonSettings["planeOffsetsMm"].is_array()) {
+            for (int i = 0; i < geomDetN && i < (int)jsonSettings["planeOffsetsMm"].size(); ++i) {
+                const auto &elt = jsonSettings["planeOffsetsMm"][i];
+                if (elt.is_array() && elt.size() >= 2 && elt[0].is_number() && elt[1].is_number()) {
+                    planeOffsets[i].first  = elt[0].get<double>(); // x0
+                    planeOffsets[i].second = elt[1].get<double>(); // y0
+                }
+            }
+            LogInfo << "Loaded plane offsets from ev-settings.json (legacy)." << std::endl;
+        }
+    }
+    for (int ioff=0; ioff<geomDetN; ++ioff) {
+        LogInfo << "Plane offset det " << ioff << ": (x0,y0) = (" << planeOffsets[ioff].first << ", " << planeOffsets[ioff].second << ") mm" << std::endl;
     }
 
     // Optional 2D centers axis ranges; defaults widened to capture shifted distributions
@@ -434,6 +483,10 @@ int main(int argc, char* argv[]) {
     g_recoCenters_2to3->SetTitle("Interpolated centers (2 or 3 clusters);X [mm];Y [mm]");
     g_recoCenters_2to3->SetMarkerStyle(20);
     g_recoCenters_2to3->SetMarkerSize(0.5);
+
+    // Track simple means for visibility
+    double sumX_2to3 = 0.0, sumY_2to3 = 0.0; long long cnt_2to3 = 0;
+    double sumX_3 = 0.0, sumY_3 = 0.0; long long cnt_3 = 0;
 
     for (int entryit = 0; entryit < limit; entryit++) {
 
@@ -580,10 +633,12 @@ int main(int argc, char* argv[]) {
                 // Fill 2-or-3 clusters map always
                 h_recoCenter_2to3->Fill(cx, cy);
                 g_recoCenters_2to3->SetPoint(g_recoCenters_2to3->GetN(), cx, cy);
+                sumX_2to3 += cx; sumY_2to3 += cy; cnt_2to3++;
                 // Additionally fill the exactly-3-clusters map when applicable
                 if (acceptExactlyThree) {
                     h_recoCenter_3->Fill(cx, cy);
                     g_recoCenters_3->SetPoint(g_recoCenters_3->GetN(), cx, cy);
+                    sumX_3 += cx; sumY_3 += cy; cnt_3++;
                 }
             }
             }
@@ -601,6 +656,12 @@ int main(int argc, char* argv[]) {
     }
 
     LogInfo << "Read all entries" << std::endl;
+    if (cnt_2to3 > 0) {
+        LogInfo << "Mean center (2or3): (" << (sumX_2to3/cnt_2to3) << ", " << (sumY_2to3/cnt_2to3) << ") mm over " << cnt_2to3 << " pts" << std::endl;
+    }
+    if (cnt_3 > 0) {
+        LogInfo << "Mean center (exactly3): (" << (sumX_3/cnt_3) << ", " << (sumY_3/cnt_3) << ") mm over " << cnt_3 << " pts" << std::endl;
+    }
 
     LogInfo << "Number of triggered events: " << (double) triggeredEvents/limit *100 << "%" << std::endl;
     

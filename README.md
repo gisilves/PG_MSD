@@ -75,3 +75,23 @@ Hits vs Sigma (sweep 1..15):
 - Detectors: active 3 (A,B,C). D is ignored.
 - Channel count: 384; edge channels (first/last of each 64-chan ASIC) are masked in viewers/plots.
 - `findRun.sh` centralizes run finding (pattern: `SCD_RUN<5d>_*.dat`).
+
+## Configuration
+
+Runtime settings live in `json/ev-settings.json`.
+
+Geometry plane offsets are stored in `parameters/geometry.json`.
+
+Example `parameters/geometry.json`:
+
+```
+{
+	"planeOffsetsMm": [
+		[ -40.0, 0.0 ],
+		[ -40.0, 0.0 ],
+		[ -40.0, 0.0 ]
+	]
+}
+```
+
+Backward compatibility: if the parameters file is missing, the analyzer will fall back to `planeOffsetsMm` in `json/ev-settings.json` if present.

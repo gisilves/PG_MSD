@@ -17,6 +17,7 @@
 #include "TPad.h"
 #include "TH1.h"
 #include "TInterpreter.h"
+#include "TLegend.h"
 
 #include <vector>
 #include <string>
@@ -49,6 +50,7 @@ namespace {
 
     // One graph per detector
     std::vector<TGraph*> g_graphs;
+    std::vector<TLegend*> g_legends; // one legend per detector pad
     TCanvas* g_canvas = nullptr;
     TPad* g_padCtrl = nullptr; // control buttons pad (left column)
     TPad* g_padGrid = nullptr; // plot pad (right area)
@@ -162,6 +164,18 @@ namespace {
             if (g_graphs[det]->GetN() > 0) {
                 g_graphs[det]->Draw("P SAME");
             }
+            // Bottom-left, smaller legend per pad
+            if (g_legends.size() != (size_t)kNDet) g_legends.resize(kNDet, nullptr);
+            if (!g_legends[det]) {
+                g_legends[det] = new TLegend(0.15, 0.12, 0.45, 0.25);
+                g_legends[det]->SetBorderSize(0);
+                g_legends[det]->SetFillStyle(0);
+                g_legends[det]->SetTextSize(0.035);
+            } else {
+                g_legends[det]->Clear();
+            }
+            g_legends[det]->AddEntry(g_graphs[det], Form("Det %d hits", det), "p");
+            g_legends[det]->Draw();
         }
         g_canvas->Modified();
         g_canvas->Update();
@@ -284,6 +298,7 @@ int main(int argc, char* argv[]) {
 
     // Create graphs
     g_graphs.clear(); g_graphs.reserve(kNDet);
+    g_legends.clear(); g_legends.reserve(kNDet);
     for (int det=0; det<kNDet; ++det) {
         auto g = new TGraph();
         g->SetName(Form("g_det_%d", det));
