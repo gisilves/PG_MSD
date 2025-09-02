@@ -521,25 +521,20 @@ int main(int argc, char* argv[]) {
     double sumX_3 = 0.0, sumY_3 = 0.0; long long cnt_3 = 0;
 
     // --- Preload timestamps from event_info to support 10s spill grouping ---
-    // Prefer ext_timestamp (64 ns ticks). Fallback to timestamp (20 ns ticks) if needed.
+    const long long SPILL_TICKS = 156250000LL; // 10 s at 15.625 MHz (64 ns ticks)
     std::vector<long long> evtTimestamps; evtTimestamps.reserve(limit);
-    long long t0Ticks = 0; bool haveSpillTimes = false; double tickPeriodSec = 64e-9; // default to ext ts
-    long long spillThresholdTicks = 0; // computed based on the active tick period
+    long long t0Ticks = 0; bool haveSpillTimes = false;
     {
         TTree *infoT = (TTree*) input_root_file->Get("event_info");
         if (infoT != nullptr) {
-            Long64_t ts = 0; Long64_t ext_ts = 0;
-            bool hasExt = (infoT->GetBranch("ext_timestamp") != nullptr) && (infoT->SetBranchAddress("ext_timestamp", &ext_ts) >= 0);
-            bool hasTs  = (infoT->GetBranch("timestamp")     != nullptr) && (infoT->SetBranchAddress("timestamp", &ts)       >= 0);
-            if (hasExt || hasTs) {
+            Long64_t ts = 0;
+            bool hasTs = (infoT->GetBranch("timestamp") != nullptr) && (infoT->SetBranchAddress("timestamp", &ts) >= 0);
+            if (hasTs) {
                 Long64_t nEvt = infoT->GetEntries();
                 Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
-                bool usingExt = hasExt;
-                if (usingExt) { tickPeriodSec = 64e-9; } else { tickPeriodSec = 20e-9; }
                 for (Long64_t i = 0; i < nToRead; ++i) {
                     infoT->GetEntry(i);
-                    long long val = usingExt ? (long long)ext_ts : (long long)ts;
-                    evtTimestamps.emplace_back(val);
+                    evtTimestamps.emplace_back((long long)ts);
                 }
                 if (!evtTimestamps.empty()) {
                     t0Ticks = evtTimestamps.front();
@@ -549,20 +544,15 @@ int main(int argc, char* argv[]) {
                     }
                 }
             } else {
-                LogWarning << "'event_info' TTree is missing both 'ext_timestamp' and 'timestamp' branches; per-spill summary disabled." << std::endl;
+                LogWarning << "'event_info' TTree is missing 'timestamp' branch; per-spill summary disabled." << std::endl;
             }
         } else {
             LogWarning << "No 'event_info' TTree found; per-spill summary disabled." << std::endl;
-        }
-        if (haveSpillTimes) {
-            spillThresholdTicks = (long long) llround(10.0 / tickPeriodSec); // 10 s in ticks (64 ns if ext, 20 ns if legacy)
         }
     }
 
     // Aggregators for rolling spills: vector of per-spill cluster sums [D0..D3]
     std::vector<std::array<long long,4>> clustersPerSpillVec; // each entry corresponds to one 10s spill window
-    // Track spill start timestamps to summarize spacing distribution
-    std::vector<long long> spillStartTimes; // in ticks (64 ns each)
     bool spillActive = false; long long currentSpillStart = -1; // in ticks
 
     for (int entryit = 0; entryit < limit; entryit++) {
@@ -664,12 +654,10 @@ int main(int argc, char* argv[]) {
                     long long ts = evtTimestamps[entryit];
                     if (!spillActive) {
                         currentSpillStart = ts; spillActive = true;
-                        spillStartTimes.emplace_back(ts);
                         clustersPerSpillVec.push_back({0,0,0,0});
-                    } else if (spillThresholdTicks > 0 && (ts - currentSpillStart >= spillThresholdTicks)) {
+                    } else if (ts - currentSpillStart >= SPILL_TICKS) {
                         // start a new spill at this event timestamp
                         currentSpillStart = ts;
-                        spillStartTimes.emplace_back(ts);
                         clustersPerSpillVec.push_back({0,0,0,0});
                     }
                     // accumulate cluster counts for this event into the current spill
@@ -760,22 +748,6 @@ int main(int argc, char* argv[]) {
     }
 
     LogInfo << "Read all entries" << std::endl;
-    // Summarize spill start-to-start spacing distribution (in seconds)
-    if (haveSpillTimes && spillStartTimes.size() >= 2) {
-        const double tickToSec = tickPeriodSec; // use active tick period (64 ns ext_ts, 20 ns fallback)
-        size_t gaps = spillStartTimes.size() - 1;
-        double sum=0.0, minv=1e99, maxv=-1e99; size_t near10_12=0;
-        for (size_t i=1;i<spillStartTimes.size();++i) {
-            double dt = (spillStartTimes[i] - spillStartTimes[i-1]) * tickToSec;
-            sum += dt; if (dt < minv) minv = dt; if (dt > maxv) maxv = dt;
-            if (dt >= 10.0 && dt < 12.0) near10_12++;
-        }
-        double mean = sum / double(gaps);
-        double pct = 100.0 * double(near10_12) / double(gaps);
-        LogInfo << "Spill spacing: intervals=" << gaps
-                << ", mean=" << mean << " s, min=" << minv << " s, max=" << maxv << " s" << std::endl;
-        LogInfo << "Near-10s gaps (10–12 s): " << near10_12 << " (" << pct << "%)" << std::endl;
-    }
     if (cnt_2to3 > 0) {
         LogInfo << "Mean center (2or3): (" << (sumX_2to3/cnt_2to3) << ", " << (sumY_2to3/cnt_2to3) << ") mm over " << cnt_2to3 << " pts" << std::endl;
     }
@@ -907,49 +879,6 @@ int main(int argc, char* argv[]) {
                 LogWarning << "Legacy 'events' TTree has no trigger_number. Skipping Timestamp vs Trigger plot." << std::endl;
             } else {
                 LogWarning << "No 'event_info' or 'events' TTree found in ROOT file. Skipping Timestamp plot." << std::endl;
-            }
-        }
-    }
-
-    // Build Trigger vs ext_timestamp graph if available (preferred for 10 s logic)
-    TGraph *g_trigVsExt = nullptr;
-    TCanvas *c_trigVsExt = nullptr;
-    double extMin = 0, extMax = 0;
-    {
-        TTree *infoT = (TTree*) input_root_file->Get("event_info");
-        if (infoT != nullptr) {
-            Long64_t ext_ts = 0; Long64_t trigId = 0; Long64_t trigNum = 0;
-            bool hasExt = (infoT->GetBranch("ext_timestamp") != nullptr) && (infoT->SetBranchAddress("ext_timestamp", &ext_ts) >= 0);
-            bool hasTrigId = (infoT->GetBranch("trigger_id") != nullptr) && (infoT->SetBranchAddress("trigger_id", &trigId) >= 0);
-            bool hasTrigNum = (infoT->GetBranch("trigger_number") != nullptr) && (infoT->SetBranchAddress("trigger_number", &trigNum) >= 0);
-            if (hasExt && (hasTrigNum || hasTrigId)) {
-                Long64_t nEvt = infoT->GetEntries();
-                Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
-                g_trigVsExt = new TGraph();
-                g_trigVsExt->SetName("g_extTimeVsTrigger");
-                g_trigVsExt->SetTitle(Form("ext_timestamp vs Trigger (Run %s);ext time since start [ticks@64ns];Trigger", runNumber.c_str()));
-                g_trigVsExt->SetMarkerStyle(20);
-                g_trigVsExt->SetMarkerSize(0.6);
-                Long64_t t0 = 0; bool t0set = false; extMin = 0; extMax = 0;
-                for (Long64_t i = 0; i < nToRead; ++i) {
-                    infoT->GetEntry(i);
-                    if (!t0set) { t0 = ext_ts; t0set = true; }
-                    double dt = double((ext_ts >= t0) ? (ext_ts - t0) : 0LL);
-                    if (i == 0) { extMin = dt; extMax = dt; }
-                    else { if (dt < extMin) extMin = dt; if (dt > extMax) extMax = dt; }
-                    double y = hasTrigNum ? double(trigNum) : double(trigId);
-                    g_trigVsExt->SetPoint(g_trigVsExt->GetN(), dt, y);
-                }
-                c_trigVsExt = new TCanvas(Form("c_extTimeVsTrigger_Run%s", runNumber.c_str()), Form("ext_timestamp vs Trigger (Run %s)", runNumber.c_str()), 800, 600);
-                c_trigVsExt->cd();
-                g_trigVsExt->Draw("AP");
-                if (extMax > extMin) {
-                    g_trigVsExt->GetXaxis()->SetLimits(extMin - 0.01*(extMax-extMin), extMax + 0.01*(extMax-extMin));
-                }
-                c_trigVsExt->Update();
-                LogInfo << "Built ext_timestamp vs Trigger graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
-            } else if (!hasExt) {
-                LogWarning << "'event_info' TTree has no ext_timestamp; skipping ext_timestamp vs Trigger plot." << std::endl;
             }
         }
     }
@@ -1219,12 +1148,6 @@ int main(int argc, char* argv[]) {
         if (c_evtVsTime != nullptr) {
             c_evtVsTime->Update();
             c_evtVsTime->SaveAs(output_filename_report.c_str());
-        }
-
-        // Next page: ext_timestamp vs Trigger plot (if available)
-        if (c_trigVsExt != nullptr) {
-            c_trigVsExt->Update();
-            c_trigVsExt->SaveAs(output_filename_report.c_str());
         }
 
         // Final page: Hits in event plot (close the PDF)
