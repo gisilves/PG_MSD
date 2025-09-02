@@ -21,10 +21,13 @@
 #include "TStyle.h"
 #include "TSystem.h"
 #include "TMarker.h"
+#include "TLatex.h"
 #include <cmath>
 #include <algorithm>
 #include <filesystem>
 #include <cstdlib>
+#include <map>
+#include <array>
 
 #include <nlohmann/json.hpp>
 
@@ -182,18 +185,22 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // get trees
-    // TODO change at converter level, I don't like the names
-    std::vector<TTree*> raw_events_trees = std::vector <TTree*>();
-    raw_events_trees.reserve(nDetectors);
-    TTree *these_raw_events = (TTree*)input_root_file->Get("raw_events");
-    raw_events_trees.emplace_back(these_raw_events);
-    these_raw_events = (TTree*)input_root_file->Get("raw_events_B");
-    raw_events_trees.emplace_back(these_raw_events);
-    these_raw_events = (TTree*)input_root_file->Get("raw_events_C");
-    raw_events_trees.emplace_back(these_raw_events);
-    these_raw_events = (TTree*)input_root_file->Get("raw_events_D");
-    raw_events_trees.emplace_back(these_raw_events);
+    // get trees with validation
+    const char* treeNames[4]   = {"raw_events", "raw_events_B", "raw_events_C", "raw_events_D"};
+    const char* branchNames[4] = {"RAW Event", "RAW Event B", "RAW Event C", "RAW Event D"};
+    std::vector<TTree*> raw_events_trees; raw_events_trees.reserve(nDetectors);
+    for (int i=0;i<nDetectors;i++) {
+        TTree *t = (TTree*) input_root_file->Get(treeNames[i]);
+        if (!t) {
+            LogError << "Missing required TTree '" << treeNames[i] << "' in input ROOT file. Aborting to avoid crash." << std::endl;
+            return 1;
+        }
+        if (!t->GetBranch(branchNames[i])) {
+            LogError << "Missing required branch '" << branchNames[i] << "' in tree '" << treeNames[i] << "'. Aborting to avoid crash." << std::endl;
+            return 1;
+        }
+        raw_events_trees.emplace_back(t);
+    }
 
     LogInfo << "Got the trees" << std::endl;
 
@@ -319,11 +326,13 @@ int main(int argc, char* argv[]) {
         data->emplace_back(this_data);
     }
 
-    // TODO consider changing branch names?
-    raw_events_trees.at(0)->SetBranchAddress("RAW Event", &data->at(0));
-    raw_events_trees.at(1)->SetBranchAddress("RAW Event B", &data->at(1));
-    raw_events_trees.at(2)->SetBranchAddress("RAW Event C", &data->at(2));
-    raw_events_trees.at(3)->SetBranchAddress("RAW Event D", &data->at(3));
+    // Set branch addresses safely
+    for (int i=0;i<nDetectors;i++) {
+        if (raw_events_trees[i]->SetBranchAddress(branchNames[i], &data->at(i)) < 0) {
+            LogError << "Failed to set branch address for '" << branchNames[i] << "' in '" << treeNames[i] << "'." << std::endl;
+            return 1;
+        }
+    }
     
     int limit = nEntries.at(0);
     int maxEvents = 1e9; // default value
@@ -368,7 +377,8 @@ int main(int argc, char* argv[]) {
     };
 
     int hitsInEvent = 0;
-    int triggeredEvents = 0;
+    int triggeredEvents = 0; // events passing 2-or-3 cluster criterion
+    int eventsWithHits = 0;   // events with at least one (masked) hit
     
     // Geometry / interpolation setup
     // Strip orientations relative to the global X axis:
@@ -510,6 +520,41 @@ int main(int argc, char* argv[]) {
     double sumX_2to3 = 0.0, sumY_2to3 = 0.0; long long cnt_2to3 = 0;
     double sumX_3 = 0.0, sumY_3 = 0.0; long long cnt_3 = 0;
 
+    // --- Preload timestamps from event_info to support 10s spill grouping ---
+    const long long SPILL_TICKS = 156250000LL; // 10 s at 15.625 MHz (64 ns ticks)
+    std::vector<long long> evtTimestamps; evtTimestamps.reserve(limit);
+    long long t0Ticks = 0; bool haveSpillTimes = false;
+    {
+        TTree *infoT = (TTree*) input_root_file->Get("event_info");
+        if (infoT != nullptr) {
+            Long64_t ts = 0;
+            bool hasTs = (infoT->GetBranch("timestamp") != nullptr) && (infoT->SetBranchAddress("timestamp", &ts) >= 0);
+            if (hasTs) {
+                Long64_t nEvt = infoT->GetEntries();
+                Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
+                for (Long64_t i = 0; i < nToRead; ++i) {
+                    infoT->GetEntry(i);
+                    evtTimestamps.emplace_back((long long)ts);
+                }
+                if (!evtTimestamps.empty()) {
+                    t0Ticks = evtTimestamps.front();
+                    haveSpillTimes = true;
+                    if (nToRead < limit) {
+                        LogWarning << "event_info has fewer entries (" << nToRead << ") than events processed (" << limit << "). Spill summary will be computed for the first " << nToRead << " events only." << std::endl;
+                    }
+                }
+            } else {
+                LogWarning << "'event_info' TTree is missing 'timestamp' branch; per-spill summary disabled." << std::endl;
+            }
+        } else {
+            LogWarning << "No 'event_info' TTree found; per-spill summary disabled." << std::endl;
+        }
+    }
+
+    // Aggregators for rolling spills: vector of per-spill cluster sums [D0..D3]
+    std::vector<std::array<long long,4>> clustersPerSpillVec; // each entry corresponds to one 10s spill window
+    bool spillActive = false; long long currentSpillStart = -1; // in ticks
+
     for (int entryit = 0; entryit < limit; entryit++) {
 
         hitsInEvent = 0;
@@ -599,6 +644,30 @@ int main(int argc, char* argv[]) {
             auto c0 = countClusters(detHits[0]);
             auto c1 = countClusters(detHits[1]);
             auto c2 = countClusters(detHits[2]);
+            auto c3 = countClusters(detHits[3]);
+
+            // Rolling 10s spills anchored at first event-WITH-HITS; new spill starts at next event-with-hits after previous window closes
+            if (haveSpillTimes && entryit < (int)evtTimestamps.size()) {
+                // event considered "with hits" if any detector has at least one hit
+                bool anyHits = (!detHits[0].empty() || !detHits[1].empty() || !detHits[2].empty() || !detHits[3].empty());
+                if (anyHits) {
+                    long long ts = evtTimestamps[entryit];
+                    if (!spillActive) {
+                        currentSpillStart = ts; spillActive = true;
+                        clustersPerSpillVec.push_back({0,0,0,0});
+                    } else if (ts - currentSpillStart >= SPILL_TICKS) {
+                        // start a new spill at this event timestamp
+                        currentSpillStart = ts;
+                        clustersPerSpillVec.push_back({0,0,0,0});
+                    }
+                    // accumulate cluster counts for this event into the current spill
+                    auto &acc = clustersPerSpillVec.back();
+                    acc[0] += (long long)c0.first;
+                    acc[1] += (long long)c1.first;
+                    acc[2] += (long long)c2.first;
+                    acc[3] += (long long)c3.first;
+                }
+            }
             // Accept events with exactly 2 or 3 clusters total, each on different detectors
             bool perDetOk = (c0.first <= 1 && c1.first <= 1 && c2.first <= 1);
             int totalClusters = (c0.first > 0) + (c1.first > 0) + (c2.first > 0);
@@ -667,6 +736,7 @@ int main(int argc, char* argv[]) {
     }
     // Fill hits-per-event with the number of masked triggered hits (not cluster-gated)
     h_hitsInEvent->Fill(eventHitsMasked);
+    if (eventHitsMasked > 0) { eventsWithHits++; }
     // Do not constrain other histograms; only centers are gated by the cluster criterion
 
         if (debug) this_event->PrintValidHits();      
@@ -686,6 +756,7 @@ int main(int argc, char* argv[]) {
     }
 
     LogInfo << "Number of triggered events: " << (double) triggeredEvents/limit *100 << "%" << std::endl;
+    LogInfo << "Events with hits (any detector): " << (double) eventsWithHits/limit * 100 << "% (" << eventsWithHits << "/" << limit << ")" << std::endl;
     
     ///////////////////////////
     
@@ -758,6 +829,60 @@ int main(int argc, char* argv[]) {
 
     TCanvas *c_hitsInEvent = new TCanvas(Form("c_hitsInEvent_Run%s", runNumber.c_str()), Form("Hits in Event (Run %s)", runNumber.c_str()), 800, 600);
 
+    // Build timestamp vs trigger NUMBER graph if available
+    TGraph *g_evtVsTime = nullptr;
+    TCanvas *c_evtVsTime = nullptr;
+    double timeMin = 0, timeMax = 0;
+    {
+        // Prefer the new event_info tree if present
+        TTree *infoT = (TTree*) input_root_file->Get("event_info");
+        if (infoT != nullptr) {
+            Long64_t ts = 0; Long64_t ext_ts = 0; Long64_t trigId = 0; Long64_t trigNum = 0; Int_t idx = 0;
+            bool hasTs = (infoT->GetBranch("timestamp") != nullptr) && (infoT->SetBranchAddress("timestamp", &ts) >= 0);
+            bool hasExt = (infoT->GetBranch("ext_timestamp") != nullptr) && (infoT->SetBranchAddress("ext_timestamp", &ext_ts) >= 0);
+            bool hasTrigId = (infoT->GetBranch("trigger_id") != nullptr) && (infoT->SetBranchAddress("trigger_id", &trigId) >= 0);
+            bool hasTrigNum = (infoT->GetBranch("trigger_number") != nullptr) && (infoT->SetBranchAddress("trigger_number", &trigNum) >= 0);
+            bool hasIndex = (infoT->GetBranch("event_index") != nullptr) && (infoT->SetBranchAddress("event_index", &idx) >= 0);
+            if (hasTs && (hasTrigNum || hasTrigId)) {
+                Long64_t nEvt = infoT->GetEntries();
+                Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
+                g_evtVsTime = new TGraph();
+                g_evtVsTime->SetName("g_timeVsTriggerNumber");
+                g_evtVsTime->SetTitle(Form("Timestamp vs Trigger Number (Run %s);Time since start [ticks];Trigger Number", runNumber.c_str()));
+                g_evtVsTime->SetMarkerStyle(20);
+                g_evtVsTime->SetMarkerSize(0.6);
+                Long64_t t0 = 0; bool t0set = false; timeMin = 0; timeMax = 0;
+                for (Long64_t i = 0; i < nToRead; ++i) {
+                    infoT->GetEntry(i);
+                    if (!t0set) { t0 = ts; t0set = true; }
+                    double dt = double((ts >= t0) ? (ts - t0) : 0LL);
+                    if (i == 0) { timeMin = dt; timeMax = dt; }
+                    else { if (dt < timeMin) timeMin = dt; if (dt > timeMax) timeMax = dt; }
+                    double y = hasTrigNum ? double(trigNum) : double(trigId);
+                    g_evtVsTime->SetPoint(g_evtVsTime->GetN(), dt, y);
+                }
+                c_evtVsTime = new TCanvas(Form("c_timeVsTriggerNumber_Run%s", runNumber.c_str()), Form("Timestamp vs Trigger Number (Run %s)", runNumber.c_str()), 800, 600);
+                c_evtVsTime->cd();
+                g_evtVsTime->Draw("AP");
+                if (timeMax > timeMin) {
+                    g_evtVsTime->GetXaxis()->SetLimits(timeMin - 0.01*(timeMax-timeMin), timeMax + 0.01*(timeMax-timeMin));
+                }
+                c_evtVsTime->Update();
+                LogInfo << "Built Timestamp vs Trigger Number graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
+            } else if (hasTs && !(hasTrigNum || hasTrigId)) {
+                LogWarning << "'event_info' TTree has no trigger_number or trigger_id. Skipping Timestamp vs Trigger plot." << std::endl;
+            }
+        } else {
+            // Legacy support: "events" TTree if present
+            TTree *eventsT = (TTree*) input_root_file->Get("events");
+            if (eventsT != nullptr) {
+                LogWarning << "Legacy 'events' TTree has no trigger_number. Skipping Timestamp vs Trigger plot." << std::endl;
+            } else {
+                LogWarning << "No 'event_info' or 'events' TTree found in ROOT file. Skipping Timestamp plot." << std::endl;
+            }
+        }
+    }
+
     TCanvas *c_recoCenter_3 = new TCanvas("c_recoCenter_3", "Interpolated Centers (exactly 3)", 700, 500);
     c_recoCenter_3->cd();
     h_recoCenter_3->Draw("COLZ");
@@ -777,6 +902,46 @@ int main(int argc, char* argv[]) {
     centerMarker23->SetMarkerSize(1.2);
     centerMarker23->Draw("SAME");
     c_recoCenter_2to3->Update();
+
+    // Scatter-only plots (no histogram underneath) for reconstructed centers
+    TCanvas *c_recoCenterScatter_3 = new TCanvas("c_recoCenterScatter_3", "Interpolated Centers Scatter (exactly 3)", 700, 500);
+    c_recoCenterScatter_3->cd();
+    {
+        TH2F *frame3 = new TH2F("frame3", "Interpolated centers (exactly 3 clusters);X [mm];Y [mm]", 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
+        frame3->SetStats(0);
+        frame3->Draw();
+        g_recoCenters_3->SetMarkerStyle(20);
+        g_recoCenters_3->SetMarkerSize(0.6);
+        if (g_recoCenters_3->GetN() > 0) {
+            g_recoCenters_3->Draw("P SAME");
+        } else {
+            TLatex l; l.SetNDC(true); l.SetTextSize(0.05); l.DrawLatex(0.3,0.5,"No points");
+        }
+        TMarker *m0 = new TMarker(0.0, 0.0, kFullCircle);
+        m0->SetMarkerColor(kRed);
+        m0->SetMarkerSize(1.2);
+        m0->Draw("SAME");
+        c_recoCenterScatter_3->Update();
+    }
+    TCanvas *c_recoCenterScatter_2to3 = new TCanvas("c_recoCenterScatter_2to3", "Interpolated Centers Scatter (2 or 3)", 700, 500);
+    c_recoCenterScatter_2to3->cd();
+    {
+        TH2F *frame23 = new TH2F("frame23", "Interpolated centers (2 or 3 clusters);X [mm];Y [mm]", 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
+        frame23->SetStats(0);
+        frame23->Draw();
+        g_recoCenters_2to3->SetMarkerStyle(20);
+        g_recoCenters_2to3->SetMarkerSize(0.6);
+        if (g_recoCenters_2to3->GetN() > 0) {
+            g_recoCenters_2to3->Draw("P SAME");
+        } else {
+            TLatex l; l.SetNDC(true); l.SetTextSize(0.05); l.DrawLatex(0.3,0.5,"No points");
+        }
+        TMarker *m0b = new TMarker(0.0, 0.0, kFullCircle);
+        m0b->SetMarkerColor(kRed);
+        m0b->SetMarkerSize(1.2);
+        m0b->Draw("SAME");
+        c_recoCenterScatter_2to3->Update();
+    }
 
     LogInfo << "Drawing histograms" << std::endl;
     for (int i = 0; i < nDetectors; i++) {
@@ -873,10 +1038,74 @@ int main(int argc, char* argv[]) {
         }
         
         LogInfo << "Creating multi-page PDF report..." << std::endl;
-        
-        // Page 1: Channels firing plot
+        // Page 1: Summary page with general run information
+        TCanvas *c_summary = new TCanvas(Form("c_summary_Run%s", runNumber.c_str()), Form("Run %s Summary", runNumber.c_str()), 800, 600);
+        c_summary->cd();
+        TLatex lat;
+        lat.SetNDC(true);
+        lat.SetTextSize(0.045);
+        double y = 0.90; const double dy = 0.06;
+        lat.DrawLatex(0.12, y, Form("Run %s summary", runNumber.c_str())); y-=dy;
+        // Run start timestamp from filename (+2h), placed right after the title
+        {
+            auto isAllDigits = [](const std::string &s){ return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit); };
+            std::string base = input_file_base; // e.g., SCD_RUN00488_BEAM_20250901_175435
+            size_t posTime = base.rfind('_');
+            if (posTime != std::string::npos && posTime+1 < base.size()) {
+                std::string timeTok = base.substr(posTime+1); // HHMMSS
+                std::string beforeTime = base.substr(0, posTime);
+                size_t posDate = beforeTime.rfind('_');
+                if (posDate != std::string::npos && posDate+1 < beforeTime.size()) {
+                    std::string dateTok = beforeTime.substr(posDate+1); // YYYYMMDD
+                    if (dateTok.size()==8 && timeTok.size()>=4 && isAllDigits(dateTok) && isAllDigits(timeTok)) {
+                        int year = std::stoi(dateTok.substr(0,4));
+                        int month = std::stoi(dateTok.substr(4,2));
+                        int day = std::stoi(dateTok.substr(6,2));
+                        int hour = std::stoi(timeTok.substr(0,2));
+                        int minute = std::stoi(timeTok.substr(2,2));
+                        auto isLeap = [](int y){ return (y%4==0 && y%100!=0) || (y%400==0); };
+                        auto daysInMonth = [&](int y,int m){ static int d[12]={31,28,31,30,31,30,31,31,30,31,30,31}; return m==2 ? (isLeap(y)?29:28) : d[m-1]; };
+                        hour += 2; // add +2h offset
+                        if (hour >= 24) { hour -= 24; day += 1; int dim = daysInMonth(year,month); if (day>dim){ day=1; month+=1; if (month>12){ month=1; year+=1; } } }
+                        lat.DrawLatex(0.12, y, Form("This run started on %04d/%02d/%02d at %02d:%02d", year, month, day, hour, minute)); y-=dy;
+                    }
+                }
+            }
+        }
+        lat.DrawLatex(0.12, y, Form("Input: %s", input_file_base.c_str())); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Calibration: %s", clp.getOptionVal<std::string>("inputCalFile").substr(clp.getOptionVal<std::string>("inputCalFile").find_last_of("/\\")+1).c_str())); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Total events: %d", limit)); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Events with hits: %.2f%% (%d/%d)", (limit>0)?(100.0*eventsWithHits/limit):0.0, eventsWithHits, limit)); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Triggered events (2 or 3 clusters): %.2f%% (%d/%d)", (limit>0)?(100.0*triggeredEvents/limit):0.0, triggeredEvents, limit)); y-=dy;
+    // Removed geometry path line per request
+        if (cnt_2to3>0) { lat.DrawLatex(0.12, y, Form("Mean center (2or3): (%.2f, %.2f) mm", sumX_2to3/cnt_2to3, sumY_2to3/cnt_2to3)); y-=dy; }
+        if (cnt_3>0)    { lat.DrawLatex(0.12, y, Form("Mean center (exactly3): (%.2f, %.2f) mm", sumX_3/cnt_3, sumY_3/cnt_3)); y-=dy; }
+        // Average clusters per 10 s spill across the whole run (rolling windows)
+        if (!clustersPerSpillVec.empty()) {
+            long long nSpills = (long long)clustersPerSpillVec.size();
+            long long sumD[4] = {0,0,0,0};
+            long long sumTot = 0;
+            for (const auto &arr : clustersPerSpillVec) {
+                sumD[0] += arr[0]; sumD[1] += arr[1]; sumD[2] += arr[2]; sumD[3] += arr[3];
+            }
+            sumTot = sumD[0] + sumD[1] + sumD[2] + sumD[3];
+            double avgD0 = (nSpills>0) ? double(sumD[0]) / nSpills : 0.0;
+            double avgD1 = (nSpills>0) ? double(sumD[1]) / nSpills : 0.0;
+            double avgD2 = (nSpills>0) ? double(sumD[2]) / nSpills : 0.0;
+            double avgD3 = (nSpills>0) ? double(sumD[3]) / nSpills : 0.0;
+            double avgTot = (nSpills>0) ? double(sumTot) / nSpills : 0.0;
+            y -= 0.02; // small gap
+            // Split into two lines to avoid overflow
+            lat.DrawLatex(0.12, y, Form("Average clusters per 10 s spill: total=%.1f  (over %lld spills)", avgTot, nSpills)); y -= dy;
+            lat.DrawLatex(0.12, y, Form("Per detector: D0=%.1f, D1=%.1f, D2=%.1f, D3=%.1f", avgD0, avgD1, avgD2, avgD3)); y -= dy;
+        }
+
+        c_summary->Update();
+        c_summary->SaveAs((output_filename_report + "(").c_str());
+
+    // Page 2: Channels firing plot
         c_channelsFiring->Update();
-        c_channelsFiring->SaveAs((output_filename_report + "(").c_str());
+        c_channelsFiring->SaveAs(output_filename_report.c_str());
         
         // Page 2: Sigma plot
         c_sigma->Update();
@@ -900,8 +1129,28 @@ int main(int argc, char* argv[]) {
             c_recoCenter_2to3->Update();
             c_recoCenter_2to3->SaveAs(output_filename_report.c_str());
         }
+        // Page 7: Reconstructed centers scatter-only (exactly 3)
+        if (c_recoCenterScatter_3) {
+            c_recoCenterScatter_3->cd();
+            if (g_recoCenters_3->GetN()==0) { TLatex l; l.SetNDC(true); l.DrawLatex(0.3,0.5,"No points"); }
+            c_recoCenterScatter_3->Update();
+            c_recoCenterScatter_3->SaveAs(output_filename_report.c_str());
+        }
+        // Page 8: Reconstructed centers scatter-only (2 or 3)
+        if (c_recoCenterScatter_2to3) {
+            c_recoCenterScatter_2to3->cd();
+            if (g_recoCenters_2to3->GetN()==0) { TLatex l; l.SetNDC(true); l.DrawLatex(0.3,0.5,"No points"); }
+            c_recoCenterScatter_2to3->Update();
+            c_recoCenterScatter_2to3->SaveAs(output_filename_report.c_str());
+        }
         
-        // Page 7: Hits in event plot (final page)
+    // Page 9: Timestamp vs Trigger Number (if available)
+        if (c_evtVsTime != nullptr) {
+            c_evtVsTime->Update();
+            c_evtVsTime->SaveAs(output_filename_report.c_str());
+        }
+
+        // Final page: Hits in event plot (close the PDF)
         c_hitsInEvent->Update();
         c_hitsInEvent->SaveAs((output_filename_report + ")").c_str());
         

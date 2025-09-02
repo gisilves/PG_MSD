@@ -144,6 +144,28 @@ int main(int argc, char *argv[])
     std::vector<std::vector<unsigned int>> raw_event_vector(max_detectors);
     TString ttree_name, branch_name;
 
+    // Per-event info tree (one entry per complete event across all boards)
+    TTree *event_info = new TTree("event_info", "event_info");
+    // Use fixed-width integer types for ROOT branch stability
+    Long64_t out_evt_size = 0;
+    Long64_t out_fw_version = 0;
+    Long64_t out_trigger_number = 0;
+    Long64_t out_board_id = 0;
+    Long64_t out_timestamp = 0;
+    Long64_t out_ext_timestamp = 0;
+    Long64_t out_trigger_id = 0;
+    Long64_t out_file_offset = 0;
+    Int_t    out_event_index = 0;
+    event_info->Branch("event_index",     &out_event_index,   "event_index/I");
+    event_info->Branch("evt_size",        &out_evt_size,      "evt_size/L");
+    event_info->Branch("fw_version",      &out_fw_version,    "fw_version/L");
+    event_info->Branch("trigger_number",  &out_trigger_number,"trigger_number/L");
+    event_info->Branch("board_id",        &out_board_id,      "board_id/L");
+    event_info->Branch("timestamp",       &out_timestamp,     "timestamp/L");
+    event_info->Branch("ext_timestamp",   &out_ext_timestamp, "ext_timestamp/L");
+    event_info->Branch("trigger_id",      &out_trigger_id,    "trigger_id/L");
+    event_info->Branch("file_offset",     &out_file_offset,   "file_offset/L");
+
     bool dune = false;
 
     if (opt->getValue("dune"))
@@ -354,6 +376,17 @@ int main(int argc, char *argv[])
 
             if (boards_read == boards)
             {
+                // We've completed one full event across all boards; record event info
+                out_event_index     = evtnum;
+                out_evt_size        = static_cast<Long64_t>(evt_size);
+                out_fw_version      = static_cast<Long64_t>(fw_version);
+                out_trigger_number  = static_cast<Long64_t>(trigger_number);
+                out_board_id        = static_cast<Long64_t>(board_id);
+                out_timestamp       = static_cast<Long64_t>(timestamp);
+                out_ext_timestamp   = static_cast<Long64_t>(ext_timestamp);
+                out_trigger_id      = static_cast<Long64_t>(trigger_id);
+                out_file_offset     = static_cast<Long64_t>(offset);
+                event_info->Fill();
                 boards_read = 0;
                 evtnum++;
                 offset = (uint64_t)file.tellg() + padding_offset + 8;
@@ -397,6 +430,8 @@ int main(int argc, char *argv[])
             filled++;
         }
     }
+    // Write the event_info tree last
+    event_info->Write();
     
     foutput->Close();
     file.close();
