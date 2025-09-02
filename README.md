@@ -88,7 +88,6 @@ Hits vs Sigma (sweep 1..15):
 Runtime settings live in `json/ev-settings.json`.
 
 Geometry plane offsets are stored in `parameters/geometry.json`.
-
 Example `parameters/geometry.json`:
 
 ```
@@ -100,5 +99,3 @@ Example `parameters/geometry.json`:
 	]
 }
 ```
-
-Backward compatibility: if the parameters file is missing, the analyzer will fall back to `planeOffsetsMm` in `json/ev-settings.json` if present.
