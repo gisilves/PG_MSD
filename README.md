@@ -76,6 +76,13 @@ Hits vs Sigma (sweep 1..15):
 - Channel count: 384; edge channels (first/last of each 64-chan ASIC) are masked in viewers/plots.
 - `findRun.sh` centralizes run finding (pattern: `SCD_RUN<5d>_*.dat`).
 
+## Report summary changes
+
+- Summary page now places the "This run started on YYYY/MM/DD at HH:MM" line directly under the title, with a +2h offset from the filename timestamp.
+- Timestamp plot is shown vs Trigger Number using the `event_info` tree when present.
+- Rolling spill summary: average number of clusters per 10 s spill is computed across the run, with spill windows starting at the first event-with-hits and advancing to the next event-with-hits after a window closes.
+- Scatter-only reconstructed-center pages added for exactly-3 and 2-or-3 clusters; safe guards avoid drawing empty graphs.
+
 ## Configuration
 
 Runtime settings live in `json/ev-settings.json`.
