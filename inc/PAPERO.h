@@ -195,16 +195,20 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   file.read(reinterpret_cast<char *>(&buffer), 4);
   timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   timestamp = 0x0000000000000000 | ((uint64_t)timestamp_part << 32UL);
+  uint32_t ts_high_word = timestamp_part;
   file.read(reinterpret_cast<char *>(&buffer), 4);
   timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   timestamp |= (uint64_t)timestamp_part;
+  uint32_t ts_low_word = timestamp_part;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
   ext_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   ext_timestamp = 0x0000000000000000 | ((uint64_t)ext_timestamp_part << 32UL);
+  uint32_t ext_ts_high_word = ext_timestamp_part;
   file.read(reinterpret_cast<char *>(&buffer), 4);
   ext_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   ext_timestamp |= (uint64_t)ext_timestamp_part;
+  uint32_t ext_ts_low_word = ext_timestamp_part;
 
   if (verbose)
   {
@@ -214,8 +218,11 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
     std::cout << "\t\t\ttrigger: " << trigger << std::endl;
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
-    std::cout << "\t\t\tinternal timestamp: " << timestamp << std::endl;
-    std::cout << "\t\t\texternal timestamp: " << ext_timestamp << std::endl;
+    std::cout << std::dec;
+    std::cout << "\t\t\tinternal timestamp: " << timestamp
+              << " (hi=0x" << std::hex << ts_high_word << ", lo=0x" << ts_low_word << ")" << std::dec << std::endl;
+    std::cout << "\t\t\texternal timestamp: " << ext_timestamp
+              << " (hi=0x" << std::hex << ext_ts_high_word << ", lo=0x" << ext_ts_low_word << ")" << std::dec << std::endl;
   }
 
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);

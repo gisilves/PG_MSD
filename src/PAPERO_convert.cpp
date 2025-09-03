@@ -245,6 +245,9 @@ int main(int argc, char *argv[])
     float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, uint64_t> evt_retValues;
 
+    // Aggregate per-event external timestamp across boards: prefer first non-zero
+    Long64_t ev_ext_timestamp = 0; bool have_ev_ext = false;
+
     uint64_t old_offset = 0;
     char dummy[100];
 
@@ -280,6 +283,8 @@ int main(int argc, char *argv[])
             break;
 
         if (boards_read == 0) {
+            // New event starting: reset event-level aggregates
+            ev_ext_timestamp = 0; have_ev_ext = false;
             if( !read_evt_header(file, offset, verbose) ) // check for event header if this is the first board
                 break;
         }
@@ -334,6 +339,12 @@ int main(int argc, char *argv[])
                 }
             }
 
+            // Update event-level external timestamp aggregation (prefer first non-zero)
+            if (!have_ev_ext && ext_timestamp != 0) {
+                ev_ext_timestamp = static_cast<Long64_t>(ext_timestamp);
+                have_ev_ext = true;
+            }
+
             if (!gsi && !dune)
             {
                 raw_event_vector.at(2 * board_id).clear();
@@ -383,7 +394,8 @@ int main(int argc, char *argv[])
                 out_trigger_number  = static_cast<Long64_t>(trigger_number);
                 out_board_id        = static_cast<Long64_t>(board_id);
                 out_timestamp       = static_cast<Long64_t>(timestamp);
-                out_ext_timestamp   = static_cast<Long64_t>(ext_timestamp);
+                // Use aggregated ext timestamp if available; otherwise keep last-read value
+                out_ext_timestamp   = have_ev_ext ? ev_ext_timestamp : static_cast<Long64_t>(ext_timestamp);
                 out_trigger_id      = static_cast<Long64_t>(trigger_id);
                 out_file_offset     = static_cast<Long64_t>(offset);
                 event_info->Fill();

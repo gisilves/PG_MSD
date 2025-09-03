@@ -5,6 +5,7 @@
     "maxEvents":100000000,
     "nSigma":5,
     "maskEdgeChannels":true,
+    "cleanClusterMaxWidth":5,
 
     "showPlots":true,
     "verboseMode": false,

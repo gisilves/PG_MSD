@@ -14,6 +14,7 @@
 #include "TTree.h"
 #include "TBranch.h"
 #include "TH1F.h"
+#include "TH1I.h"
 #include "TH2F.h"
 #include "TCanvas.h"
 #include "TGraph.h"
@@ -227,6 +228,8 @@ int main(int argc, char* argv[]) {
 
     // set root to displat overflow and underflow in stat box
     gStyle->SetOptStat("emruo"); // e: entries, m:
+    // Slightly reduce title font size globally to help long titles fit
+    gStyle->SetTitleFontSize(0.045);
 
     // Create a vector of TF1 objects to show the channels that fire, one for each detector
     std::vector <TH1F*> *h_firingChannels = new std::vector <TH1F*>;
@@ -310,6 +313,14 @@ int main(int argc, char* argv[]) {
     h_hitsInEvent->GetXaxis()->SetTitle("Hits");
     h_hitsInEvent->GetYaxis()->SetTitle("Counts");
 
+    // Histograms: clusters per event per detector (created before event loop)
+    TH1I *h_clustersPerEvent[4];
+    for (int d = 0; d < 4; ++d) {
+        h_clustersPerEvent[d] = new TH1I(Form("h_clustersPerEvent_D%d", d),
+                                         Form("Clusters per event - D%d;Clusters;Events", d),
+                                         11, -0.5, 10.5);
+    }
+
     // loop over the entries to get the peak. For each entry, store the values in the event
     // TODO temporary, do the real thing
 
@@ -367,6 +378,20 @@ int main(int argc, char* argv[]) {
     bool maskEdgeChannels = parseBool(jsonSettings, "maskEdgeChannels", false);
     LogInfo << "Mask edge channels: " << (maskEdgeChannels ? "true" : "false") << std::endl;
 
+    // Clean sample max cluster width (channels), configurable via JSON
+    int cleanMaxWidth = 5;
+    try {
+        if (jsonSettings.contains("cleanClusterMaxWidth")) {
+            const auto &cw = jsonSettings["cleanClusterMaxWidth"];
+            if (cw.is_number_integer()) cleanMaxWidth = cw.get<int>();
+            else if (cw.is_string()) {
+                try { cleanMaxWidth = std::stoi(cw.get<std::string>()); } catch (...) {}
+            }
+        }
+    } catch (...) {}
+    if (cleanMaxWidth < 1) cleanMaxWidth = 1;
+    LogInfo << "Clean sample max cluster width: " << cleanMaxWidth << " channels" << std::endl;
+
     // Function to check if a channel is an edge channel (chip boundaries)
     auto isEdgeChannel = [](int channel) -> bool {
         // Edge channels are at chip boundaries: 0, 63, 64, 127, 128, 191, 192, 255, 256, 319, 320, 383
@@ -377,7 +402,10 @@ int main(int argc, char* argv[]) {
     };
 
     int hitsInEvent = 0;
-    int triggeredEvents = 0; // events passing 2-or-3 cluster criterion
+    int triggeredEvents = 0; // events passing 2-or-3 cluster criterion (pre width cut)
+    int eventsTwoDetOrMore = 0; // events where at least two detectors (D0..D2) have >=1 cluster (any multiplicity per detector)
+    long long selected2to3Count = 0; // events used in 2-or-3 display after width cut
+    long long selected3Count = 0;    // events used in exactly-3 display after width cut
     int eventsWithHits = 0;   // events with at least one (masked) hit
     
     // Geometry / interpolation setup
@@ -466,8 +494,8 @@ int main(int argc, char* argv[]) {
     }
 
     // 2D centers axis ranges; now sourced from parameters/geometry.json (if present)
-    // Defaults aligned to requested view: X [-80, 30], Y [-60, 60]
-    double centersXmin = -80.0, centersXmax = 30.0; // mm
+    // Defaults aligned to requested view: X [-100, 30], Y [-60, 60]
+    double centersXmin = -80.0, centersXmax = 50.0; // mm
     double centersYmin = -60.0, centersYmax = 60.0; // mm
     if (!usedGeomPath.empty()) {
         try {
@@ -484,6 +512,10 @@ int main(int argc, char* argv[]) {
             }
         } catch (...) { /* keep defaults */ }
     }
+    // Enforce X min to -100 mm as requested
+    // Force X-axis range regardless of geometry file per request
+    centersXmin = -80.0;
+    centersXmax = 50.0;
 
     // Optional flip of the displayed Y coordinate (useful to have channel 0 at highest Y)
     bool flipY = false;
@@ -503,26 +535,41 @@ int main(int argc, char* argv[]) {
     // Histograms to accumulate reconstructed centers (in mm)
     // Use configurable axis ranges to ensure the full distribution is visible
     const int centersBinsX = 20, centersBinsY = 20; // keep finer bins
-    TH2F *h_recoCenter_3 = new TH2F("h_recoCenter_3", "Interpolated centers (exactly 3 clusters, 1 per detector);X [mm];Y [mm]", centersBinsX, centersXmin, centersXmax, centersBinsY, centersYmin, centersYmax);
-    TH2F *h_recoCenter_2to3 = new TH2F("h_recoCenter_2to3", "Interpolated centers (2 or 3 clusters);X [mm];Y [mm]", centersBinsX, centersXmin, centersXmax, centersBinsY, centersYmin, centersYmax);
+    TH2F *h_recoCenter_3 = new TH2F("h_recoCenter_3", " (exactly 3 clusters, 1 per detector);X [mm];Y [mm]", centersBinsX, centersXmin, centersXmax, centersBinsY, centersYmin, centersYmax);
+    TH2F *h_recoCenter_2to3 = new TH2F("h_recoCenter_2to3", " (2 or 3 clusters);X [mm];Y [mm]", centersBinsX, centersXmin, centersXmax, centersBinsY, centersYmin, centersYmax);
     TGraph *g_recoCenters_3 = new TGraph();
     g_recoCenters_3->SetName("g_recoCenters_3");
-    g_recoCenters_3->SetTitle("Interpolated centers (exactly 3 clusters, 1 per detector);X [mm];Y [mm]");
+    g_recoCenters_3->SetTitle(" (exactly 3 clusters, 1 per detector);X [mm];Y [mm]");
     g_recoCenters_3->SetMarkerStyle(20);
     g_recoCenters_3->SetMarkerSize(0.5);
     TGraph *g_recoCenters_2to3 = new TGraph();
     g_recoCenters_2to3->SetName("g_recoCenters_2to3");
-    g_recoCenters_2to3->SetTitle("Interpolated centers (2 or 3 clusters);X [mm];Y [mm]");
+    g_recoCenters_2to3->SetTitle(" (2 or 3 clusters);X [mm];Y [mm]");
     g_recoCenters_2to3->SetMarkerStyle(20);
     g_recoCenters_2to3->SetMarkerSize(0.5);
+    // Clean sample A: exactly one cluster in D0,D1,D2; cluster width <= cleanMaxWidth; D3 has no hits
+    TGraph *g_cleanCenters = new TGraph();
+    g_cleanCenters->SetName("g_cleanCenters");
+    g_cleanCenters->SetMarkerStyle(20);
+    g_cleanCenters->SetMarkerSize(0.6);
+    long long cleanSampleCount = 0; // count of clean events
+    // Clean sample B: exactly one cluster in exactly two detectors among D0..D2; widths <= cleanMaxWidth; D3 has no hits
+    TGraph *g_cleanCenters2 = new TGraph();
+    g_cleanCenters2->SetName("g_cleanCenters_twoDet");
+    g_cleanCenters2->SetMarkerStyle(20);
+    g_cleanCenters2->SetMarkerSize(0.6);
+    long long cleanSample2Count = 0;
 
     // Track simple means for visibility
     double sumX_2to3 = 0.0, sumY_2to3 = 0.0; long long cnt_2to3 = 0;
     double sumX_3 = 0.0, sumY_3 = 0.0; long long cnt_3 = 0;
 
     // --- Preload timestamps from event_info to support 10s spill grouping ---
-    const long long SPILL_TICKS = 156250000LL; // 10 s at 15.625 MHz (64 ns ticks)
+    // Use 'timestamp' ticks at 20 ns -> 10 s corresponds to 500,000,000 ticks
+    const long long SPILL_TICKS = 500000000LL; // 10 s at 50 MHz (20 ns ticks)
+    const double    TICK_PERIOD_SEC = 20e-9;   // seconds per internal timestamp tick
     std::vector<long long> evtTimestamps; evtTimestamps.reserve(limit);
+    std::vector<double> evtDeltaTimesSec; evtDeltaTimesSec.reserve(limit > 0 ? (size_t)limit-1 : 0); // consecutive event deltas (sec)
     long long t0Ticks = 0; bool haveSpillTimes = false;
     {
         TTree *infoT = (TTree*) input_root_file->Get("event_info");
@@ -539,6 +586,11 @@ int main(int argc, char* argv[]) {
                 if (!evtTimestamps.empty()) {
                     t0Ticks = evtTimestamps.front();
                     haveSpillTimes = true;
+                    // Build consecutive event delta times (in seconds)
+                    for (size_t i = 1; i < evtTimestamps.size(); ++i) {
+                        long long dtTicks = evtTimestamps[i] - evtTimestamps[i-1];
+                        if (dtTicks >= 0) evtDeltaTimesSec.push_back(dtTicks * TICK_PERIOD_SEC);
+                    }
                     if (nToRead < limit) {
                         LogWarning << "event_info has fewer entries (" << nToRead << ") than events processed (" << limit << "). Spill summary will be computed for the first " << nToRead << " events only." << std::endl;
                     }
@@ -554,6 +606,7 @@ int main(int argc, char* argv[]) {
     // Aggregators for rolling spills: vector of per-spill cluster sums [D0..D3]
     std::vector<std::array<long long,4>> clustersPerSpillVec; // each entry corresponds to one 10s spill window
     bool spillActive = false; long long currentSpillStart = -1; // in ticks
+    std::vector<double> spillGapSec; spillGapSec.reserve(64);   // gap between 10 s spills (sec)
 
     for (int entryit = 0; entryit < limit; entryit++) {
 
@@ -646,6 +699,12 @@ int main(int argc, char* argv[]) {
             auto c2 = countClusters(detHits[2]);
             auto c3 = countClusters(detHits[3]);
 
+            // Fill clusters-per-event histograms per detector (only when clusters > 0)
+            if (c0.first > 0) h_clustersPerEvent[0]->Fill(c0.first);
+            if (c1.first > 0) h_clustersPerEvent[1]->Fill(c1.first);
+            if (c2.first > 0) h_clustersPerEvent[2]->Fill(c2.first);
+            if (c3.first > 0) h_clustersPerEvent[3]->Fill(c3.first);
+
             // Rolling 10s spills anchored at first event-WITH-HITS; new spill starts at next event-with-hits after previous window closes
             if (haveSpillTimes && entryit < (int)evtTimestamps.size()) {
                 // event considered "with hits" if any detector has at least one hit
@@ -656,6 +715,10 @@ int main(int argc, char* argv[]) {
                         currentSpillStart = ts; spillActive = true;
                         clustersPerSpillVec.push_back({0,0,0,0});
                     } else if (ts - currentSpillStart >= SPILL_TICKS) {
+                        // spill window elapsed; record gap from previous spill end to this event
+                        long long prevEnd = currentSpillStart + SPILL_TICKS;
+                        long long gapTicks = ts - prevEnd;
+                        if (gapTicks >= 0) spillGapSec.push_back(gapTicks * TICK_PERIOD_SEC);
                         // start a new spill at this event timestamp
                         currentSpillStart = ts;
                         clustersPerSpillVec.push_back({0,0,0,0});
@@ -668,11 +731,15 @@ int main(int argc, char* argv[]) {
                     acc[3] += (long long)c3.first;
                 }
             }
-            // Accept events with exactly 2 or 3 clusters total, each on different detectors
+            // Accept events with exactly 2 or 3 clusters total in D0..D2 (ignore D3 entirely)
             bool perDetOk = (c0.first <= 1 && c1.first <= 1 && c2.first <= 1);
             int totalClusters = (c0.first > 0) + (c1.first > 0) + (c2.first > 0);
             bool acceptTwoOrThree = perDetOk && (totalClusters == 2 || totalClusters == 3);
             bool acceptExactlyThree = (c0.first == 1 && c1.first == 1 && c2.first == 1);
+            // Count events that have clusters in at least two different detectors (no per-detector multiplicity restriction)
+            if (totalClusters >= 2) {
+                eventsTwoDetOrMore++;
+            }
             if (acceptTwoOrThree) {
                 // Use cluster center channel per detector for (x,y) interpolation
                 int firstTrigChan[geomDetN];
@@ -681,6 +748,14 @@ int main(int argc, char* argv[]) {
                 firstTrigChan[2] = (c2.second.first >= 0 ? (c2.second.first + c2.second.second)/2 : -1);
                 triggeredEvents++;
                 hitsInEvent = (int)(detHits[0].size() + detHits[1].size() + detHits[2].size());
+            // Apply cluster width cut for used detectors to enforce clean geometry on main displays
+            int w0 = (c0.second.first >= 0 && c0.first==1) ? (c0.second.second - c0.second.first + 1) : 0;
+            int w1 = (c1.second.first >= 0 && c1.first==1) ? (c1.second.second - c1.second.first + 1) : 0;
+            int w2 = (c2.second.first >= 0 && c2.first==1) ? (c2.second.second - c2.second.first + 1) : 0;
+            bool widthsOK = true;
+            if (c0.first==1) widthsOK = widthsOK && (w0>0 && w0<=cleanMaxWidth);
+            if (c1.first==1) widthsOK = widthsOK && (w1>0 && w1<=cleanMaxWidth);
+            if (c2.first==1) widthsOK = widthsOK && (w2>0 && w2<=cleanMaxWidth);
             // Reconstruct (x,y) from projections u_i = x cosθ_i + y sinθ_i, using absolute/global coordinates.
             // Accumulate for least squares if >=2 detectors
             double Scc=0, Sss=0, Scs=0, Su_c=0, Su_s=0; int used=0;
@@ -719,17 +794,38 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
-            if (haveXY) {
+            if (haveXY && widthsOK) {
                 if (flipY) cy = -cy; // flip Y orientation if requested
                 // Fill 2-or-3 clusters map always
                 h_recoCenter_2to3->Fill(cx, cy);
                 g_recoCenters_2to3->SetPoint(g_recoCenters_2to3->GetN(), cx, cy);
                 sumX_2to3 += cx; sumY_2to3 += cy; cnt_2to3++;
+                selected2to3Count++;
                 // Additionally fill the exactly-3-clusters map when applicable
                 if (acceptExactlyThree) {
                     h_recoCenter_3->Fill(cx, cy);
                     g_recoCenters_3->SetPoint(g_recoCenters_3->GetN(), cx, cy);
                     sumX_3 += cx; sumY_3 += cy; cnt_3++;
+                    selected3Count++;
+                    // Clean sample A selection: widths <= cleanMaxWidth (D3 ignored)
+                    if (w0>0 && w1>0 && w2>0 && w0<=cleanMaxWidth && w1<=cleanMaxWidth && w2<=cleanMaxWidth) {
+                        g_cleanCenters->SetPoint(g_cleanCenters->GetN(), cx, cy);
+                        cleanSampleCount++;
+                    }
+                }
+                // Clean sample B (exactly two detectors among D0..D2 have exactly 1 cluster; widths <= cleanMaxWidth)
+                if (!acceptExactlyThree) {
+                    int ones = (c0.first==1) + (c1.first==1) + (c2.first==1);
+                    if (ones == 2) {
+                        bool widthsOK = true;
+                        if (c0.first==1) widthsOK = widthsOK && (w0>0 && w0<=cleanMaxWidth);
+                        if (c1.first==1) widthsOK = widthsOK && (w1>0 && w1<=cleanMaxWidth);
+                        if (c2.first==1) widthsOK = widthsOK && (w2>0 && w2<=cleanMaxWidth);
+                        if (widthsOK) {
+                            g_cleanCenters2->SetPoint(g_cleanCenters2->GetN(), cx, cy);
+                            cleanSample2Count++;
+                        }
+                    }
                 }
             }
             }
@@ -829,10 +925,35 @@ int main(int argc, char* argv[]) {
 
     TCanvas *c_hitsInEvent = new TCanvas(Form("c_hitsInEvent_Run%s", runNumber.c_str()), Form("Hits in Event (Run %s)", runNumber.c_str()), 800, 600);
 
-    // Build timestamp vs trigger NUMBER graph if available
+    // --- New plots: time distances ---
+    TH1F *h_evtDeltaT = nullptr; TCanvas *c_evtDeltaT = nullptr;
+    TH1F *h_spillGaps = nullptr; TCanvas *c_spillGaps = nullptr;
+    if (!evtDeltaTimesSec.empty()) {
+        double maxDt = *std::max_element(evtDeltaTimesSec.begin(), evtDeltaTimesSec.end());
+        if (maxDt <= 0) maxDt = 1.0;
+        int nbins = 200;
+        h_evtDeltaT = new TH1F(Form("h_evtDeltaT_%s", runNumber.c_str()), Form("Delta between consecutive events (Run %s);#Delta t [s];Entries", runNumber.c_str()), nbins, 0.0, maxDt*1.05);
+        for (double v : evtDeltaTimesSec) h_evtDeltaT->Fill(v);
+        c_evtDeltaT = new TCanvas(Form("c_evtDeltaT_Run%s", runNumber.c_str()), Form("Event #Delta t (Run %s)", runNumber.c_str()), 800, 600);
+        c_evtDeltaT->cd(); h_evtDeltaT->Draw(); c_evtDeltaT->Update();
+    }
+    if (!spillGapSec.empty()) {
+        double maxGap = *std::max_element(spillGapSec.begin(), spillGapSec.end());
+        if (maxGap <= 0) maxGap = 1.0;
+        int nbins = 100;
+        h_spillGaps = new TH1F(Form("h_spillGaps_%s", runNumber.c_str()), Form("Gap between 10 s spills (Run %s);Gap [s];Entries", runNumber.c_str()), nbins, 0.0, maxGap*1.05);
+        for (double v : spillGapSec) h_spillGaps->Fill(v);
+        c_spillGaps = new TCanvas(Form("c_spillGaps_Run%s", runNumber.c_str()), Form("Spill gap #Delta t (Run %s)", runNumber.c_str()), 800, 600);
+        c_spillGaps->cd(); h_spillGaps->Draw(); c_spillGaps->Update();
+    }
+
+    // Build timestamp vs trigger NUMBER graph, and external timestamp vs trigger, if available
     TGraph *g_evtVsTime = nullptr;
     TCanvas *c_evtVsTime = nullptr;
     double timeMin = 0, timeMax = 0;
+    TGraph *g_extEvtVsTime = nullptr;
+    TCanvas *c_extEvtVsTime = nullptr;
+    double extTimeMin = 0, extTimeMax = 0;
     {
         // Prefer the new event_info tree if present
         TTree *infoT = (TTree*) input_root_file->Get("event_info");
@@ -872,6 +993,35 @@ int main(int argc, char* argv[]) {
             } else if (hasTs && !(hasTrigNum || hasTrigId)) {
                 LogWarning << "'event_info' TTree has no trigger_number or trigger_id. Skipping Timestamp vs Trigger plot." << std::endl;
             }
+
+            // Build External Timestamp vs Trigger plot if ext_timestamp is available
+            if (hasExt && (hasTrigNum || hasTrigId)) {
+                Long64_t nEvt = infoT->GetEntries();
+                Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
+                g_extEvtVsTime = new TGraph();
+                g_extEvtVsTime->SetName("g_extTimeVsTriggerNumber");
+                g_extEvtVsTime->SetTitle(Form("External timestamp vs Trigger Number (Run %s);External time since start [ticks];Trigger Number", runNumber.c_str()));
+                g_extEvtVsTime->SetMarkerStyle(20);
+                g_extEvtVsTime->SetMarkerSize(0.6);
+                Long64_t ext0 = 0; bool ext0set = false; extTimeMin = 0; extTimeMax = 0;
+                for (Long64_t i = 0; i < nToRead; ++i) {
+                    infoT->GetEntry(i);
+                    if (!ext0set) { ext0 = ext_ts; ext0set = true; }
+                    double dt = double((ext_ts >= ext0) ? (ext_ts - ext0) : 0LL);
+                    if (i == 0) { extTimeMin = dt; extTimeMax = dt; }
+                    else { if (dt < extTimeMin) extTimeMin = dt; if (dt > extTimeMax) extTimeMax = dt; }
+                    double y = hasTrigNum ? double(trigNum) : double(trigId);
+                    g_extEvtVsTime->SetPoint(g_extEvtVsTime->GetN(), dt, y);
+                }
+                c_extEvtVsTime = new TCanvas(Form("c_extTimeVsTriggerNumber_Run%s", runNumber.c_str()), Form("External timestamp vs Trigger Number (Run %s)", runNumber.c_str()), 800, 600);
+                c_extEvtVsTime->cd();
+                g_extEvtVsTime->Draw("AP");
+                if (extTimeMax > extTimeMin) {
+                    g_extEvtVsTime->GetXaxis()->SetLimits(extTimeMin - 0.01*(extTimeMax-extTimeMin), extTimeMax + 0.01*(extTimeMax-extTimeMin));
+                }
+                c_extEvtVsTime->Update();
+                LogInfo << "Built External timestamp vs Trigger Number graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
+            }
         } else {
             // Legacy support: "events" TTree if present
             TTree *eventsT = (TTree*) input_root_file->Get("events");
@@ -883,31 +1033,121 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    TCanvas *c_recoCenter_3 = new TCanvas("c_recoCenter_3", "Interpolated Centers (exactly 3)", 700, 500);
-    c_recoCenter_3->cd();
-    h_recoCenter_3->Draw("COLZ");
-    // Mark global origin for reference
-    TMarker *centerMarker3 = new TMarker(0.0, 0.0, kFullCircle);
-    centerMarker3->SetMarkerColor(kRed);
-    centerMarker3->SetMarkerSize(1.2);
-    centerMarker3->Draw("SAME");
-    c_recoCenter_3->Update();
+    // Update 2D heatmap titles with percentages and prepare canvases with projections
+    {
+    double pTrig3 = (triggeredEvents > 0) ? (100.0 * (double)selected3Count / (double)triggeredEvents) : 0.0;
+    double pTot3  = (limit > 0) ? (100.0 * (double)selected3Count / (double)limit) : 0.0;
+    std::string title3 = Form("Tracking (1/Det)  [%.1f%% triggers %.1f%% all];",
+                   pTrig3, pTot3);
+        h_recoCenter_3->SetTitle(title3.c_str());
 
-    TCanvas *c_recoCenter_2to3 = new TCanvas("c_recoCenter_2to3", "Interpolated Centers (2 or 3)", 700, 500);
-    c_recoCenter_2to3->cd();
+    // Build canvas with main pad + bottom (ProjectionX) + left (ProjectionY)
+    TCanvas *c = new TCanvas("c_recoCenter_3", " (exactly 3)", 980, 820);
+    // Pads: left (0,0.2)-(0.2,1), bottom (0.2,0)-(1,0.2), main (0.2,0.2)-(1,1)
+    TPad *padLeft3   = new TPad("padLeft3",   "padLeft3",   0.0, 0.2, 0.2, 1.0);
+    TPad *padBottom3 = new TPad("padBottom3", "padBottom3", 0.2, 0.0, 1.0, 0.2);
+    TPad *padMain3   = new TPad("padMain3",   "padMain3",   0.2, 0.2, 1.0, 1.0);
+    // Increase top margin to avoid clipping long titles
+    padMain3->SetRightMargin(0.15); padMain3->SetTopMargin(0.16); padMain3->SetBottomMargin(0.12); padMain3->SetLeftMargin(0.12);
+    padBottom3->SetTopMargin(0.18); padBottom3->SetBottomMargin(0.35); padBottom3->SetLeftMargin(0.12); padBottom3->SetRightMargin(0.15);
+    padLeft3->SetRightMargin(0.05); padLeft3->SetTopMargin(0.05); padLeft3->SetBottomMargin(0.12); padLeft3->SetLeftMargin(0.28);
+    c->cd();
+    padMain3->Draw(); padBottom3->Draw(); padLeft3->Draw();
+        // Main 2D plot
+        padMain3->cd();
+    h_recoCenter_3->GetXaxis()->SetTitle("X [mm]");
+    h_recoCenter_3->GetYaxis()->SetTitle("Y [mm]");
+    h_recoCenter_3->Draw("COLZ");
+        // Mark global origin for reference
+        TMarker *centerMarker3 = new TMarker(0.0, 0.0, kFullCircle);
+        centerMarker3->SetMarkerColor(kRed);
+        centerMarker3->SetMarkerSize(1.2);
+        centerMarker3->Draw("SAME");
+    // Bottom projection X
+    padBottom3->cd();
+        TH1D *projX3 = h_recoCenter_3->ProjectionX("h_projX_3");
+    projX3->SetTitle("");
+    projX3->GetXaxis()->SetLabelSize(0.10);
+        projX3->GetYaxis()->SetTitle("Entries");
+        projX3->GetYaxis()->SetTitleSize(0.08);
+        projX3->GetYaxis()->SetLabelSize(0.08);
+    projX3->SetStats(0);
+    projX3->SetFillStyle(0);
+        projX3->Draw("HIST");
+    // Left projection Y (tilted 90 degrees to look like a sideways projection)
+    padLeft3->cd();
+        TH1D *projY3 = h_recoCenter_3->ProjectionY("h_projY_3");
+    projY3->SetTitle("");
+    projY3->GetXaxis()->SetTitle("Entries");
+    projY3->GetXaxis()->SetTitleSize(0.08);
+    projY3->GetXaxis()->SetLabelSize(0.08);
+    projY3->GetYaxis()->SetLabelSize(0.10);
+    projY3->SetStats(0);
+    projY3->SetFillStyle(0);
+    projY3->Draw("HBAR");
+        c->Update();
+    }
+
+    {
+    double pTrig23 = (triggeredEvents > 0) ? (100.0 * (double)selected2to3Count / (double)triggeredEvents) : 0.0;
+    double pTot23  = (limit > 0) ? (100.0 * (double)selected2to3Count / (double)limit) : 0.0;
+    std::string title23 = Form("Tracking (2–3, w<=%d)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
+                    cleanMaxWidth, pTrig23, pTot23);
+        h_recoCenter_2to3->SetTitle(title23.c_str());
+
+    TCanvas *c = new TCanvas("c_recoCenter_2to3", " (2 or 3)", 980, 820);
+    TPad *padLeft23   = new TPad("padLeft23",   "padLeft23",   0.0, 0.2, 0.2, 1.0);
+    TPad *padBottom23 = new TPad("padBottom23", "padBottom23", 0.2, 0.0, 1.0, 0.2);
+    TPad *padMain23   = new TPad("padMain23",   "padMain23",   0.2, 0.2, 1.0, 1.0);
+    // Increase top margin to avoid clipping long titles
+    padMain23->SetRightMargin(0.15); padMain23->SetTopMargin(0.16); padMain23->SetBottomMargin(0.12); padMain23->SetLeftMargin(0.12);
+    padBottom23->SetTopMargin(0.18); padBottom23->SetBottomMargin(0.35); padBottom23->SetLeftMargin(0.12); padBottom23->SetRightMargin(0.15);
+    padLeft23->SetRightMargin(0.05); padLeft23->SetTopMargin(0.05); padLeft23->SetBottomMargin(0.12); padLeft23->SetLeftMargin(0.28);
+    c->cd();
+    padMain23->Draw(); padBottom23->Draw(); padLeft23->Draw();
+        // Main 2D plot
+        padMain23->cd();
+    h_recoCenter_2to3->GetXaxis()->SetTitle("X [mm]");
+    h_recoCenter_2to3->GetYaxis()->SetTitle("Y [mm]");
     h_recoCenter_2to3->Draw("COLZ");
-    // Mark global origin for reference
-    TMarker *centerMarker23 = new TMarker(0.0, 0.0, kFullCircle);
-    centerMarker23->SetMarkerColor(kRed);
-    centerMarker23->SetMarkerSize(1.2);
-    centerMarker23->Draw("SAME");
-    c_recoCenter_2to3->Update();
+        TMarker *centerMarker23 = new TMarker(0.0, 0.0, kFullCircle);
+        centerMarker23->SetMarkerColor(kRed);
+        centerMarker23->SetMarkerSize(1.2);
+        centerMarker23->Draw("SAME");
+    // Bottom X projection
+    padBottom23->cd();
+        TH1D *projX23 = h_recoCenter_2to3->ProjectionX("h_projX_23");
+    projX23->SetTitle("");
+        projX23->GetXaxis()->SetLabelSize(0.10);
+        projX23->GetYaxis()->SetTitle("Entries");
+        projX23->GetYaxis()->SetTitleSize(0.08);
+        projX23->GetYaxis()->SetLabelSize(0.08);
+    projX23->SetStats(0);
+    projX23->SetFillStyle(0);
+        projX23->Draw("HIST");
+    padLeft23->cd();
+        TH1D *projY23 = h_recoCenter_2to3->ProjectionY("h_projY_23");
+    projY23->SetTitle("");
+        projY23->GetXaxis()->SetTitle("Entries");
+        projY23->GetXaxis()->SetTitleSize(0.08);
+        projY23->GetXaxis()->SetLabelSize(0.08);
+        projY23->GetYaxis()->SetLabelSize(0.10);
+    projY23->SetStats(0);
+    projY23->SetFillStyle(0);
+    projY23->Draw("HBAR");
+        c->Update();
+    }
 
     // Scatter-only plots (no histogram underneath) for reconstructed centers
-    TCanvas *c_recoCenterScatter_3 = new TCanvas("c_recoCenterScatter_3", "Interpolated Centers Scatter (exactly 3)", 700, 500);
+    TCanvas *c_recoCenterScatter_3 = new TCanvas("c_recoCenterScatter_3", "Interpolated Centers Scatter (exactly 3)", 740, 560);
     c_recoCenterScatter_3->cd();
+    gPad->SetTopMargin(0.16);
     {
-        TH2F *frame3 = new TH2F("frame3", "Interpolated centers (exactly 3 clusters);X [mm];Y [mm]", 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
+    double pTrig3 = (triggeredEvents > 0) ? (100.0 * (double)selected3Count / (double)triggeredEvents) : 0.0;
+    double pTot3  = (limit > 0) ? (100.0 * (double)selected3Count / (double)limit) : 0.0;
+    std::string ttl3 = Form("Scatter (1/Det)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
+                 pTrig3, pTot3);
+        TH2F *frame3 = new TH2F("frame3", ttl3.c_str(), 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
         frame3->SetStats(0);
         frame3->Draw();
         g_recoCenters_3->SetMarkerStyle(20);
@@ -923,10 +1163,15 @@ int main(int argc, char* argv[]) {
         m0->Draw("SAME");
         c_recoCenterScatter_3->Update();
     }
-    TCanvas *c_recoCenterScatter_2to3 = new TCanvas("c_recoCenterScatter_2to3", "Interpolated Centers Scatter (2 or 3)", 700, 500);
+    TCanvas *c_recoCenterScatter_2to3 = new TCanvas("c_recoCenterScatter_2to3", "Interpolated Centers Scatter (2 or 3)", 740, 560);
     c_recoCenterScatter_2to3->cd();
+    gPad->SetTopMargin(0.16);
     {
-        TH2F *frame23 = new TH2F("frame23", "Interpolated centers (2 or 3 clusters);X [mm];Y [mm]", 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
+    double pTrig23 = (triggeredEvents > 0) ? (100.0 * (double)selected2to3Count / (double)triggeredEvents) : 0.0;
+    double pTot23  = (limit > 0) ? (100.0 * (double)selected2to3Count / (double)limit) : 0.0;
+    std::string ttl23 = Form("Scatter (2–3)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
+                 pTrig23, pTot23);
+        TH2F *frame23 = new TH2F("frame23", ttl23.c_str(), 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
         frame23->SetStats(0);
         frame23->Draw();
         g_recoCenters_2to3->SetMarkerStyle(20);
@@ -942,6 +1187,8 @@ int main(int argc, char* argv[]) {
         m0b->Draw("SAME");
         c_recoCenterScatter_2to3->Update();
     }
+
+    // Removed clean sample scatter-only displays per request
 
     LogInfo << "Drawing histograms" << std::endl;
     for (int i = 0; i < nDetectors; i++) {
@@ -1074,9 +1321,10 @@ int main(int argc, char* argv[]) {
         }
         lat.DrawLatex(0.12, y, Form("Input: %s", input_file_base.c_str())); y-=dy;
         lat.DrawLatex(0.12, y, Form("Calibration: %s", clp.getOptionVal<std::string>("inputCalFile").substr(clp.getOptionVal<std::string>("inputCalFile").find_last_of("/\\")+1).c_str())); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Total events: %d", limit)); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Events with hits: %.2f%% (%d/%d)", (limit>0)?(100.0*eventsWithHits/limit):0.0, eventsWithHits, limit)); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Triggered events (2 or 3 clusters): %.2f%% (%d/%d)", (limit>0)?(100.0*triggeredEvents/limit):0.0, triggeredEvents, limit)); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Total triggers: %d", limit)); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Triggers with BM hits: %.2f%% (%d/%d)", (limit>0)?(100.0*eventsWithHits/limit):0.0, eventsWithHits, limit)); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Triggers with >=1 clusters in >=2 detectors: %.2f%% (%d/%d)", (limit>0)?(100.0*eventsTwoDetOrMore/limit):0.0, eventsTwoDetOrMore, limit)); y-=dy;
+        lat.DrawLatex(0.12, y, Form("Triggers with 1 cluster in 2 or 3 detectors: %.2f%% (%d/%d)", (limit>0)?(100.0*triggeredEvents/limit):0.0, triggeredEvents, limit)); y-=dy;
     // Removed geometry path line per request
         if (cnt_2to3>0) { lat.DrawLatex(0.12, y, Form("Mean center (2or3): (%.2f, %.2f) mm", sumX_2to3/cnt_2to3, sumY_2to3/cnt_2to3)); y-=dy; }
         if (cnt_3>0)    { lat.DrawLatex(0.12, y, Form("Mean center (exactly3): (%.2f, %.2f) mm", sumX_3/cnt_3, sumY_3/cnt_3)); y-=dy; }
@@ -1103,52 +1351,69 @@ int main(int argc, char* argv[]) {
         c_summary->Update();
         c_summary->SaveAs((output_filename_report + "(").c_str());
 
-    // Page 2: Channels firing plot
-        c_channelsFiring->Update();
-        c_channelsFiring->SaveAs(output_filename_report.c_str());
-        
-        // Page 2: Sigma plot
-        c_sigma->Update();
-        c_sigma->SaveAs(output_filename_report.c_str());
-        
-        // Page 3: Baseline plot
-        c_baseline->Update();
-        c_baseline->SaveAs(output_filename_report.c_str());
-        
-        // Page 4: Amplitude plot
-        c_amplitude->Update();
-        c_amplitude->SaveAs(output_filename_report.c_str());
-        
-        // Page 5: Reconstructed centers heatmap (exactly 3)
-        if (c_recoCenter_3) {
-            c_recoCenter_3->Update();
-            c_recoCenter_3->SaveAs(output_filename_report.c_str());
+        // Move event displays to the beginning
+        // Page 2: Reconstructed centers heatmap (exactly 3) with projections
+        if (gROOT->FindObject("c_recoCenter_3")) {
+            auto ctmp = (TCanvas*)gROOT->FindObject("c_recoCenter_3");
+            ctmp->Update();
+            ctmp->SaveAs(output_filename_report.c_str());
         }
-        // Page 6: Reconstructed centers heatmap (2 or 3)
-        if (c_recoCenter_2to3) {
-            c_recoCenter_2to3->Update();
-            c_recoCenter_2to3->SaveAs(output_filename_report.c_str());
+        // Page 3: Reconstructed centers heatmap (2 or 3) with projections
+        if (gROOT->FindObject("c_recoCenter_2to3")) {
+            auto ctmp = (TCanvas*)gROOT->FindObject("c_recoCenter_2to3");
+            ctmp->Update();
+            ctmp->SaveAs(output_filename_report.c_str());
         }
-        // Page 7: Reconstructed centers scatter-only (exactly 3)
+        // Page 4: Reconstructed centers scatter-only (exactly 3) with %
         if (c_recoCenterScatter_3) {
             c_recoCenterScatter_3->cd();
             if (g_recoCenters_3->GetN()==0) { TLatex l; l.SetNDC(true); l.DrawLatex(0.3,0.5,"No points"); }
             c_recoCenterScatter_3->Update();
             c_recoCenterScatter_3->SaveAs(output_filename_report.c_str());
         }
-        // Page 8: Reconstructed centers scatter-only (2 or 3)
+        // Page 5: Reconstructed centers scatter-only (2 or 3) with %
         if (c_recoCenterScatter_2to3) {
             c_recoCenterScatter_2to3->cd();
             if (g_recoCenters_2to3->GetN()==0) { TLatex l; l.SetNDC(true); l.DrawLatex(0.3,0.5,"No points"); }
             c_recoCenterScatter_2to3->Update();
             c_recoCenterScatter_2to3->SaveAs(output_filename_report.c_str());
         }
-        
-    // Page 9: Timestamp vs Trigger Number (if available)
-        if (c_evtVsTime != nullptr) {
-            c_evtVsTime->Update();
-            c_evtVsTime->SaveAs(output_filename_report.c_str());
+
+    // Page 6: Clusters per event (per detector)
+        {
+            TCanvas *c_clustersPerEvent = new TCanvas(Form("c_clustersPerEvent_Run%s", runNumber.c_str()), Form("Clusters per event (Run %s)", runNumber.c_str()), 800, 600);
+            c_clustersPerEvent->Divide(2, 2);
+            for (int d = 0; d < 4; ++d) {
+                c_clustersPerEvent->cd(d+1);
+                gPad->SetLogy();
+                // Update titles with run number at draw time for clarity
+                h_clustersPerEvent[d]->SetTitle(Form("Clusters per event - D%d (Run %s);Clusters;Events", d, runNumber.c_str()));
+                h_clustersPerEvent[d]->Draw();
+            }
+            c_clustersPerEvent->Update();
+            c_clustersPerEvent->SaveAs(output_filename_report.c_str());
         }
+
+    // Page 7+: The rest of the plots
+        c_channelsFiring->Update();
+        c_channelsFiring->SaveAs(output_filename_report.c_str());
+
+        c_sigma->Update();
+        c_sigma->SaveAs(output_filename_report.c_str());
+
+        c_baseline->Update();
+        c_baseline->SaveAs(output_filename_report.c_str());
+
+        c_amplitude->Update();
+        c_amplitude->SaveAs(output_filename_report.c_str());
+
+    // Clean sample scatter pages removed per request
+
+    // Timestamp plots
+        if (c_evtVsTime != nullptr) { c_evtVsTime->Update(); c_evtVsTime->SaveAs(output_filename_report.c_str()); }
+        if (c_extEvtVsTime != nullptr) { c_extEvtVsTime->Update(); c_extEvtVsTime->SaveAs(output_filename_report.c_str()); }
+        if (c_evtDeltaT != nullptr) { c_evtDeltaT->Update(); c_evtDeltaT->SaveAs(output_filename_report.c_str()); }
+        if (c_spillGaps != nullptr) { c_spillGaps->Update(); c_spillGaps->SaveAs(output_filename_report.c_str()); }
 
         // Final page: Hits in event plot (close the PDF)
         c_hitsInEvent->Update();
