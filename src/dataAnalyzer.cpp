@@ -23,6 +23,13 @@
 #include "TSystem.h"
 #include "TMarker.h"
 #include "TLatex.h"
+#include "TLegend.h"
+#include "TEllipse.h"
+#include "TF2.h"
+#include "Math/Factory.h"
+#include "Math/Minimizer.h"
+#include "Math/Functor.h"
+#include "Math/DistFunc.h"
 #include <cmath>
 #include <algorithm>
 #include <filesystem>
@@ -346,7 +353,7 @@ int main(int argc, char* argv[]) {
     }
     
     int limit = nEntries.at(0);
-    int maxEvents = 1e9; // default value
+    int maxEvents = 1000000000; // default value (no cap by default)
     // Overwrite maxEvents if present in json settings file
     if (jsonSettings.contains("maxEvents")) {
         // Check if the value is a number and handle it properly
@@ -419,6 +426,10 @@ int main(int argc, char* argv[]) {
     for (int i=0;i<geomDetN;i++) normalAnglesRad[i] = (stripAnglesDeg[i] + 90.0) * M_PI/180.0;
     // Physical pitch: 10 cm across strip-normal over nChannels
     double channelPitch = 100.0 / nChannels; // mm per strip
+    // Half-extent along strip-normal (active range)
+    const double Umax = 0.5 * nChannels * channelPitch; // ~50 mm
+    // Half-length along global X (detector is 10 cm long along X)
+    const double halfX = 50.0; // mm
     
     // Per-detector plane offsets (x0,y0) in mm to express true global coordinates.
     // Preferred source: parameters/geometry.json (or a path provided by settings as geometryParamsPath)
@@ -563,11 +574,176 @@ int main(int argc, char* argv[]) {
     // Track simple means for visibility
     double sumX_2to3 = 0.0, sumY_2to3 = 0.0; long long cnt_2to3 = 0;
     double sumX_3 = 0.0, sumY_3 = 0.0; long long cnt_3 = 0;
+    // Track second-order moments for covariance (for 1-sigma ellipse)
+    double sumXX_2to3 = 0.0, sumYY_2to3 = 0.0, sumXY_2to3 = 0.0;
+    double sumXX_3 = 0.0,    sumYY_3 = 0.0,    sumXY_3 = 0.0;
+
+    // Pre-compute the convex polygon of the intersection of the three active planes
+    auto computeActiveAreaPolygon = [&](bool flipYCoords){
+        struct Line { double A,B,C; }; // A x + B y = C
+        std::vector<Line> lines; lines.reserve(6);
+        for (int i=0;i<geomDetN;i++) {
+            double c = std::cos(normalAnglesRad[i]);
+            double s = std::sin(normalAnglesRad[i]);
+            double off = planeOffsets[i].first * c + planeOffsets[i].second * s;
+            // +U boundary:  c x + s y = Umax + off
+            lines.push_back({ c,  s,  Umax + off});
+            // -U boundary: -c x - s y = Umax - off
+            lines.push_back({-c, -s,  Umax - off});
+            // Add physical X boundaries for each detector: x = x0 +/- halfX
+            double x0 = planeOffsets[i].first;
+            lines.push_back({ 1.0, 0.0, x0 + halfX});   //  x = x0+halfX
+            lines.push_back({-1.0, 0.0, -(x0 - halfX)}); // -x = -(x0-halfX) => x = x0-halfX
+        }
+        auto satisfiesAll = [&](double x, double y){
+            // Check |(x-x0)c + (y-y0)s| <= Umax for all planes
+            for (int i=0;i<geomDetN;i++) {
+                double c = std::cos(normalAnglesRad[i]);
+                double s = std::sin(normalAnglesRad[i]);
+                double u = (x - planeOffsets[i].first) * c + (y - planeOffsets[i].second) * s;
+                if (std::fabs(u) > Umax + 1e-6) return false;
+                // Check physical X extent for each plane (10 cm along global X)
+                if (std::fabs(x - planeOffsets[i].first) > (halfX + 1e-6)) return false;
+            }
+            return true;
+        };
+        std::vector<std::pair<double,double>> pts;
+        // Intersect all pairs of boundary lines
+        for (size_t i=0;i<lines.size();++i){
+            for (size_t j=i+1;j<lines.size();++j){
+                double A1=lines[i].A, B1=lines[i].B, C1=lines[i].C;
+                double A2=lines[j].A, B2=lines[j].B, C2=lines[j].C;
+                double det = A1*B2 - A2*B1;
+                if (std::fabs(det) < 1e-10) continue; // parallel
+                double x = (C1*B2 - C2*B1)/det;
+                double y = (A1*C2 - A2*C1)/det;
+                if (satisfiesAll(x,y)) {
+                    pts.emplace_back(x, flipYCoords ? -y : y);
+                }
+            }
+        }
+        // Deduplicate close points
+        auto eqPt = [](const std::pair<double,double>& a, const std::pair<double,double>& b){
+            return (std::fabs(a.first-b.first) < 1e-4) && (std::fabs(a.second-b.second) < 1e-4);
+        };
+        std::vector<std::pair<double,double>> uniq;
+        for (auto &p: pts){ bool found=false; for (auto &q: uniq){ if (eqPt(p,q)){found=true;break;} } if (!found) uniq.push_back(p); }
+        if (uniq.size() < 3) return uniq; // degenerate
+        // Sort vertices counter-clockwise
+        double cx=0, cy=0; for (auto &p: uniq){ cx+=p.first; cy+=p.second; } cx/=uniq.size(); cy/=uniq.size();
+        std::sort(uniq.begin(), uniq.end(), [&](const auto& a, const auto& b){
+            double aa = std::atan2(a.second - cy, a.first - cx);
+            double bb = std::atan2(b.second - cy, b.first - cx);
+            return aa < bb;
+        });
+        return uniq;
+    };
+    const auto activePolyPts = computeActiveAreaPolygon(flipY);
+
+    // Build half-plane edges from the active polygon (interior on the left of each CCW edge)
+    struct HalfPlane { double ax, ay, b, anorm; }; // inequality: a.x + a.y*y <= b, anorm = |a|
+    auto buildHalfPlanes = [&](const std::vector<std::pair<double,double>>& poly){
+        std::vector<HalfPlane> edges;
+        if (poly.size() < 3) return edges;
+        for (size_t i=0;i<poly.size();++i) {
+            auto p = poly[i];
+            auto q = poly[(i+1)%poly.size()];
+            double dx = q.first - p.first;
+            double dy = q.second - p.second;
+            // Left normal for CCW polygon is n_left = (-dy, dx).
+            // We want interior to satisfy a.x <= b, where a = (dy, -dx) (i.e., -n_left) and b = a.p
+            double ax = dy, ay = -dx;
+            double b  = ax * p.first + ay * p.second;
+            double an = std::sqrt(ax*ax + ay*ay);
+            // Sanity: ensure all vertices satisfy ax*x+ay*y <= b (if not, flip sign)
+            bool ok = true;
+            for (const auto &v : poly) { if (ax*v.first + ay*v.second > b + 1e-6) { ok=false; break; } }
+            if (!ok) { ax = -ax; ay = -ay; b = -b; }
+            edges.push_back({ax, ay, b, std::max(1e-12, std::hypot(ax, ay))});
+        }
+        return edges;
+    };
+    const auto activeEdges = buildHalfPlanes(activePolyPts);
+
+    // Choose the nearest truncating edge to a reference point (e.g., sample mean)
+    auto chooseNearestEdge = [&](double mx, double my)->HalfPlane{
+        if (activeEdges.empty()) return {0,0,0,1};
+        double bestD = 1e300; size_t bestI = 0;
+        for (size_t i=0;i<activeEdges.size();++i) {
+            const auto &e = activeEdges[i];
+            double d = (e.b - (e.ax*mx + e.ay*my)) / e.anorm; // distance to line within interior
+            if (d < bestD) { bestD = d; bestI = i; }
+        }
+        return activeEdges[bestI];
+    };
+
+    // Truncated half-plane bivariate normal MLE using Minuit2 (points, initial guess, edge)
+    struct FitResult { bool ok=false; double mux=0, muy=0, sx=0, sy=0, rho=0; };
+    auto fitTruncatedBvNormal = [&](const std::vector<std::pair<double,double>>& pts,
+                                    double init_mx, double init_my,
+                                    double init_sx, double init_sy,
+                                    double init_rho,
+                                    const HalfPlane &hp)->FitResult {
+        FitResult res; if (pts.size() < 10) return res;
+        // Negative log-likelihood
+        auto nll = [&](const double *p)->double{
+            double mx = p[0], my = p[1];
+            double sx = std::max(1e-3, p[2]);
+            double sy = std::max(1e-3, p[3]);
+            double rho= std::max(-0.999, std::min(0.999, p[4]));
+            double sxx = sx*sx, syy = sy*sy, sxy = rho*sx*sy;
+            double det = sxx*syy - sxy*sxy;
+            if (det <= 1e-12) return 1e30; // invalid covariance
+            // Sigma^{-1}
+            double inv00 =  syy / det;
+            double inv11 =  sxx / det;
+            double inv01 = -sxy / det;
+            double logNorm = std::log(2*M_PI) + 0.5*std::log(det);
+            // Truncation probability P = Phi(t)
+            double a0 = hp.ax, a1 = hp.ay; double b = hp.b;
+            double varAlong = a0*a0*sxx + 2*a0*a1*sxy + a1*a1*syy;
+            if (varAlong <= 1e-18) return 1e29;
+            double t = (b - (a0*mx + a1*my)) / std::sqrt(varAlong);
+            double P = ROOT::Math::normal_cdf(t);
+            if (P < 1e-12 || P>1.0) return 1e25; // outside support or numerical issues
+            double ll = 0.0;
+            for (const auto &pt : pts) {
+                double dx = pt.first  - mx;
+                double dy = pt.second - my;
+                double q = dx*(inv00*dx + inv01*dy) + dy*(inv01*dx + inv11*dy);
+                ll += -logNorm - 0.5*q;
+            }
+            // subtract normalization term for truncation
+            ll += - (double)pts.size() * std::log(P);
+            return -ll; // minimizer minimizes; we want to maximize ll
+        };
+
+        std::unique_ptr<ROOT::Math::Minimizer> min(ROOT::Math::Factory::CreateMinimizer("Minuit2", "Migrad"));
+        if (!min) return res;
+        min->SetMaxFunctionCalls(10000);
+        min->SetMaxIterations(1000);
+        min->SetTolerance(1e-4);
+        ROOT::Math::Functor f([&](const double* p){ return nll(p); }, 5);
+        min->SetFunction(f);
+        // Parameters: mx,my,sx,sy,rho
+        min->SetVariable(0, "mx",   init_mx, 0.05);
+        min->SetVariable(1, "my",   init_my, 0.05);
+        min->SetLimitedVariable(2, "sx", std::max(0.5, init_sx), 0.02, 0.1, 100.0);
+        min->SetLimitedVariable(3, "sy", std::max(0.5, init_sy), 0.02, 0.1, 100.0);
+        min->SetLimitedVariable(4, "rho", init_rho, 0.01, -0.95, 0.95);
+        bool ok = min->Minimize();
+        if (!ok) return res;
+        const double *xs = min->X();
+        res.ok  = true;
+        res.mux = xs[0]; res.muy = xs[1]; res.sx = xs[2]; res.sy = xs[3]; res.rho = xs[4];
+        return res;
+    };
 
     // --- Preload timestamps from event_info to support 10s spill grouping ---
     // Use 'timestamp' ticks at 20 ns -> 10 s corresponds to 500,000,000 ticks
     const long long SPILL_TICKS = 500000000LL; // 10 s at 50 MHz (20 ns ticks)
     const double    TICK_PERIOD_SEC = 20e-9;   // seconds per internal timestamp tick
+    const double    EXT_TICK_PERIOD_SEC = 64e-9; // seconds per EXTERNAL timestamp tick
     std::vector<long long> evtTimestamps; evtTimestamps.reserve(limit);
     std::vector<double> evtDeltaTimesSec; evtDeltaTimesSec.reserve(limit > 0 ? (size_t)limit-1 : 0); // consecutive event deltas (sec)
     long long t0Ticks = 0; bool haveSpillTimes = false;
@@ -800,12 +976,14 @@ int main(int argc, char* argv[]) {
                 h_recoCenter_2to3->Fill(cx, cy);
                 g_recoCenters_2to3->SetPoint(g_recoCenters_2to3->GetN(), cx, cy);
                 sumX_2to3 += cx; sumY_2to3 += cy; cnt_2to3++;
+                sumXX_2to3 += cx*cx; sumYY_2to3 += cy*cy; sumXY_2to3 += cx*cy;
                 selected2to3Count++;
                 // Additionally fill the exactly-3-clusters map when applicable
                 if (acceptExactlyThree) {
                     h_recoCenter_3->Fill(cx, cy);
                     g_recoCenters_3->SetPoint(g_recoCenters_3->GetN(), cx, cy);
                     sumX_3 += cx; sumY_3 += cy; cnt_3++;
+                    sumXX_3 += cx*cx; sumYY_3 += cy*cy; sumXY_3 += cx*cy;
                     selected3Count++;
                     // Clean sample A selection: widths <= cleanMaxWidth (D3 ignored)
                     if (w0>0 && w1>0 && w2>0 && w0<=cleanMaxWidth && w1<=cleanMaxWidth && w2<=cleanMaxWidth) {
@@ -931,8 +1109,8 @@ int main(int argc, char* argv[]) {
     if (!evtDeltaTimesSec.empty()) {
         double maxDt = *std::max_element(evtDeltaTimesSec.begin(), evtDeltaTimesSec.end());
         if (maxDt <= 0) maxDt = 1.0;
-        int nbins = 200;
-        h_evtDeltaT = new TH1F(Form("h_evtDeltaT_%s", runNumber.c_str()), Form("Delta between consecutive events (Run %s);#Delta t [s];Entries", runNumber.c_str()), nbins, 0.0, maxDt*1.05);
+    int nbins = 200;
+    h_evtDeltaT = new TH1F(Form("h_evtDeltaT_%s", runNumber.c_str()), Form("Delta between consecutive events (Run %s);#Delta t [s];Entries", runNumber.c_str()), nbins, 0.0, 2.0);
         for (double v : evtDeltaTimesSec) h_evtDeltaT->Fill(v);
         c_evtDeltaT = new TCanvas(Form("c_evtDeltaT_Run%s", runNumber.c_str()), Form("Event #Delta t (Run %s)", runNumber.c_str()), 800, 600);
         c_evtDeltaT->cd(); h_evtDeltaT->Draw(); c_evtDeltaT->Update();
@@ -950,10 +1128,13 @@ int main(int argc, char* argv[]) {
     // Build timestamp vs trigger NUMBER graph, and external timestamp vs trigger, if available
     TGraph *g_evtVsTime = nullptr;
     TCanvas *c_evtVsTime = nullptr;
-    double timeMin = 0, timeMax = 0;
+    double timeMin = 0, timeMax = 0; // minutes
     TGraph *g_extEvtVsTime = nullptr;
     TCanvas *c_extEvtVsTime = nullptr;
-    double extTimeMin = 0, extTimeMax = 0;
+    double extTimeMin = 0, extTimeMax = 0; // minutes
+    // New: external vs internal time
+    TGraph *g_extVsIntTime = nullptr;
+    TCanvas *c_extVsIntTime = nullptr;
     {
         // Prefer the new event_info tree if present
         TTree *infoT = (TTree*) input_root_file->Get("event_info");
@@ -969,24 +1150,28 @@ int main(int argc, char* argv[]) {
                 Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
                 g_evtVsTime = new TGraph();
                 g_evtVsTime->SetName("g_timeVsTriggerNumber");
-                g_evtVsTime->SetTitle(Form("Timestamp vs Trigger Number (Run %s);Time since start [ticks];Trigger Number", runNumber.c_str()));
+                // Inverted axes + convert ticks to minutes
+                g_evtVsTime->SetTitle(Form("Trigger Number vs Timestamp (Run %s);Trigger Number;Time since start [min]", runNumber.c_str()));
                 g_evtVsTime->SetMarkerStyle(20);
                 g_evtVsTime->SetMarkerSize(0.6);
                 Long64_t t0 = 0; bool t0set = false; timeMin = 0; timeMax = 0;
                 for (Long64_t i = 0; i < nToRead; ++i) {
                     infoT->GetEntry(i);
                     if (!t0set) { t0 = ts; t0set = true; }
-                    double dt = double((ts >= t0) ? (ts - t0) : 0LL);
-                    if (i == 0) { timeMin = dt; timeMax = dt; }
-                    else { if (dt < timeMin) timeMin = dt; if (dt > timeMax) timeMax = dt; }
-                    double y = hasTrigNum ? double(trigNum) : double(trigId);
-                    g_evtVsTime->SetPoint(g_evtVsTime->GetN(), dt, y);
+                    double dtTicks = double((ts >= t0) ? (ts - t0) : 0LL);
+                    double dtMin = dtTicks * TICK_PERIOD_SEC / 60.0; // minutes
+                    if (i == 0) { timeMin = dtMin; timeMax = dtMin; }
+                    else { if (dtMin < timeMin) timeMin = dtMin; if (dtMin > timeMax) timeMax = dtMin; }
+                    double xTrig = hasTrigNum ? double(trigNum) : double(trigId);
+                    // Invert axes: X=Trigger, Y=Time[min]
+                    g_evtVsTime->SetPoint(g_evtVsTime->GetN(), xTrig, dtMin);
                 }
                 c_evtVsTime = new TCanvas(Form("c_timeVsTriggerNumber_Run%s", runNumber.c_str()), Form("Timestamp vs Trigger Number (Run %s)", runNumber.c_str()), 800, 600);
                 c_evtVsTime->cd();
                 g_evtVsTime->Draw("AP");
                 if (timeMax > timeMin) {
-                    g_evtVsTime->GetXaxis()->SetLimits(timeMin - 0.01*(timeMax-timeMin), timeMax + 0.01*(timeMax-timeMin));
+                    double pad = 0.01 * (timeMax - timeMin);
+                    g_evtVsTime->GetYaxis()->SetRangeUser(timeMin - pad, timeMax + pad);
                 }
                 c_evtVsTime->Update();
                 LogInfo << "Built Timestamp vs Trigger Number graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
@@ -1000,27 +1185,72 @@ int main(int argc, char* argv[]) {
                 Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
                 g_extEvtVsTime = new TGraph();
                 g_extEvtVsTime->SetName("g_extTimeVsTriggerNumber");
-                g_extEvtVsTime->SetTitle(Form("External timestamp vs Trigger Number (Run %s);External time since start [ticks];Trigger Number", runNumber.c_str()));
+                // Inverted axes + convert ticks to minutes
+                g_extEvtVsTime->SetTitle(Form("Trigger Number vs External timestamp (Run %s);Trigger Number;External time since start [min]", runNumber.c_str()));
                 g_extEvtVsTime->SetMarkerStyle(20);
                 g_extEvtVsTime->SetMarkerSize(0.6);
                 Long64_t ext0 = 0; bool ext0set = false; extTimeMin = 0; extTimeMax = 0;
                 for (Long64_t i = 0; i < nToRead; ++i) {
                     infoT->GetEntry(i);
                     if (!ext0set) { ext0 = ext_ts; ext0set = true; }
-                    double dt = double((ext_ts >= ext0) ? (ext_ts - ext0) : 0LL);
-                    if (i == 0) { extTimeMin = dt; extTimeMax = dt; }
-                    else { if (dt < extTimeMin) extTimeMin = dt; if (dt > extTimeMax) extTimeMax = dt; }
-                    double y = hasTrigNum ? double(trigNum) : double(trigId);
-                    g_extEvtVsTime->SetPoint(g_extEvtVsTime->GetN(), dt, y);
+                    double dtTicks = double((ext_ts >= ext0) ? (ext_ts - ext0) : 0LL);
+                    double dtMin = dtTicks * EXT_TICK_PERIOD_SEC / 60.0; // minutes
+                    if (i == 0) { extTimeMin = dtMin; extTimeMax = dtMin; }
+                    else { if (dtMin < extTimeMin) extTimeMin = dtMin; if (dtMin > extTimeMax) extTimeMax = dtMin; }
+                    double xTrig = hasTrigNum ? double(trigNum) : double(trigId);
+                    // Invert axes: X=Trigger, Y=External Time[min]
+                    g_extEvtVsTime->SetPoint(g_extEvtVsTime->GetN(), xTrig, dtMin);
                 }
                 c_extEvtVsTime = new TCanvas(Form("c_extTimeVsTriggerNumber_Run%s", runNumber.c_str()), Form("External timestamp vs Trigger Number (Run %s)", runNumber.c_str()), 800, 600);
                 c_extEvtVsTime->cd();
                 g_extEvtVsTime->Draw("AP");
                 if (extTimeMax > extTimeMin) {
-                    g_extEvtVsTime->GetXaxis()->SetLimits(extTimeMin - 0.01*(extTimeMax-extTimeMin), extTimeMax + 0.01*(extTimeMax-extTimeMin));
+                    double pad = 0.01 * (extTimeMax - extTimeMin);
+                    g_extEvtVsTime->GetYaxis()->SetRangeUser(extTimeMin - pad, extTimeMax + pad);
                 }
                 c_extEvtVsTime->Update();
                 LogInfo << "Built External timestamp vs Trigger Number graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
+            }
+
+            // New: External timestamp vs Internal timestamp (both in minutes since start)
+            if (hasTs && hasExt) {
+                Long64_t nEvt = infoT->GetEntries();
+                Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
+                g_extVsIntTime = new TGraph();
+                g_extVsIntTime->SetName("g_extVsIntTime");
+                g_extVsIntTime->SetTitle(Form("External vs Internal time since start (Run %s);Internal time [min];External time [min]", runNumber.c_str()));
+                g_extVsIntTime->SetMarkerStyle(20);
+                g_extVsIntTime->SetMarkerSize(0.6);
+                Long64_t t0 = 0, ext0 = 0; bool t0set = false, ext0set = false;
+                double xmin = 0, xmax = 0, ymin = 0, ymax = 0;
+                for (Long64_t i = 0; i < nToRead; ++i) {
+                    infoT->GetEntry(i);
+                    if (!t0set) { t0 = ts; t0set = true; }
+                    if (!ext0set) { ext0 = ext_ts; ext0set = true; }
+                    double dtIntTicks = double((ts >= t0) ? (ts - t0) : 0LL);
+                    double dtExtTicks = double((ext_ts >= ext0) ? (ext_ts - ext0) : 0LL);
+                    double xMin = dtIntTicks * TICK_PERIOD_SEC / 60.0; // minutes
+                    double yMin = dtExtTicks * EXT_TICK_PERIOD_SEC / 60.0; // minutes
+                    if (i == 0) { xmin = xmax = xMin; ymin = ymax = yMin; }
+                    else {
+                        if (xMin < xmin) xmin = xMin; if (xMin > xmax) xmax = xMin;
+                        if (yMin < ymin) ymin = yMin; if (yMin > ymax) ymax = yMin;
+                    }
+                    g_extVsIntTime->SetPoint(g_extVsIntTime->GetN(), xMin, yMin);
+                }
+                c_extVsIntTime = new TCanvas(Form("c_extVsIntTime_Run%s", runNumber.c_str()), Form("External vs Internal time since start (Run %s)", runNumber.c_str()), 800, 600);
+                c_extVsIntTime->cd();
+                g_extVsIntTime->Draw("AP");
+                // Set sensible axis ranges
+                if (xmax > xmin) {
+                    double padx = 0.01 * (xmax - xmin);
+                    g_extVsIntTime->GetXaxis()->SetLimits(xmin - padx, xmax + padx);
+                }
+                if (ymax > ymin) {
+                    double pady = 0.01 * (ymax - ymin);
+                    g_extVsIntTime->GetYaxis()->SetRangeUser(ymin - pady, ymax + pady);
+                }
+                c_extVsIntTime->Update();
             }
         } else {
             // Legacy support: "events" TTree if present
@@ -1063,6 +1293,23 @@ int main(int argc, char* argv[]) {
         centerMarker3->SetMarkerColor(kRed);
         centerMarker3->SetMarkerSize(1.2);
         centerMarker3->Draw("SAME");
+        // Overlay active area polygon (intersection of three planes)
+        if (activePolyPts.size() >= 3) {
+            auto gpoly = new TGraph((int)activePolyPts.size()+1);
+            for (int ip=0; ip<(int)activePolyPts.size(); ++ip) gpoly->SetPoint(ip, activePolyPts[ip].first, activePolyPts[ip].second);
+            gpoly->SetPoint((int)activePolyPts.size(), activePolyPts[0].first, activePolyPts[0].second);
+            gpoly->SetLineColor(kBlack);
+            gpoly->SetLineWidth(2);
+            gpoly->SetFillStyle(0);
+            gpoly->Draw("L SAME");
+            // Legend, top-left
+            auto leg = new TLegend(0.22, 0.82, 0.52, 0.94);
+            leg->SetBorderSize(0);
+            leg->SetFillStyle(0);
+            leg->SetTextSize(0.028);
+            leg->AddEntry(gpoly, "Active area", "l");
+            leg->Draw();
+        }
     // Bottom projection X
     padBottom3->cd();
         TH1D *projX3 = h_recoCenter_3->ProjectionX("h_projX_3");
@@ -1091,7 +1338,7 @@ int main(int argc, char* argv[]) {
     {
     double pTrig23 = (triggeredEvents > 0) ? (100.0 * (double)selected2to3Count / (double)triggeredEvents) : 0.0;
     double pTot23  = (limit > 0) ? (100.0 * (double)selected2to3Count / (double)limit) : 0.0;
-    std::string title23 = Form("Tracking (2–3, w<=%d)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
+    std::string title23 = Form("Tracking (2 or 3 detectors, w<=%d)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
                     cleanMaxWidth, pTrig23, pTot23);
         h_recoCenter_2to3->SetTitle(title23.c_str());
 
@@ -1114,6 +1361,22 @@ int main(int argc, char* argv[]) {
         centerMarker23->SetMarkerColor(kRed);
         centerMarker23->SetMarkerSize(1.2);
         centerMarker23->Draw("SAME");
+        // Overlay active area polygon and 1-sigma ellipse (2-3 sample)
+        if (activePolyPts.size() >= 3) {
+            auto gpoly = new TGraph((int)activePolyPts.size()+1);
+            for (int ip=0; ip<(int)activePolyPts.size(); ++ip) gpoly->SetPoint(ip, activePolyPts[ip].first, activePolyPts[ip].second);
+            gpoly->SetPoint((int)activePolyPts.size(), activePolyPts[0].first, activePolyPts[0].second);
+            gpoly->SetLineColor(kBlack);
+            gpoly->SetLineWidth(2);
+            gpoly->SetFillStyle(0);
+            gpoly->Draw("L SAME");
+            auto leg = new TLegend(0.22, 0.82, 0.52, 0.94);
+            leg->SetBorderSize(0);
+            leg->SetFillStyle(0);
+            leg->SetTextSize(0.028);
+            leg->AddEntry(gpoly, "Active area", "l");
+            leg->Draw();
+        }
     // Bottom X projection
     padBottom23->cd();
         TH1D *projX23 = h_recoCenter_2to3->ProjectionX("h_projX_23");
@@ -1145,7 +1408,7 @@ int main(int argc, char* argv[]) {
     {
     double pTrig3 = (triggeredEvents > 0) ? (100.0 * (double)selected3Count / (double)triggeredEvents) : 0.0;
     double pTot3  = (limit > 0) ? (100.0 * (double)selected3Count / (double)limit) : 0.0;
-    std::string ttl3 = Form("Scatter (1/Det)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
+    std::string ttl3 = Form("Scatter (3 detectors)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
                  pTrig3, pTot3);
         TH2F *frame3 = new TH2F("frame3", ttl3.c_str(), 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
         frame3->SetStats(0);
@@ -1169,7 +1432,7 @@ int main(int argc, char* argv[]) {
     {
     double pTrig23 = (triggeredEvents > 0) ? (100.0 * (double)selected2to3Count / (double)triggeredEvents) : 0.0;
     double pTot23  = (limit > 0) ? (100.0 * (double)selected2to3Count / (double)limit) : 0.0;
-    std::string ttl23 = Form("Scatter (2–3)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
+    std::string ttl23 = Form("Scatter (2 or 3 detectors)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
                  pTrig23, pTot23);
         TH2F *frame23 = new TH2F("frame23", ttl23.c_str(), 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
         frame23->SetStats(0);
@@ -1410,8 +1673,9 @@ int main(int argc, char* argv[]) {
     // Clean sample scatter pages removed per request
 
     // Timestamp plots
-        if (c_evtVsTime != nullptr) { c_evtVsTime->Update(); c_evtVsTime->SaveAs(output_filename_report.c_str()); }
-        if (c_extEvtVsTime != nullptr) { c_extEvtVsTime->Update(); c_extEvtVsTime->SaveAs(output_filename_report.c_str()); }
+    if (c_evtVsTime != nullptr) { c_evtVsTime->Update(); c_evtVsTime->SaveAs(output_filename_report.c_str()); }
+    if (c_extEvtVsTime != nullptr) { c_extEvtVsTime->Update(); c_extEvtVsTime->SaveAs(output_filename_report.c_str()); }
+    if (c_extVsIntTime != nullptr) { c_extVsIntTime->Update(); c_extVsIntTime->SaveAs(output_filename_report.c_str()); }
         if (c_evtDeltaT != nullptr) { c_evtDeltaT->Update(); c_evtDeltaT->SaveAs(output_filename_report.c_str()); }
         if (c_spillGaps != nullptr) { c_spillGaps->Update(); c_spillGaps->SaveAs(output_filename_report.c_str()); }
 
