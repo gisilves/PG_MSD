@@ -158,11 +158,11 @@ do
     echo "Received a single file path ${fileName}"
     filePath="${inputDirectory}/${fileName}.dat"
   fi
-  if [ -f "${outputDirectory}/${fileName}.root" ]
+  if [ -f "${outputDirectory}/${fileName}_converted.root" ]
   then
-      echo "File ${outputDirectory}/${fileName}.root already exists. Skipping conversion."
+      echo "File ${outputDirectory}/${fileName}_converted.root already exists. Skipping conversion."
   else
-      convert_data="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}.root --dune"
+      convert_data="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --dune"
       echo "Executing command: "$convert_data
       $convert_data
   fi
@@ -198,15 +198,15 @@ do
     calBase=$(basename "$calRunPath")
     calBase=${calBase%.*}
     # Ensure previous CAL run converted and calibrated
-    if [ ! -f "${outputDirectory}/${calBase}.root" ]; then
+    if [ ! -f "${outputDirectory}/${calBase}_converted.root" ]; then
       echo "Converting previous CAL run for calibration: $calRunPath"
-      prev_convert_data="./PAPERO_convert ${calRunPath} ${outputDirectory}/${calBase}.root --dune"
+      prev_convert_data="./PAPERO_convert ${calRunPath} ${outputDirectory}/${calBase}_converted.root --dune"
       echo "Executing command: $prev_convert_data"
       $prev_convert_data
     fi
     if [ ! -f "${outputDirectory}/${calBase}.cal" ]; then
       echo "Extracting calibration from previous CAL run: ${calBase}.root"
-      prev_extract_cal="./calibration ${outputDirectory}/${calBase}.root --output ${outputDirectory}/${calBase} --dune --fast"
+      prev_extract_cal="./calibration ${outputDirectory}/${calBase}_converted.root --output ${outputDirectory}/${calBase} --dune --fast"
       echo "Executing command: $prev_extract_cal"
       $prev_extract_cal
     fi
@@ -237,15 +237,15 @@ do
       echo "Using next CAL run as fallback: $nextCalPath"
       calBase=$(basename "$nextCalPath")
       calBase=${calBase%.*}
-      if [ ! -f "${outputDirectory}/${calBase}.root" ]; then
+      if [ ! -f "${outputDirectory}/${calBase}_converted.root" ]; then
         echo "Converting next CAL run for calibration: $nextCalPath"
-        next_convert_data="./PAPERO_convert ${nextCalPath} ${outputDirectory}/${calBase}.root --dune"
+        next_convert_data="./PAPERO_convert ${nextCalPath} ${outputDirectory}/${calBase}_converted.root --dune"
         echo "Executing command: $next_convert_data"
         $next_convert_data
       fi
       if [ ! -f "${outputDirectory}/${calBase}.cal" ]; then
         echo "Extracting calibration from next CAL run: ${calBase}.root"
-        next_extract_cal="./calibration ${outputDirectory}/${calBase}.root --output ${outputDirectory}/${calBase} --dune --fast"
+        next_extract_cal="./calibration ${outputDirectory}/${calBase}_converted.root --output ${outputDirectory}/${calBase} --dune --fast"
         echo "Executing command: $next_extract_cal"
         $next_extract_cal
       fi
@@ -255,7 +255,7 @@ do
     # Fallback 2: if current run is CAL, ensure its calibration exists and use it
     if [ "$currentIsCAL" = true ]; then
       if [ ! -f "${outputDirectory}/${fileName}.cal" ]; then
-        extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName} --dune --fast"
+        extract_calibration="./calibration ${outputDirectory}/${fileName}_converted.root --output ${outputDirectory}/${fileName} --dune --fast"
         echo "Executing command: $extract_calibration"
         $extract_calibration
       fi
@@ -271,7 +271,7 @@ do
     if [ -f "${outputDirectory}/${fileName}.cal" ]; then
       echo "Calibration for current CAL run already exists: ${outputDirectory}/${fileName}.cal"
     else
-      extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName} --dune --fast"
+      extract_calibration="./calibration ${outputDirectory}/${fileName}_converted.root --output ${outputDirectory}/${fileName} --dune --fast"
       echo "Executing command: $extract_calibration"
       $extract_calibration
     fi
@@ -286,7 +286,7 @@ do
       continue
   fi
 
-  analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}.root -c ${calFileToUse} -o ${outputDirectory} -s ${nsigma} -n ${runit} -j ${settingsFile}"
+  analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}_converted.root -c ${calFileToUse} -o ${outputDirectory} -s ${nsigma} -n ${runit} -j ${settingsFile}"
   
   if [ "$verbose" = true ]
   then
