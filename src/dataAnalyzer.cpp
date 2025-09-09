@@ -18,6 +18,7 @@
 #include "TH2F.h"
 #include "TCanvas.h"
 #include "TGraph.h"
+#include "TProfile.h"
 #include "TApplication.h"
 #include "TStyle.h"
 #include "TSystem.h"
@@ -25,6 +26,8 @@
 #include "TLatex.h"
 #include "TLegend.h"
 #include "TEllipse.h"
+#include "TF1.h"
+#include "TPaveStats.h"
 #include "TF2.h"
 #include "Math/Factory.h"
 #include "Math/Minimizer.h"
@@ -46,6 +49,18 @@
 LoggerInit([]{
   Logger::getUserHeader() << "[" << FILENAME << "]";
 });
+
+// A more robust way to get the base name, removing known suffixes
+std::string GetBaseName(std::string const & path) {
+    std::string base = path.substr(path.find_last_of("/\\") + 1);
+    static const std::vector<std::string> suffixes = {"_converted.root", ".root"};
+    for (const auto& suffix : suffixes) {
+        if (base.size() > suffix.size() && base.substr(base.size() - suffix.size()) == suffix) {
+            return base.substr(0, base.size() - suffix.size());
+        }
+    }
+    return base;
+}
 
 int main(int argc, char* argv[]) {
 
@@ -194,21 +209,38 @@ int main(int argc, char* argv[]) {
     }
 
     // get trees with validation
-    const char* treeNames[4]   = {"raw_events", "raw_events_B", "raw_events_C", "raw_events_D"};
-    const char* branchNames[4] = {"RAW Event", "RAW Event B", "RAW Event C", "RAW Event D"};
+    // Accept new, legacy, and hybrid combinations per detector.
+    const char* newTreeNames[4]   = {"detector_0", "detector_1", "detector_2", "detector_3"};
+    const char* legacyTreeNames[4]= {"raw_events", "raw_events_B", "raw_events_C", "raw_events_D"};
+    const char* newBranchName = "RAW Event";
+    const char* legacyBranchNames[4] = {"RAW Event", "RAW Event B", "RAW Event C", "RAW Event D"};
     std::vector<TTree*> raw_events_trees; raw_events_trees.reserve(nDetectors);
+    const char* branchNames[4] = {nullptr,nullptr,nullptr,nullptr};
+    const char* treeNames[4]   = {nullptr,nullptr,nullptr,nullptr};
+    auto tryBind = [&](int i)->bool{
+        // 1) New tree + new branch
+        if (TTree* t = (TTree*)input_root_file->Get(newTreeNames[i])) {
+            if (t->GetBranch(newBranchName)) { raw_events_trees.emplace_back(t); branchNames[i]=newBranchName; treeNames[i]=newTreeNames[i]; return true; }
+            // 2) New tree + legacy branch
+            if (t->GetBranch(legacyBranchNames[i])) { raw_events_trees.emplace_back(t); branchNames[i]=legacyBranchNames[i]; treeNames[i]=newTreeNames[i]; return true; }
+        }
+        // 3) Legacy tree + new branch
+        if (TTree* t = (TTree*)input_root_file->Get(legacyTreeNames[i])) {
+            if (t->GetBranch(newBranchName)) { raw_events_trees.emplace_back(t); branchNames[i]=newBranchName; treeNames[i]=legacyTreeNames[i]; return true; }
+            // 4) Legacy tree + legacy branch
+            if (t->GetBranch(legacyBranchNames[i])) { raw_events_trees.emplace_back(t); branchNames[i]=legacyBranchNames[i]; treeNames[i]=legacyTreeNames[i]; return true; }
+        }
+        return false;
+    };
+    bool okAll = true; raw_events_trees.clear();
     for (int i=0;i<nDetectors;i++) {
-        TTree *t = (TTree*) input_root_file->Get(treeNames[i]);
-        if (!t) {
-            LogError << "Missing required TTree '" << treeNames[i] << "' in input ROOT file. Aborting to avoid crash." << std::endl;
-            return 1;
-        }
-        if (!t->GetBranch(branchNames[i])) {
-            LogError << "Missing required branch '" << branchNames[i] << "' in tree '" << treeNames[i] << "'. Aborting to avoid crash." << std::endl;
-            return 1;
-        }
-        raw_events_trees.emplace_back(t);
+        if (!tryBind(i)) { okAll=false; break; }
     }
+    if (!okAll) {
+        LogError << "Could not bind all detector trees/branches (new/legacy)." << std::endl;
+        return 1;
+    }
+    LogInfo << "Bound detector TTrees/branches (new/legacy/hybrid accepted)." << std::endl;
 
     LogInfo << "Got the trees" << std::endl;
 
@@ -411,6 +443,8 @@ int main(int argc, char* argv[]) {
     int hitsInEvent = 0;
     int triggeredEvents = 0; // events passing 2-or-3 cluster criterion (pre width cut)
     int eventsTwoDetOrMore = 0; // events where at least two detectors (D0..D2) have >=1 cluster (any multiplicity per detector)
+    int eventsTwoDetMultiCluster = 0; // events where at least two detectors among D0..D2 have >1 cluster
+    int eventsThreeDetMultiCluster = 0; // events where all three detectors among D0..D2 have >1 cluster
     long long selected2to3Count = 0; // events used in 2-or-3 display after width cut
     long long selected3Count = 0;    // events used in exactly-3 display after width cut
     int eventsWithHits = 0;   // events with at least one (masked) hit
@@ -507,7 +541,7 @@ int main(int argc, char* argv[]) {
     // 2D centers axis ranges; now sourced from parameters/geometry.json (if present)
     // Defaults aligned to requested view: X [-100, 30], Y [-60, 60]
     double centersXmin = -80.0, centersXmax = 50.0; // mm
-    double centersYmin = -60.0, centersYmax = 60.0; // mm
+    double centersYmin = -60.0, centersYmax = 70.0; // mm (increase y max to 70)
     if (!usedGeomPath.empty()) {
         try {
             std::ifstream finAx(usedGeomPath);
@@ -523,10 +557,10 @@ int main(int argc, char* argv[]) {
             }
         } catch (...) { /* keep defaults */ }
     }
-    // Enforce X min to -100 mm as requested
-    // Force X-axis range regardless of geometry file per request
-    centersXmin = -80.0;
-    centersXmax = 50.0;
+    // Enforce X/Y ranges regardless of geometry file per request
+    centersXmin = -80.0;     // mm
+    centersXmax = 60.0;      // set X max to 60 mm
+    centersYmax = 70.0;      // ensure Y max is 70 mm
 
     // Optional flip of the displayed Y coordinate (useful to have channel 0 at highest Y)
     bool flipY = false;
@@ -881,6 +915,11 @@ int main(int argc, char* argv[]) {
             if (c2.first > 0) h_clustersPerEvent[2]->Fill(c2.first);
             if (c3.first > 0) h_clustersPerEvent[3]->Fill(c3.first);
 
+            // Count multi-cluster cases: number of detectors with >1 cluster among D0..D2
+            int multiDetCnt = (c0.first >= 2) + (c1.first >= 2) + (c2.first >= 2);
+            if (multiDetCnt >= 2) eventsTwoDetMultiCluster++;
+            if (multiDetCnt == 3) eventsThreeDetMultiCluster++;
+
             // Rolling 10s spills anchored at first event-WITH-HITS; new spill starts at next event-with-hits after previous window closes
             if (haveSpillTimes && entryit < (int)evtTimestamps.size()) {
                 // event considered "with hits" if any detector has at least one hit
@@ -1008,9 +1047,11 @@ int main(int argc, char* argv[]) {
             }
             }
     }
-    // Fill hits-per-event with the number of masked triggered hits (not cluster-gated)
-    h_hitsInEvent->Fill(eventHitsMasked);
-    if (eventHitsMasked > 0) { eventsWithHits++; }
+    // Fill hits-per-event only for events with hits (>0), as requested
+    if (eventHitsMasked > 0) {
+        h_hitsInEvent->Fill(eventHitsMasked);
+        eventsWithHits++;
+    }
     // Do not constrain other histograms; only centers are gated by the cluster criterion
 
         if (debug) this_event->PrintValidHits();      
@@ -1103,27 +1144,117 @@ int main(int argc, char* argv[]) {
 
     TCanvas *c_hitsInEvent = new TCanvas(Form("c_hitsInEvent_Run%s", runNumber.c_str()), Form("Hits in Event (Run %s)", runNumber.c_str()), 800, 600);
 
+    // --- New: 4x4 overlay pages for baseline, sigma, and amplitude-vs-channel profiles ---
+    // Common styles/colors for detectors
+    int detColors[4] = { kBlue+1, kRed+1, kGreen+2, kMagenta+1 };
+    int detMarkers[4] = { 20, 21, 22, 23 };
+    const int chunks = 16; // 4x4 grid
+    const int chunkSize = (nChannels + chunks - 1) / chunks; // ~24
+
+    // Baseline: single overlay across full channel range
+    TCanvas *c_baseline_all = new TCanvas(Form("c_baseline_all_Run%s", runNumber.c_str()), Form("Baseline (all channels) - Run %s", runNumber.c_str()), 900, 600);
+    c_baseline_all->cd();
+    {
+        // Auto y-range from all detectors
+        double yMin = 1e300, yMax = -1e300;
+        for (int d=0; d<4; ++d) { for (int ch=0; ch<nChannels; ++ch) { double v = baseline.at(d).at(ch); if (v<yMin) yMin=v; if (v>yMax) yMax=v; } }
+        if (!(yMax>yMin)) { yMin=0; yMax=1; }
+        double pad = 0.05*(yMax-yMin+1e-6);
+        TH1F *frame = new TH1F("frame_base_all", Form("Baseline vs channel - Run %s;Channel;Baseline", runNumber.c_str()), nChannels, 0, nChannels);
+        frame->SetStats(0);
+        frame->GetYaxis()->SetRangeUser(yMin-pad, yMax+pad);
+        frame->Draw();
+        auto leg = new TLegend(0.70, 0.78, 0.95, 0.94); leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.03);
+        for (int d=0; d<4; ++d) { auto gr=g_baseline->at(d); gr->SetMarkerStyle(detMarkers[d]); gr->SetMarkerSize(0.6); gr->SetMarkerColor(detColors[d]); gr->SetLineColor(detColors[d]); gr->Draw("P SAME"); leg->AddEntry(gr, Form("D%d", d), "lp"); }
+        leg->Draw();
+    }
+
+    // Baseline 4x4 overlay removed per request
+
+    // Sigma: single overlay across full channel range
+    TCanvas *c_sigma_all = new TCanvas(Form("c_sigma_all_Run%s", runNumber.c_str()), Form("Sigma (all channels) - Run %s", runNumber.c_str()), 900, 600);
+    c_sigma_all->cd();
+    {
+        double yMin = 1e300, yMax = -1e300;
+        for (int d=0; d<4; ++d) { for (int ch=0; ch<nChannels; ++ch) { double v = baseline_sigma.at(d).at(ch); if (v<yMin) yMin=v; if (v>yMax) yMax=v; } }
+        if (!(yMax>yMin)) { yMin=0; yMax=1; }
+        double pad = 0.05*(yMax-yMin+1e-6);
+        TH1F *frame = new TH1F("frame_sigma_all", Form("Sigma vs channel - Run %s;Channel;Sigma", runNumber.c_str()), nChannels, 0, nChannels);
+        frame->SetStats(0);
+        frame->GetYaxis()->SetRangeUser(yMin-pad, yMax+pad);
+        frame->Draw();
+        auto leg = new TLegend(0.70, 0.78, 0.95, 0.94); leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.03);
+        for (int d=0; d<4; ++d) { auto gr=g_sigma->at(d); gr->SetMarkerStyle(detMarkers[d]); gr->SetMarkerSize(0.6); gr->SetMarkerColor(detColors[d]); gr->SetLineColor(detColors[d]); gr->Draw("P SAME"); leg->AddEntry(gr, Form("D%d", d), "lp"); }
+        leg->Draw();
+    }
+
+    // Sigma 4x4 overlay removed per request
+
+    // Amplitude vs Channel: use mean amplitude per channel via TProfile and overlay
+    std::vector<TProfile*> profAmp(4, nullptr);
+    for (int d=0; d<4; ++d) {
+        profAmp[d] = h_amplitudeVsChannel->at(d)->ProfileX(Form("p_amp_D%d", d));
+        if (profAmp[d]) { profAmp[d]->SetLineColor(detColors[d]); profAmp[d]->SetMarkerColor(detColors[d]); profAmp[d]->SetMarkerStyle(detMarkers[d]); profAmp[d]->SetMarkerSize(0.6); profAmp[d]->SetLineWidth(2); }
+    }
+    // Amplitude: single overlay of mean amplitude per channel across full range
+    TCanvas *c_ampl_all = new TCanvas(Form("c_amp_all_Run%s", runNumber.c_str()), Form("Mean amplitude (all channels) - Run %s", runNumber.c_str()), 900, 600);
+    c_ampl_all->cd();
+    {
+        double yMin = 1e300, yMax = -1e300;
+        for (int d=0; d<4; ++d) if (profAmp[d]) { for (int ch=1; ch<=nChannels; ++ch) { double v = profAmp[d]->GetBinContent(ch); if (v==0) continue; if (v<yMin) yMin=v; if (v>yMax) yMax=v; } }
+        if (!(yMax>yMin)) { yMin=0; yMax=1; }
+        double pad = 0.10*(yMax-yMin+1e-6);
+        TH1F *frame = new TH1F("frame_amp_all", Form("Mean amplitude vs channel - Run %s;Channel;Mean amplitude", runNumber.c_str()), nChannels, 0, nChannels);
+        frame->SetStats(0);
+        frame->GetYaxis()->SetRangeUser(yMin-pad, yMax+pad);
+        frame->Draw();
+        auto leg = new TLegend(0.70, 0.78, 0.95, 0.94); leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.03);
+        for (int d=0; d<4; ++d) if (profAmp[d]) { profAmp[d]->Draw("P SAME"); leg->AddEntry(profAmp[d], Form("D%d", d), "lp"); }
+        leg->Draw();
+    }
+
+    TCanvas *c_ampl_4x4 = new TCanvas(Form("c_amp4x4_Run%s", runNumber.c_str()), Form("Amplitude mean (4x4 slices) - Run %s", runNumber.c_str()), 1200, 900);
+    c_ampl_4x4->Divide(4,4);
+    for (int chIt=0; chIt<chunks; ++chIt) {
+        int s = chIt * chunkSize;
+        int e = std::min(nChannels, s + chunkSize);
+        if (s >= e) break;
+        c_ampl_4x4->cd(chIt+1);
+        double yMin = 1e300, yMax = -1e300;
+        for (int d=0; d<4; ++d) {
+            if (!profAmp[d]) continue;
+            for (int ch=s; ch<e; ++ch) {
+                int bin = ch+1;
+                double v = profAmp[d]->GetBinContent(bin);
+                if (v == 0) continue; // ignore empty
+                if (v < yMin) yMin = v; if (v > yMax) yMax = v;
+            }
+        }
+        if (!(yMax > yMin)) { yMin = 0; yMax = 1; }
+        double pad = 0.10 * (yMax - yMin + 1e-6);
+        TH1F *frame = new TH1F(Form("frame_amp_%d", chIt), Form("Mean amplitude ch [%d,%d) - Run %s;Channel;Mean amplitude", s, e-1, runNumber.c_str()), e-s, s, e);
+        frame->SetStats(0);
+        frame->GetYaxis()->SetRangeUser(yMin - pad, yMax + pad);
+        frame->Draw();
+        for (int d=0; d<4; ++d) { if (profAmp[d]) profAmp[d]->Draw("P SAME"); }
+        auto leg = new TLegend(0.60, 0.78, 0.95, 0.94);
+        leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.030);
+        for (int d=0; d<4; ++d) if (profAmp[d]) leg->AddEntry(profAmp[d], Form("D%d", d), "lp");
+        leg->Draw();
+    }
+
     // --- New plots: time distances ---
     TH1F *h_evtDeltaT = nullptr; TCanvas *c_evtDeltaT = nullptr;
-    TH1F *h_spillGaps = nullptr; TCanvas *c_spillGaps = nullptr;
     if (!evtDeltaTimesSec.empty()) {
         double maxDt = *std::max_element(evtDeltaTimesSec.begin(), evtDeltaTimesSec.end());
         if (maxDt <= 0) maxDt = 1.0;
     int nbins = 200;
-    h_evtDeltaT = new TH1F(Form("h_evtDeltaT_%s", runNumber.c_str()), Form("Delta between consecutive events (Run %s);#Delta t [s];Entries", runNumber.c_str()), nbins, 0.0, 2.0);
+    h_evtDeltaT = new TH1F(Form("h_evtDeltaT_%s", runNumber.c_str()), Form("Delta between consecutive events (Run %s);#Delta t [s];Entries", runNumber.c_str()), nbins, 0.0, 0.5);
         for (double v : evtDeltaTimesSec) h_evtDeltaT->Fill(v);
         c_evtDeltaT = new TCanvas(Form("c_evtDeltaT_Run%s", runNumber.c_str()), Form("Event #Delta t (Run %s)", runNumber.c_str()), 800, 600);
         c_evtDeltaT->cd(); h_evtDeltaT->Draw(); c_evtDeltaT->Update();
     }
-    if (!spillGapSec.empty()) {
-        double maxGap = *std::max_element(spillGapSec.begin(), spillGapSec.end());
-        if (maxGap <= 0) maxGap = 1.0;
-        int nbins = 100;
-        h_spillGaps = new TH1F(Form("h_spillGaps_%s", runNumber.c_str()), Form("Gap between 10 s spills (Run %s);Gap [s];Entries", runNumber.c_str()), nbins, 0.0, maxGap*1.05);
-        for (double v : spillGapSec) h_spillGaps->Fill(v);
-        c_spillGaps = new TCanvas(Form("c_spillGaps_Run%s", runNumber.c_str()), Form("Spill gap #Delta t (Run %s)", runNumber.c_str()), 800, 600);
-        c_spillGaps->cd(); h_spillGaps->Draw(); c_spillGaps->Update();
-    }
+    // Requested: remove the "gap between 10s spills" plot entirely
 
     // Build timestamp vs trigger NUMBER graph, and external timestamp vs trigger, if available
     TGraph *g_evtVsTime = nullptr;
@@ -1136,6 +1267,35 @@ int main(int argc, char* argv[]) {
     TGraph *g_extVsIntTime = nullptr;
     TCanvas *c_extVsIntTime = nullptr;
     {
+        // Parse start time from input_root_filename (add +2h for CEST) to embed in titles
+    auto buildSinceLabel = [&](const std::string &fname)->std::string{
+            std::string base = fname.substr(fname.find_last_of("/\\") + 1);
+            size_t posTime = base.rfind('_');
+            auto isAllDigits = [](const std::string &s){ return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit); };
+            if (posTime != std::string::npos && posTime+1 < base.size()) {
+                std::string timeTok = base.substr(posTime+1); // HHMMSS(.root)
+                size_t dot = timeTok.find('.'); if (dot != std::string::npos) timeTok = timeTok.substr(0,dot);
+                std::string beforeTime = base.substr(0, posTime);
+                size_t posDate = beforeTime.rfind('_');
+                if (posDate != std::string::npos && posDate+1 < beforeTime.size()) {
+                    std::string dateTok = beforeTime.substr(posDate+1); // YYYYMMDD
+                    if (dateTok.size()==8 && timeTok.size()>=4 && isAllDigits(dateTok) && isAllDigits(timeTok)) {
+                        int year = std::stoi(dateTok.substr(0,4));
+                        int month = std::stoi(dateTok.substr(4,2));
+                        int day = std::stoi(dateTok.substr(6,2));
+                        int hour = std::stoi(timeTok.substr(0,2));
+                        int minute = std::stoi(timeTok.substr(2,2));
+                        auto isLeap = [](int y){ return (y%4==0 && y%100!=0) || (y%400==0); };
+                        auto daysInMonth = [&](int y,int m){ static int d[12]={31,28,31,30,31,30,31,31,30,31,30,31}; return m==2 ? (isLeap(y)?29:28) : d[m-1]; };
+                        hour += 2; if (hour >= 24) { hour -= 24; day += 1; int dim = daysInMonth(year,month); if (day>dim){ day=1; month+=1; if (month>12){ month=1; year+=1; } } }
+                        return std::string(Form("since %04d-%02d-%02d %02d:%02d CEST", year, month, day, hour, minute));
+                    }
+                }
+            }
+            // Avoid generic 'start' per request; fallback to a generic CEST label
+            return std::string("since unknown CEST");
+        };
+        std::string sinceLabel = buildSinceLabel(input_root_filename);
         // Prefer the new event_info tree if present
         TTree *infoT = (TTree*) input_root_file->Get("event_info");
         if (infoT != nullptr) {
@@ -1150,8 +1310,10 @@ int main(int argc, char* argv[]) {
                 Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
                 g_evtVsTime = new TGraph();
                 g_evtVsTime->SetName("g_timeVsTriggerNumber");
-                // Inverted axes + convert ticks to minutes
-                g_evtVsTime->SetTitle(Form("Trigger Number vs Timestamp (Run %s);Trigger Number;Time since start [min]", runNumber.c_str()));
+                // Time since start on X; concise title includes run number
+                g_evtVsTime->SetTitle(Form("Time since beginning of run, internal timestamp - Run %s", runNumber.c_str()));
+                g_evtVsTime->GetXaxis()->SetTitle("Internal time [min]");
+                g_evtVsTime->GetYaxis()->SetTitle("Trigger Number");
                 g_evtVsTime->SetMarkerStyle(20);
                 g_evtVsTime->SetMarkerSize(0.6);
                 Long64_t t0 = 0; bool t0set = false; timeMin = 0; timeMax = 0;
@@ -1163,17 +1325,18 @@ int main(int argc, char* argv[]) {
                     if (i == 0) { timeMin = dtMin; timeMax = dtMin; }
                     else { if (dtMin < timeMin) timeMin = dtMin; if (dtMin > timeMax) timeMax = dtMin; }
                     double xTrig = hasTrigNum ? double(trigNum) : double(trigId);
-                    // Invert axes: X=Trigger, Y=Time[min]
-                    g_evtVsTime->SetPoint(g_evtVsTime->GetN(), xTrig, dtMin);
+                    // Inverted: X=Time[min], Y=Trigger
+                    g_evtVsTime->SetPoint(g_evtVsTime->GetN(), dtMin, xTrig);
                 }
                 c_evtVsTime = new TCanvas(Form("c_timeVsTriggerNumber_Run%s", runNumber.c_str()), Form("Timestamp vs Trigger Number (Run %s)", runNumber.c_str()), 800, 600);
                 c_evtVsTime->cd();
                 g_evtVsTime->Draw("AP");
                 if (timeMax > timeMin) {
                     double pad = 0.01 * (timeMax - timeMin);
-                    g_evtVsTime->GetYaxis()->SetRangeUser(timeMin - pad, timeMax + pad);
+                    g_evtVsTime->GetXaxis()->SetLimits(timeMin - pad, timeMax + pad);
                 }
                 c_evtVsTime->Update();
+                LogInfo << "Internal time span (min): [" << timeMin << ", " << timeMax << "]" << std::endl;
                 LogInfo << "Built Timestamp vs Trigger Number graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
             } else if (hasTs && !(hasTrigNum || hasTrigId)) {
                 LogWarning << "'event_info' TTree has no trigger_number or trigger_id. Skipping Timestamp vs Trigger plot." << std::endl;
@@ -1185,8 +1348,10 @@ int main(int argc, char* argv[]) {
                 Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
                 g_extEvtVsTime = new TGraph();
                 g_extEvtVsTime->SetName("g_extTimeVsTriggerNumber");
-                // Inverted axes + convert ticks to minutes
-                g_extEvtVsTime->SetTitle(Form("Trigger Number vs External timestamp (Run %s);Trigger Number;External time since start [min]", runNumber.c_str()));
+                // Time since start on X; concise title includes run number
+                g_extEvtVsTime->SetTitle(Form("Time since beginning of run, external timestamp - Run %s", runNumber.c_str()));
+                g_extEvtVsTime->GetXaxis()->SetTitle("External time [min]");
+                g_extEvtVsTime->GetYaxis()->SetTitle("Trigger Number");
                 g_extEvtVsTime->SetMarkerStyle(20);
                 g_extEvtVsTime->SetMarkerSize(0.6);
                 Long64_t ext0 = 0; bool ext0set = false; extTimeMin = 0; extTimeMax = 0;
@@ -1198,17 +1363,18 @@ int main(int argc, char* argv[]) {
                     if (i == 0) { extTimeMin = dtMin; extTimeMax = dtMin; }
                     else { if (dtMin < extTimeMin) extTimeMin = dtMin; if (dtMin > extTimeMax) extTimeMax = dtMin; }
                     double xTrig = hasTrigNum ? double(trigNum) : double(trigId);
-                    // Invert axes: X=Trigger, Y=External Time[min]
-                    g_extEvtVsTime->SetPoint(g_extEvtVsTime->GetN(), xTrig, dtMin);
+                    // Inverted: X=External Time[min], Y=Trigger
+                    g_extEvtVsTime->SetPoint(g_extEvtVsTime->GetN(), dtMin, xTrig);
                 }
                 c_extEvtVsTime = new TCanvas(Form("c_extTimeVsTriggerNumber_Run%s", runNumber.c_str()), Form("External timestamp vs Trigger Number (Run %s)", runNumber.c_str()), 800, 600);
                 c_extEvtVsTime->cd();
                 g_extEvtVsTime->Draw("AP");
                 if (extTimeMax > extTimeMin) {
                     double pad = 0.01 * (extTimeMax - extTimeMin);
-                    g_extEvtVsTime->GetYaxis()->SetRangeUser(extTimeMin - pad, extTimeMax + pad);
+                    g_extEvtVsTime->GetXaxis()->SetLimits(extTimeMin - pad, extTimeMax + pad);
                 }
                 c_extEvtVsTime->Update();
+                LogInfo << "External time span (min): [" << extTimeMin << ", " << extTimeMax << "]" << std::endl;
                 LogInfo << "Built External timestamp vs Trigger Number graph from 'event_info' TTree (" << nToRead << " points)." << std::endl;
             }
 
@@ -1218,7 +1384,7 @@ int main(int argc, char* argv[]) {
                 Long64_t nToRead = std::min<Long64_t>(nEvt, limit);
                 g_extVsIntTime = new TGraph();
                 g_extVsIntTime->SetName("g_extVsIntTime");
-                g_extVsIntTime->SetTitle(Form("External vs Internal time since start (Run %s);Internal time [min];External time [min]", runNumber.c_str()));
+                g_extVsIntTime->SetTitle(Form("Internal vs external timestamps (in ticks) - Run %s;Internal time [min];External time [min]", runNumber.c_str()));
                 g_extVsIntTime->SetMarkerStyle(20);
                 g_extVsIntTime->SetMarkerSize(0.6);
                 Long64_t t0 = 0, ext0 = 0; bool t0set = false, ext0set = false;
@@ -1263,16 +1429,27 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // Helper to map user coordinates to NDC inside a pad (for stat box placement)
+    auto userToNDC = [&](TPad* pad, double ux, double uy){
+        double uxmin = pad->GetUxmin();
+        double uxmax = pad->GetUxmax();
+        double uymin = pad->GetUymin();
+        double uymax = pad->GetUymax();
+        double xndc = pad->GetLeftMargin() + (ux-uxmin)/(uxmax-uxmin) * (1.0 - pad->GetLeftMargin() - pad->GetRightMargin());
+        double yndc = pad->GetBottomMargin() + (uy-uymin)/(uymax-uymin) * (1.0 - pad->GetTopMargin() - pad->GetBottomMargin());
+        return std::pair<double,double>(xndc, yndc);
+    };
+
     // Update 2D heatmap titles with percentages and prepare canvases with projections
     {
     double pTrig3 = (triggeredEvents > 0) ? (100.0 * (double)selected3Count / (double)triggeredEvents) : 0.0;
     double pTot3  = (limit > 0) ? (100.0 * (double)selected3Count / (double)limit) : 0.0;
-    std::string title3 = Form("Tracking (1/Det)  [%.1f%% triggers %.1f%% all];",
-                   pTrig3, pTot3);
+    std::string title3 = Form("Tracking (1 cluster/Det) [%.1f%% of events with hits, %.1f%% of all events] - Run %s;",
+                   pTrig3, pTot3, runNumber.c_str());
         h_recoCenter_3->SetTitle(title3.c_str());
 
     // Build canvas with main pad + bottom (ProjectionX) + left (ProjectionY)
-    TCanvas *c = new TCanvas("c_recoCenter_3", " (exactly 3)", 980, 820);
+    TCanvas *c = new TCanvas("c_recoCenter_3", Form("Exactly 3 (Run %s)", runNumber.c_str()), 980, 820);
     // Pads: left (0,0.2)-(0.2,1), bottom (0.2,0)-(1,0.2), main (0.2,0.2)-(1,1)
     TPad *padLeft3   = new TPad("padLeft3",   "padLeft3",   0.0, 0.2, 0.2, 1.0);
     TPad *padBottom3 = new TPad("padBottom3", "padBottom3", 0.2, 0.0, 1.0, 0.2);
@@ -1283,7 +1460,7 @@ int main(int argc, char* argv[]) {
     padLeft3->SetRightMargin(0.05); padLeft3->SetTopMargin(0.05); padLeft3->SetBottomMargin(0.12); padLeft3->SetLeftMargin(0.28);
     c->cd();
     padMain3->Draw(); padBottom3->Draw(); padLeft3->Draw();
-        // Main 2D plot
+    // Main 2D plot
         padMain3->cd();
     h_recoCenter_3->GetXaxis()->SetTitle("X [mm]");
     h_recoCenter_3->GetYaxis()->SetTitle("Y [mm]");
@@ -1302,13 +1479,46 @@ int main(int argc, char* argv[]) {
             gpoly->SetLineWidth(2);
             gpoly->SetFillStyle(0);
             gpoly->Draw("L SAME");
-            // Legend, top-left
-            auto leg = new TLegend(0.22, 0.82, 0.52, 0.94);
+            // Legend moved a bit lower, within the plot
+            auto leg = new TLegend(0.30, 0.68, 0.58, 0.82);
             leg->SetBorderSize(0);
             leg->SetFillStyle(0);
             leg->SetTextSize(0.028);
-            leg->AddEntry(gpoly, "Active area", "l");
+            leg->AddEntry(gpoly, "Active area with all 3 detectors", "l");
             leg->Draw();
+        }
+        // Place stats box within x=[30,60] mm and high in Y avoiding palette/right margin
+        padMain3->Modified(); padMain3->Update();
+        if (auto st = dynamic_cast<TPaveStats*>(h_recoCenter_3->GetListOfFunctions()->FindObject("stats"))) {
+            double x1u = 30.0, x2u = 60.0; // mm
+            double y2u = centersYmax - 5.0; // slightly below top
+            double y1u = y2u - 15.0;        // base box height in user units (before scaling)
+            auto p1 = userToNDC(padMain3, x1u, y1u);
+            auto p2 = userToNDC(padMain3, x2u, y2u);
+            // Ensure we don't encroach into the right margin/palette
+            double eps = 0.01;
+            double rightLimit = 1.0 - padMain3->GetRightMargin() - eps;
+            if (p2.first > rightLimit) { double shift = p2.first - rightLimit; p1.first -= shift; p2.first -= shift; }
+            // Desired vertical scale: 3x current height
+            double topLimit = 1.0 - padMain3->GetTopMargin() - eps;
+            double bottomPad = padMain3->GetBottomMargin();
+            double availHeight = topLimit - bottomPad;
+            double baseH = p2.second - p1.second;
+            double desiredH = 3.0 * baseH;
+            // Clamp desired height to available space
+            if (desiredH > 0.95 * availHeight) desiredH = 0.95 * availHeight;
+            // Keep the top anchored near y2 and expand downward
+            if (p2.second > topLimit) p2.second = topLimit;
+            double newY1 = p2.second - desiredH;
+            // Keep above ~70% height to avoid polygon region
+            double minY = padMain3->GetBottomMargin() + 0.70*(1.0 - padMain3->GetTopMargin() - padMain3->GetBottomMargin());
+            if (newY1 < minY) newY1 = minY;
+            // Ensure we still fit under the top limit
+            double newY2 = newY1 + desiredH;
+            if (newY2 > topLimit) { double dy = newY2 - topLimit; newY1 -= dy; newY2 -= dy; }
+            // Apply
+            st->SetX1NDC(p1.first); st->SetX2NDC(p2.first);
+            st->SetY1NDC(newY1);    st->SetY2NDC(newY2);
         }
     // Bottom projection X
     padBottom3->cd();
@@ -1338,11 +1548,11 @@ int main(int argc, char* argv[]) {
     {
     double pTrig23 = (triggeredEvents > 0) ? (100.0 * (double)selected2to3Count / (double)triggeredEvents) : 0.0;
     double pTot23  = (limit > 0) ? (100.0 * (double)selected2to3Count / (double)limit) : 0.0;
-    std::string title23 = Form("Tracking (2 or 3 detectors, w<=%d)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
-                    cleanMaxWidth, pTrig23, pTot23);
+    std::string title23 = Form("Tracking (2/3 clusters, 1/detector) [%.1f%% of events with hits, %.1f%% of all events] - Run %s;X [mm];Y [mm]",
+                    pTrig23, pTot23, runNumber.c_str());
         h_recoCenter_2to3->SetTitle(title23.c_str());
 
-    TCanvas *c = new TCanvas("c_recoCenter_2to3", " (2 or 3)", 980, 820);
+    TCanvas *c = new TCanvas("c_recoCenter_2to3", Form("2 or 3 (Run %s)", runNumber.c_str()), 980, 820);
     TPad *padLeft23   = new TPad("padLeft23",   "padLeft23",   0.0, 0.2, 0.2, 1.0);
     TPad *padBottom23 = new TPad("padBottom23", "padBottom23", 0.2, 0.0, 1.0, 0.2);
     TPad *padMain23   = new TPad("padMain23",   "padMain23",   0.2, 0.2, 1.0, 1.0);
@@ -1352,7 +1562,7 @@ int main(int argc, char* argv[]) {
     padLeft23->SetRightMargin(0.05); padLeft23->SetTopMargin(0.05); padLeft23->SetBottomMargin(0.12); padLeft23->SetLeftMargin(0.28);
     c->cd();
     padMain23->Draw(); padBottom23->Draw(); padLeft23->Draw();
-        // Main 2D plot
+    // Main 2D plot
         padMain23->cd();
     h_recoCenter_2to3->GetXaxis()->SetTitle("X [mm]");
     h_recoCenter_2to3->GetYaxis()->SetTitle("Y [mm]");
@@ -1370,12 +1580,39 @@ int main(int argc, char* argv[]) {
             gpoly->SetLineWidth(2);
             gpoly->SetFillStyle(0);
             gpoly->Draw("L SAME");
-            auto leg = new TLegend(0.22, 0.82, 0.52, 0.94);
+            auto leg = new TLegend(0.30, 0.68, 0.58, 0.82);
             leg->SetBorderSize(0);
             leg->SetFillStyle(0);
             leg->SetTextSize(0.028);
-            leg->AddEntry(gpoly, "Active area", "l");
+            leg->AddEntry(gpoly, "Active area with all 3 detectors", "l");
             leg->Draw();
+        }
+        // Reposition stats box similarly with mapping from user to NDC
+        padMain23->Modified(); padMain23->Update();
+        if (auto st = dynamic_cast<TPaveStats*>(h_recoCenter_2to3->GetListOfFunctions()->FindObject("stats"))) {
+            double x1u = 30.0, x2u = 60.0; // mm
+            double y2u = centersYmax - 5.0; // slightly below top
+            double y1u = y2u - 15.0;        // base box height in user units (before scaling)
+            auto p1 = userToNDC(padMain23, x1u, y1u);
+            auto p2 = userToNDC(padMain23, x2u, y2u);
+            double eps = 0.01;
+            double rightLimit = 1.0 - padMain23->GetRightMargin() - eps;
+            if (p2.first > rightLimit) { double shift = p2.first - rightLimit; p1.first -= shift; p2.first -= shift; }
+            // Desired vertical scale: 3x current height
+            double topLimit = 1.0 - padMain23->GetTopMargin() - eps;
+            double bottomPad = padMain23->GetBottomMargin();
+            double availHeight = topLimit - bottomPad;
+            double baseH = p2.second - p1.second;
+            double desiredH = 3.0 * baseH;
+            if (desiredH > 0.95 * availHeight) desiredH = 0.95 * availHeight;
+            if (p2.second > topLimit) p2.second = topLimit;
+            double newY1 = p2.second - desiredH;
+            double minY = padMain23->GetBottomMargin() + 0.70*(1.0 - padMain23->GetTopMargin() - padMain23->GetBottomMargin());
+            if (newY1 < minY) newY1 = minY;
+            double newY2 = newY1 + desiredH;
+            if (newY2 > topLimit) { double dy = newY2 - topLimit; newY1 -= dy; newY2 -= dy; }
+            st->SetX1NDC(p1.first); st->SetX2NDC(p2.first);
+            st->SetY1NDC(newY1);    st->SetY2NDC(newY2);
         }
     // Bottom X projection
     padBottom23->cd();
@@ -1408,8 +1645,8 @@ int main(int argc, char* argv[]) {
     {
     double pTrig3 = (triggeredEvents > 0) ? (100.0 * (double)selected3Count / (double)triggeredEvents) : 0.0;
     double pTot3  = (limit > 0) ? (100.0 * (double)selected3Count / (double)limit) : 0.0;
-    std::string ttl3 = Form("Scatter (3 detectors)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
-                 pTrig3, pTot3);
+    std::string ttl3 = Form("Clusters (3 detectors) [%.1f%% of events with hits, %.1f%% of all events] - Run %s;X [mm];Y [mm]",
+                 pTrig3, pTot3, runNumber.c_str());
         TH2F *frame3 = new TH2F("frame3", ttl3.c_str(), 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
         frame3->SetStats(0);
         frame3->Draw();
@@ -1432,8 +1669,8 @@ int main(int argc, char* argv[]) {
     {
     double pTrig23 = (triggeredEvents > 0) ? (100.0 * (double)selected2to3Count / (double)triggeredEvents) : 0.0;
     double pTot23  = (limit > 0) ? (100.0 * (double)selected2to3Count / (double)limit) : 0.0;
-    std::string ttl23 = Form("Scatter (2 or 3 detectors)  [%.1f%% triggers %.1f%% all];X [mm];Y [mm]",
-                 pTrig23, pTot23);
+    std::string ttl23 = Form("Clusters (2 or 3 detectors) [%.1f%% of events with hits, %.1f%% of all events] - Run %s;X [mm];Y [mm]",
+                 pTrig23, pTot23, runNumber.c_str());
         TH2F *frame23 = new TH2F("frame23", ttl23.c_str(), 10, centersXmin, centersXmax, 10, centersYmin, centersYmax);
         frame23->SetStats(0);
         frame23->Draw();
@@ -1511,18 +1748,16 @@ int main(int argc, char* argv[]) {
     }
 
     c_hitsInEvent->cd();
-    gPad->SetLogy();
+    // Requested: linear scale for number of clusters/hits per event
+    gPad->SetLogy(0);
     h_hitsInEvent->Draw();
 
     // create a pdf report containing firing channels, sigma and amplitude
     std::string outputDir = clp.getOptionVal<std::string>("outputDir");
     // LogInfo << "Output directory: " << outputDir << std::endl;
     // output filename same as input root file, but remove .root and create single PDF report
-    std::string input_file_base = input_root_filename.substr(input_root_filename.find_last_of("/\\") + 1);
-    size_t lastdot = input_file_base.find_last_of(".");
-    if (lastdot != std::string::npos) {
-        input_file_base = input_file_base.substr(0, lastdot);
-    }
+
+    std::string input_file_base = GetBaseName(input_root_filename);
     // Single PDF report filename
     std::string output_filename_report = outputDir + "/" + input_file_base + "_" + std::to_string(clp.getOptionVal<int>("nSigma")) + "sigma_report.pdf";
 
@@ -1541,9 +1776,9 @@ int main(int argc, char* argv[]) {
     
     // save the canvases to a multi-page pdf report with error handling
     try {
-        // Check that all canvases are valid before attempting to save
-        if (!c_channelsFiring || !c_sigma || !c_baseline || !c_amplitude || !c_amplitudeVsChannel || !c_hitsInEvent) {
-            LogError << "One or more canvases are null, cannot save plots" << std::endl;
+        // Check that essential canvases are valid before attempting to save
+        if (!c_channelsFiring || !c_hitsInEvent) {
+            LogError << "One or more essential canvases are null, cannot save plots" << std::endl;
             return 1;
         }
         
@@ -1551,12 +1786,19 @@ int main(int argc, char* argv[]) {
         // Page 1: Summary page with general run information
         TCanvas *c_summary = new TCanvas(Form("c_summary_Run%s", runNumber.c_str()), Form("Run %s Summary", runNumber.c_str()), 800, 600);
         c_summary->cd();
-        TLatex lat;
-        lat.SetNDC(true);
-        lat.SetTextSize(0.045);
-        double y = 0.90; const double dy = 0.06;
-        lat.DrawLatex(0.12, y, Form("Run %s summary", runNumber.c_str())); y-=dy;
-        // Run start timestamp from filename (+2h), placed right after the title
+    TLatex lat;
+    lat.SetNDC(true);
+    // Make text smaller as requested and leave ample spacing
+    lat.SetTextSize(0.030);
+    double yTop = 0.93; const double dyHead = 0.05;
+    // Add page number in top-right corner
+    lat.SetTextSize(0.025);
+    lat.SetTextAlign(31); // right-aligned
+    lat.DrawLatex(0.95, 0.03, "Page 1");
+    lat.SetTextAlign(11); // back to left-aligned
+    lat.SetTextSize(0.030);
+    // Header: include CEST date/time (+2h) parsed from file name
+        std::string cestHeader = "";
         {
             auto isAllDigits = [](const std::string &s){ return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit); };
             std::string base = input_file_base; // e.g., SCD_RUN00488_BEAM_20250901_175435
@@ -1575,41 +1817,79 @@ int main(int argc, char* argv[]) {
                         int minute = std::stoi(timeTok.substr(2,2));
                         auto isLeap = [](int y){ return (y%4==0 && y%100!=0) || (y%400==0); };
                         auto daysInMonth = [&](int y,int m){ static int d[12]={31,28,31,30,31,30,31,31,30,31,30,31}; return m==2 ? (isLeap(y)?29:28) : d[m-1]; };
-                        hour += 2; // add +2h offset
-                        if (hour >= 24) { hour -= 24; day += 1; int dim = daysInMonth(year,month); if (day>dim){ day=1; month+=1; if (month>12){ month=1; year+=1; } } }
-                        lat.DrawLatex(0.12, y, Form("This run started on %04d/%02d/%02d at %02d:%02d", year, month, day, hour, minute)); y-=dy;
+                        hour += 2; if (hour >= 24) { hour -= 24; day += 1; int dim = daysInMonth(year,month); if (day>dim){ day=1; month+=1; if (month>12){ month=1; year+=1; } } }
+                        cestHeader = std::string(Form("Run %s summary - Started %04d-%02d-%02d %02d:%02d CEST", runNumber.c_str(), year, month, day, hour, minute));
                     }
                 }
             }
         }
-        lat.DrawLatex(0.12, y, Form("Input: %s", input_file_base.c_str())); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Calibration: %s", clp.getOptionVal<std::string>("inputCalFile").substr(clp.getOptionVal<std::string>("inputCalFile").find_last_of("/\\")+1).c_str())); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Total triggers: %d", limit)); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Triggers with BM hits: %.2f%% (%d/%d)", (limit>0)?(100.0*eventsWithHits/limit):0.0, eventsWithHits, limit)); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Triggers with >=1 clusters in >=2 detectors: %.2f%% (%d/%d)", (limit>0)?(100.0*eventsTwoDetOrMore/limit):0.0, eventsTwoDetOrMore, limit)); y-=dy;
-        lat.DrawLatex(0.12, y, Form("Triggers with 1 cluster in 2 or 3 detectors: %.2f%% (%d/%d)", (limit>0)?(100.0*triggeredEvents/limit):0.0, triggeredEvents, limit)); y-=dy;
-    // Removed geometry path line per request
-        if (cnt_2to3>0) { lat.DrawLatex(0.12, y, Form("Mean center (2or3): (%.2f, %.2f) mm", sumX_2to3/cnt_2to3, sumY_2to3/cnt_2to3)); y-=dy; }
-        if (cnt_3>0)    { lat.DrawLatex(0.12, y, Form("Mean center (exactly3): (%.2f, %.2f) mm", sumX_3/cnt_3, sumY_3/cnt_3)); y-=dy; }
-        // Average clusters per 10 s spill across the whole run (rolling windows)
-        if (!clustersPerSpillVec.empty()) {
-            long long nSpills = (long long)clustersPerSpillVec.size();
-            long long sumD[4] = {0,0,0,0};
-            long long sumTot = 0;
-            for (const auto &arr : clustersPerSpillVec) {
-                sumD[0] += arr[0]; sumD[1] += arr[1]; sumD[2] += arr[2]; sumD[3] += arr[3];
+    if (cestHeader.empty()) cestHeader = Form("Run %s summary", runNumber.c_str());
+    lat.DrawLatex(0.10, yTop, cestHeader.c_str()); yTop -= dyHead;
+    // Add date and time in CEST right after the title
+    auto isAllDigits = [](const std::string &s){ return !s.empty() && std::all_of(s.begin(), s.end(), ::isdigit); };
+    std::string base = input_file_base; // e.g., SCD_RUN00488_BEAM_20250901_175435
+    size_t posTime = base.rfind('_');
+    if (posTime != std::string::npos && posTime+1 < base.size()) {
+        std::string timeTok = base.substr(posTime+1); // HHMMSS
+        std::string beforeTime = base.substr(0, posTime);
+        size_t posDate = beforeTime.rfind('_');
+        if (posDate != std::string::npos && posDate+1 < beforeTime.size()) {
+            std::string dateTok = beforeTime.substr(posDate+1); // YYYYMMDD
+            if (dateTok.size()==8 && timeTok.size()>=4 && isAllDigits(dateTok) && isAllDigits(timeTok)) {
+                int year = std::stoi(dateTok.substr(0,4));
+                int month = std::stoi(dateTok.substr(4,2));
+                int day = std::stoi(dateTok.substr(6,2));
+                int hour = std::stoi(timeTok.substr(0,2));
+                int minute = std::stoi(timeTok.substr(2,2));
+                auto isLeap = [](int y){ return (y%4==0 && y%100!=0) || (y%400==0); };
+                auto daysInMonth = [&](int y,int m){ static int d[12]={31,28,31,30,31,30,31,31,30,31,30,31}; return m==2 ? (isLeap(y)?29:28) : d[m-1]; };
+                hour += 2; // add +2h offset
+                if (hour >= 24) { hour -= 24; day += 1; int dim = daysInMonth(year,month); if (day>dim){ day=1; month+=1; if (month>12){ month=1; year+=1; } } }
+                // lat.DrawLatex(0.10, yTop, Form("Date: %04d-%02d-%02d %02d:%02d CEST", year, month, day, hour, minute)); yTop -= 0.04;
             }
-            sumTot = sumD[0] + sumD[1] + sumD[2] + sumD[3];
-            double avgD0 = (nSpills>0) ? double(sumD[0]) / nSpills : 0.0;
-            double avgD1 = (nSpills>0) ? double(sumD[1]) / nSpills : 0.0;
-            double avgD2 = (nSpills>0) ? double(sumD[2]) / nSpills : 0.0;
-            double avgD3 = (nSpills>0) ? double(sumD[3]) / nSpills : 0.0;
-            double avgTot = (nSpills>0) ? double(sumTot) / nSpills : 0.0;
-            y -= 0.02; // small gap
-            // Split into two lines to avoid overflow
-            lat.DrawLatex(0.12, y, Form("Average clusters per 10 s spill: total=%.1f  (over %lld spills)", avgTot, nSpills)); y -= dy;
-            lat.DrawLatex(0.12, y, Form("Per detector: D0=%.1f, D1=%.1f, D2=%.1f, D3=%.1f", avgD0, avgD1, avgD2, avgD3)); y -= dy;
         }
+    }
+    // Two side-by-side mini tables for readability (non-overlapping)
+    // Increased spacing for better readability
+    const double rowH = 0.035; const double headH = 0.040; // Increased vertical spacing
+    // Left table (x columns) - more horizontal spacing
+    double xL = 0.04, xL_num = xL + 0.35, xL_pct = xL + 0.50; // Increased horizontal spacing
+    double yL = yTop - 0.03; // Start tables with more space below header
+    lat.DrawLatex(xL_num, yL, "number"); lat.DrawLatex(xL_pct, yL, "percentage"); yL -= rowH;
+    lat.DrawLatex(xL, yL, "Total triggers"); lat.DrawLatex(xL_num, yL, Form("%d", limit)); lat.DrawLatex(xL_pct, yL, "100.00%" ); yL -= rowH;
+    lat.DrawLatex(xL, yL, "Triggers with BM hits"); lat.DrawLatex(xL_num, yL, Form("%d", eventsWithHits)); lat.DrawLatex(xL_pct, yL, Form("%.2f%%", (limit>0)?(100.0*eventsWithHits/limit):0.0)); yL -= rowH;
+    lat.DrawLatex(xL, yL, ">=1 cluster in >=2 detectors"); lat.DrawLatex(xL_num, yL, Form("%d", eventsTwoDetOrMore)); lat.DrawLatex(xL_pct, yL, Form("%.2f%%", (limit>0)?(100.0*eventsTwoDetOrMore/limit):0.0)); yL -= rowH;
+    lat.DrawLatex(xL, yL, "1 cluster in 2 or 3 detectors"); lat.DrawLatex(xL_num, yL, Form("%d", triggeredEvents)); lat.DrawLatex(xL_pct, yL, Form("%.2f%%", (limit>0)?(100.0*triggeredEvents/limit):0.0));
+    // Right table: extend with average clusters per spill and per event
+    double xR = 0.04, xR_spill = xR + 0.35, xR_event = xR + 0.55; // 3 columns: label | per spill | per event
+    double yR = yL - 0.10; // Increased vertical spacing before second table
+    // header row
+    lat.DrawLatex(xR, yR, "Average clusters"); lat.DrawLatex(xR_spill, yR, "per spill"); lat.DrawLatex(xR_event, yR, "per event"); yR -= rowH;
+    // compute averages once
+    double avgSpillD[4] = {0,0,0,0}; long long nSpills = (long long)clustersPerSpillVec.size();
+    if (!clustersPerSpillVec.empty()) {
+        long long sumD[4] = {0,0,0,0};
+        for (const auto &arr : clustersPerSpillVec) { sumD[0]+=arr[0]; sumD[1]+=arr[1]; sumD[2]+=arr[2]; sumD[3]+=arr[3]; }
+        for (int d=0; d<4; ++d) avgSpillD[d] = (nSpills>0) ? double(sumD[d])/nSpills : 0.0;
+    }
+    // per-event averages from already computed h_clustersPerEvent histos
+    double avgEventD[4] = {0,0,0,0};
+    for (int d=0; d<4; ++d) {
+        if (h_clustersPerEvent[d]) avgEventD[d] = h_clustersPerEvent[d]->GetMean();
+    }
+    for (int d=0; d<4; ++d) {
+        lat.DrawLatex(xR, yR, Form("D%d:", d));
+        lat.DrawLatex(xR_spill, yR, Form("%.1f", avgSpillD[d]));
+        lat.DrawLatex(xR_event, yR, Form("%.2f", avgEventD[d]));
+        yR -= rowH;
+    }
+    if (nSpills>0) { lat.DrawLatex(xR, yR, Form("(over %lld spills)", nSpills)); }
+    // Move below tables for remaining text with adequate spacing
+    double y = std::min(yL, yR) - 0.10;
+    // Removed geometry path line per request
+    if (cnt_2to3>0) { lat.DrawLatex(0.05, y, Form("Mean center (2or3): (%.2f, %.2f) mm", sumX_2to3/cnt_2to3, sumY_2to3/cnt_2to3)); y -= 0.035; }
+    if (cnt_3>0)    { lat.DrawLatex(0.05, y, Form("Mean center (exactly3): (%.2f, %.2f) mm", sumX_3/cnt_3, sumY_3/cnt_3)); y -= 0.035; }
+    // Spill averages already listed in the table above
 
         c_summary->Update();
         c_summary->SaveAs((output_filename_report + "(").c_str());
@@ -1618,12 +1898,18 @@ int main(int argc, char* argv[]) {
         // Page 2: Reconstructed centers heatmap (exactly 3) with projections
         if (gROOT->FindObject("c_recoCenter_3")) {
             auto ctmp = (TCanvas*)gROOT->FindObject("c_recoCenter_3");
+            ctmp->cd();
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 2");
             ctmp->Update();
             ctmp->SaveAs(output_filename_report.c_str());
         }
         // Page 3: Reconstructed centers heatmap (2 or 3) with projections
         if (gROOT->FindObject("c_recoCenter_2to3")) {
             auto ctmp = (TCanvas*)gROOT->FindObject("c_recoCenter_2to3");
+            ctmp->cd();
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 3");
             ctmp->Update();
             ctmp->SaveAs(output_filename_report.c_str());
         }
@@ -1631,6 +1917,8 @@ int main(int argc, char* argv[]) {
         if (c_recoCenterScatter_3) {
             c_recoCenterScatter_3->cd();
             if (g_recoCenters_3->GetN()==0) { TLatex l; l.SetNDC(true); l.DrawLatex(0.3,0.5,"No points"); }
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 4");
             c_recoCenterScatter_3->Update();
             c_recoCenterScatter_3->SaveAs(output_filename_report.c_str());
         }
@@ -1638,50 +1926,157 @@ int main(int argc, char* argv[]) {
         if (c_recoCenterScatter_2to3) {
             c_recoCenterScatter_2to3->cd();
             if (g_recoCenters_2to3->GetN()==0) { TLatex l; l.SetNDC(true); l.DrawLatex(0.3,0.5,"No points"); }
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 5");
             c_recoCenterScatter_2to3->Update();
             c_recoCenterScatter_2to3->SaveAs(output_filename_report.c_str());
         }
 
-    // Page 6: Clusters per event (per detector)
+        // Page 6: Clusters per event (per detector)
         {
             TCanvas *c_clustersPerEvent = new TCanvas(Form("c_clustersPerEvent_Run%s", runNumber.c_str()), Form("Clusters per event (Run %s)", runNumber.c_str()), 800, 600);
             c_clustersPerEvent->Divide(2, 2);
+            // Add page number
+            c_clustersPerEvent->cd();
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 6");
             for (int d = 0; d < 4; ++d) {
                 c_clustersPerEvent->cd(d+1);
-                gPad->SetLogy();
+                // Linear scale as requested
+                gPad->SetLogy(0);
                 // Update titles with run number at draw time for clarity
                 h_clustersPerEvent[d]->SetTitle(Form("Clusters per event - D%d (Run %s);Clusters;Events", d, runNumber.c_str()));
+                // Limit x-axis to maximum 6 clusters
+                h_clustersPerEvent[d]->GetXaxis()->SetRangeUser(0, 6);
+                // Leave some headroom for labels
+                double maxVal = h_clustersPerEvent[d]->GetMaximum();
+                if (maxVal > 0) h_clustersPerEvent[d]->SetMaximum(maxVal * 1.25);
                 h_clustersPerEvent[d]->Draw();
+                // Add % above each bin
+                double totEv = (double)limit;
+                int nb = h_clustersPerEvent[d]->GetNbinsX();
+                TLatex lab; lab.SetTextSize(0.035); lab.SetTextAlign(21);
+                for (int b = 1; b <= nb; ++b) {
+                    double val = h_clustersPerEvent[d]->GetBinContent(b);
+                    if (val <= 0) continue;
+                    double x = h_clustersPerEvent[d]->GetBinCenter(b);
+                    double y = val * 1.02; // a bit above the bar
+                    double pct = (totEv>0.0) ? (100.0 * val / totEv) : 0.0;
+                    lab.DrawLatex(x, y, Form("%.1f%%", pct));
+                }
             }
             c_clustersPerEvent->Update();
             c_clustersPerEvent->SaveAs(output_filename_report.c_str());
         }
 
-    // Page 7+: The rest of the plots
+        // Page 7: Timestamp plots arranged on a 2x2 page
+        {
+            TCanvas *c_time2x2 = new TCanvas(Form("c_time2x2_Run%s", runNumber.c_str()), Form("Timestamps - Run %s", runNumber.c_str()), 1200, 900);
+            c_time2x2->Divide(2,2);
+            // Add page number
+            c_time2x2->cd();
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 7");
+            int padIdx = 1;
+            if (g_evtVsTime) { c_time2x2->cd(padIdx++); g_evtVsTime->Draw("AP"); }
+            if (g_extEvtVsTime) { c_time2x2->cd(padIdx++); g_extEvtVsTime->Draw("AP"); }
+            if (g_extVsIntTime) { c_time2x2->cd(padIdx++); g_extVsIntTime->Draw("AP"); }
+            // Pad (2,2): Delta time between consecutive events with exponential fit annotation
+            if (h_evtDeltaT) {
+                c_time2x2->cd(4);
+                h_evtDeltaT->Draw();
+                // Apply exponential fit: f(t) = A * exp(-t/tau) => 'expo' uses exp([0] + [1]*x), tau = -1/[1]
+                int firstNonZeroBin = 1; while (firstNonZeroBin <= h_evtDeltaT->GetNbinsX() && h_evtDeltaT->GetBinContent(firstNonZeroBin) <= 0) ++firstNonZeroBin;
+                double fitMin = h_evtDeltaT->GetXaxis()->GetBinLowEdge(std::max(1, firstNonZeroBin));
+                double fitMax = h_evtDeltaT->GetXaxis()->GetXmax();
+                if (fitMax > fitMin) {
+                    TF1 *fexpo = new TF1("f_evtDelta_expo_p7", "expo", fitMin, fitMax);
+                    fexpo->SetLineColor(kRed+1);
+                    h_evtDeltaT->Fit(fexpo, "RQ");
+                    double slope = fexpo->GetParameter(1);
+                    double slopeErr = fexpo->GetParError(1);
+                    double tau = (slope < 0) ? -1.0/slope : 0.0;
+                    double tauErr = 0.0;
+                    if (slope < 0 && slopeErr > 0) tauErr = (1.0/(slope*slope)) * slopeErr;
+                    TLatex lfit; lfit.SetNDC(true); lfit.SetTextSize(0.03);
+                    lfit.SetTextColor(kRed+2);
+                    lfit.SetTextAlign(22);
+                    lfit.DrawLatex(0.50, 0.28, Form("Exp fit: #tau = %.3g #pm %.2g s", tau, tauErr));
+                }
+            }
+            c_time2x2->Update();
+            c_time2x2->SaveAs(output_filename_report.c_str());
+        }
+
+        // Page 8: Baseline and Sigma vs channel (2,1 canvas)
+        {
+            TCanvas *c_baseline_sigma = new TCanvas(Form("c_baseline_sigma_Run%s", runNumber.c_str()), Form("Baseline and Sigma - Run %s", runNumber.c_str()), 900, 800);
+            c_baseline_sigma->Divide(1, 2);
+            // Add page number
+            c_baseline_sigma->cd();
+            TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31);
+            pageNum.DrawLatex(0.95, 0.03, "Page 8");
+            
+            // cd(1): baseline vs channel for all detectors
+            c_baseline_sigma->cd(1);
+            if (c_baseline_all) {
+                // Recreate the baseline vs channel plot with better legend positioning
+                double yMin = 1e300, yMax = -1e300;
+                for (int d=0; d<4; ++d) { for (int ch=0; ch<nChannels; ++ch) { double v = baseline.at(d).at(ch); if (v<yMin) yMin=v; if (v>yMax) yMax=v; } }
+                if (!(yMax>yMin)) { yMin=0; yMax=1; }
+                double pad = 0.05*(yMax-yMin+1e-6);
+                TH1F *frame_base = new TH1F("frame_base_p7", Form("Baseline vs channel - Run %s;Channel;Baseline", runNumber.c_str()), nChannels, 0, nChannels);
+                frame_base->SetStats(0);
+                frame_base->GetYaxis()->SetRangeUser(yMin-pad, yMax+pad);
+                frame_base->Draw();
+                auto leg_base = new TLegend(0.75, 0.15, 0.95, 0.35); leg_base->SetBorderSize(0); leg_base->SetFillStyle(0); leg_base->SetTextSize(0.03);
+                for (int d=0; d<4; ++d) { 
+                    auto gr=g_baseline->at(d); 
+                    gr->SetMarkerStyle(detMarkers[d]); 
+                    gr->SetMarkerSize(0.6); 
+                    gr->SetMarkerColor(detColors[d]); 
+                    gr->SetLineColor(detColors[d]); 
+                    gr->Draw("P SAME"); 
+                    leg_base->AddEntry(gr, Form("D%d", d), "lp"); 
+                }
+                leg_base->Draw();
+            }
+            
+            // cd(2): sigma vs channel
+            c_baseline_sigma->cd(2);
+            if (c_sigma_all) {
+                // Recreate the sigma vs channel plot with better legend positioning
+                double yMin_sig = 1e300, yMax_sig = -1e300;
+                for (int d=0; d<4; ++d) { for (int ch=0; ch<nChannels; ++ch) { double v = baseline_sigma.at(d).at(ch); if (v<yMin_sig) yMin_sig=v; if (v>yMax_sig) yMax_sig=v; } }
+                if (!(yMax_sig>yMin_sig)) { yMin_sig=0; yMax_sig=1; }
+                double pad_sig = 0.05*(yMax_sig-yMin_sig+1e-6);
+                TH1F *frame_sig = new TH1F("frame_sig_p7", Form("Sigma vs channel - Run %s;Channel;Sigma", runNumber.c_str()), nChannels, 0, nChannels);
+                frame_sig->SetStats(0);
+                frame_sig->GetYaxis()->SetRangeUser(yMin_sig-pad_sig, yMax_sig+pad_sig);
+                frame_sig->Draw();
+                auto leg_sig = new TLegend(0.75, 0.15, 0.95, 0.35); leg_sig->SetBorderSize(0); leg_sig->SetFillStyle(0); leg_sig->SetTextSize(0.03);
+                for (int d=0; d<4; ++d) { 
+                    auto gr=g_sigma->at(d); 
+                    gr->SetMarkerStyle(detMarkers[d]); 
+                    gr->SetMarkerSize(0.6); 
+                    gr->SetMarkerColor(detColors[d]); 
+                    gr->SetLineColor(detColors[d]); 
+                    gr->Draw("P SAME"); 
+                    leg_sig->AddEntry(gr, Form("D%d", d), "lp"); 
+                }
+                leg_sig->Draw();
+            }
+            c_baseline_sigma->Update();
+            c_baseline_sigma->SaveAs(output_filename_report.c_str());
+        }
+
+        // Page 9: Firing channels 
+        c_channelsFiring->cd();
+        TLatex pageNum2; pageNum2.SetNDC(true); pageNum2.SetTextSize(0.025); pageNum2.SetTextAlign(31);
+    pageNum2.DrawLatex(0.95, 0.03, "Page 9");
         c_channelsFiring->Update();
-        c_channelsFiring->SaveAs(output_filename_report.c_str());
-
-        c_sigma->Update();
-        c_sigma->SaveAs(output_filename_report.c_str());
-
-        c_baseline->Update();
-        c_baseline->SaveAs(output_filename_report.c_str());
-
-        c_amplitude->Update();
-        c_amplitude->SaveAs(output_filename_report.c_str());
-
-    // Clean sample scatter pages removed per request
-
-    // Timestamp plots
-    if (c_evtVsTime != nullptr) { c_evtVsTime->Update(); c_evtVsTime->SaveAs(output_filename_report.c_str()); }
-    if (c_extEvtVsTime != nullptr) { c_extEvtVsTime->Update(); c_extEvtVsTime->SaveAs(output_filename_report.c_str()); }
-    if (c_extVsIntTime != nullptr) { c_extVsIntTime->Update(); c_extVsIntTime->SaveAs(output_filename_report.c_str()); }
-        if (c_evtDeltaT != nullptr) { c_evtDeltaT->Update(); c_evtDeltaT->SaveAs(output_filename_report.c_str()); }
-        if (c_spillGaps != nullptr) { c_spillGaps->Update(); c_spillGaps->SaveAs(output_filename_report.c_str()); }
-
-        // Final page: Hits in event plot (close the PDF)
-        c_hitsInEvent->Update();
-        c_hitsInEvent->SaveAs((output_filename_report + ")").c_str());
+        // Close the PDF on Page 9 now that Page 10 is removed
+        c_channelsFiring->SaveAs((output_filename_report + ")").c_str());    // Clean sample scatter pages removed per request
         
         LogInfo << "Multi-page PDF report saved successfully: " << output_filename_report << std::endl;
     } catch (const std::exception& e) {

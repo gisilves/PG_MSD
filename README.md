@@ -27,9 +27,13 @@ Settings are read from a JSON (e.g., `json/ev-settings.json`) with `inputDirecto
 
 On lxplus (recommended), all dependencies are available when sourcing the environment via `scripts/init.sh`, which is invoked by the other scripts; you usually don't need to run it manually.
 
-- analyzeRun.sh
+- analyze.sh
 	- Batch convert, calibrate (if needed), and analyze run(s).
 	- Calibration policy: use the most recent previous CAL run’s `.cal`; if none, use the nearest later CAL; if the current run is CAL, use its own `.cal`.
+  - Thin wrapper delegating to `analyzeRun.sh`.
+
+- analyzeRun.sh
+	- Full implementation used by `analyze.sh`.
 
 - bmRawToRootConverter.sh
 	- Convert `.dat` to ROOT only.
@@ -52,7 +56,7 @@ On lxplus (recommended), all dependencies are available when sourcing the enviro
 
 Analyze a single run by number:
 ```bash
-./scripts/analyzeRun.sh -f 275 -j json/ev-settings.json
+./scripts/analyze.sh -f 275 -j json/ev-settings.json
 ```
 
 Convert a run by number:
@@ -78,10 +82,24 @@ Hits vs Sigma (sweep 1..15):
 
 ## Report summary changes
 
-- Summary page now places the "This run started on YYYY/MM/DD at HH:MM" line directly under the title, with a +2h offset from the filename timestamp.
-- Timestamp plot is shown vs Trigger Number using the `event_info` tree when present.
-- Rolling spill summary: average number of clusters per 10 s spill is computed across the run, with spill windows starting at the first event-with-hits and advancing to the next event-with-hits after a window closes.
-- Scatter-only reconstructed-center pages added for exactly-3 and 2-or-3 clusters; safe guards avoid drawing empty graphs.
+This tool now produces a cleaner, more compact multi‑page PDF with consistent pagination, clearer annotations, and improved tracking visuals.
+
+What’s new (Sept 2025):
+- Page numbers printed bottom‑right on every kept page.
+- CEST date/time shown directly under the title; filename timestamp is robustly parsed and shifted +2h.
+- Summary tables: two non‑overlapping blocks with averages per spill (10 s windows) and per event (histogram means). Removed deprecated “total clusters per spill”.
+- 2D tracking heatmaps (reconstructed centers):
+	- Axis ranges standardized to X ∈ [−80, 60] mm and Y ∈ [−60, 70] mm.
+	- Active area polygon (all 3 detectors) drawn in black; legend refined and placed within the plot.
+	- Stats box repositioned to lie within x ∈ [30, 60] mm, away from the color palette and above the active area; its height is increased by 3× for readability.
+- Timestamps page (2×2) restored and moved earlier in the document; Δt between consecutive events moved into this page (bottom‑right), fitted with an exponential to extract τ, displayed on‑plot.
+- Clusters‑per‑event plot x‑axis capped at 0..6 with percentage labels above bars.
+- Baseline and Sigma merged into a concise two‑panel page with clearer legends.
+- Removed obsolete pages (hits‑per‑event, amplitude overlays); the final page is now the firing channels summary.
+
+Additional notes:
+- Scatter‑only reconstructed‑center pages for exactly‑3 and 2‑or‑3 clusters remain available; empty graphs are safely skipped.
+- Geometry plane offsets come from `parameters/geometry.json` and can be tuned as needed.
 
 ## Configuration
 
