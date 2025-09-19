@@ -1,0 +1,60 @@
+# Beam Configuration Changes - ProtoDUNE-DP
+# Extracted from elisaLog.dat logbook entries
+# Date format: YYYY-MM-DD
+# Time format: HH:MM
+# Energy in GeV (+ for positive, - for negative polarity)
+# Cherenkov pressures: H = High pressure, L = Low pressure (in bar)
+# Collimator settings in mm (± values)
+
+Date       | Time  | Energy | Target   | Cherenkov Pressures | Collimator | Details/Comments
+-----------|-------|--------|----------|--------------------|-----------|-----------------
+2025-08-11 | 16:24 | +1.0   | -        | -                   | - | -
+2025-08-12 | 09:15 | +2.0   | -        | H: -, L: 3 bar      | - | -
+2025-08-12 | 14:18 | +3.0   | -        | H: 4 bar, L: 1.2 bar | - | -
+2025-08-12 | 16:48 | +4.0   | -        | -                   | - | -
+2025-08-12 | 18:59 | +1.5   | -        | H: 14 bar, L: 4 bar | - | -
+2025-08-20 | 20:34 | +1.0   | Tungsten | H: 14 bar, L: 4.5 bar | - | -
+2025-08-21 | 19:42 | +3.0   | -        | H: 10 bar, L: 1 bar | - | Beam window closed
+2025-08-22 | 18:32 | +3.0   | Tungsten | H: 5 bar, L: 1.8 bar | - | Gate valve closed
+2025-08-22 | 18:54 | +6.0   | Tungsten | H: 5 bar, L: 0.45 bar | - | Gate valve closed
+2025-08-22 | 21:34 | -3.0   | Tungsten | H: 5 bar, L: 1.8 bar | - | Negative polarity, gate valve closed
+2025-08-23 | 12:41 | +2.0   | Tungsten | H: 10 bar, L: 2 bar | - | No K production (below threshold)
+2025-08-23 | 17:16 | +1.5   | Tungsten | H: 14 bar, L: 4 bar | - | No K production (below threshold)
+2025-08-24 | 23:22 | +2.5   | Tungsten | H: 10 bar, L: 1.3 bar | - | File for Run 39105
+2025-08-25 | 10:14 | +4.0   | -        | H: 8 bar, L: 0.5 bar | - | -
+2025-08-25 | 15:01 | +5.0   | Copper   | H: 5 bar, L: 0.25 bar | - | HL=electrons
+2025-08-26 | 10:11 | +0.3   | Copper   | H: 10 bar, L: 5 bar | - | Mostly electrons
+2025-08-27 | 18:33 | +0.4   | Copper   | H: 10 bar, L: 5 bar | ±40 | Mostly electrons, gate valve closed
+2025-08-28 | 16:56 | +8.0   | Tungsten | H: 1 bar, L: 0.1 bar | ±30 | Gate valve closed
+2025-08-29 | 11:50 | +8.0   | Tungsten | H: 1 bar, L: 0.1 bar | ±20 | Gate valve closed, ~180-200 triggers/spill
+2025-08-30 | 12:04 | +5.0   | Copper   | H: 3.5 bar, L: 0.6 bar | ±10 | Beam window closed, Collimator 649
+2025-08-31 | 11:33 | +3.0   | Tungsten | H: 5 bar, L: 1.8 bar | ±40 | File H2C.NP-02.002
+2025-09-01 | 16:12 | +1.0   | -        | H: 14 bar, L: 4.5 bar  | ±40 | File H2C.NP-02.044
+2025-09-02 | 15:34 | +1.5   | Tungsten | H: 14 bar, L: 4 bar | ±40 | File H2C.NP-02.047, beam window opened
+2025-09-03 | 21:33 | +1.5   | Tungsten | H: 14 bar, L: 4 bar | ±40 | File H2C.NP-02.047, beam window opened
+2025-09-04 | 15:21 | +1.0   | Tungsten | H: 14 bar, L: 4 bar | ±40 | Test setting for short run
+2025-09-04 | 16:10 | +2.0   | Tungsten | H: 10 bar, L: 1 bar | ±40 | File H2C.NP-02.040, beam window opened
+2025-09-05 | 16:31 | +1.0   | Tungsten | H: 14 bar, L: 4.5 bar | ±40 | File H2C.NP-02.044, beam window opened
+2025-09-08 | 13:28 | +4.0   | Copper   | H: 4 bar, L: 1.1 bar | ±20 | File H2C.NP-02.046, beam window opened
+2025-09-09 | 10:44 | +10.0  | Copper   | -                   | ±40 | File H2C.NP-02.045, Cherenkov scan
+2025-09-09 | 13:27 | +0.5   | Tungsten | H: 1.5 bar, L: 1 bar | ±40 | File H2C.NP-02.000, Run 39348 (PROD)
+
+# Summary Statistics:
+# Energy Range: 
+#   - Positive polarity: 0.2 - 8.0 GeV
+#   - Negative polarity: -3.0 GeV (single configuration)
+#
+# Target Materials:
+#   - Tungsten: Most common, used for higher energies and particle physics studies
+#   - Copper: Used primarily for lower energies and electron-enriched beams
+#
+# Cherenkov Counter Usage:
+#   - High Pressure (H): 1-14.5 bar for particle identification
+#   - Low Pressure (L): 0.1-5 bar for different particle thresholds
+#   - Specific pressure combinations used for particle tagging (electrons, muons/pions, kaons, protons)
+#
+# Operational Notes:
+#   - Gate valve status (open/closed) affects beam delivery
+#   - Collimator settings (±10 to ±40) control beam divergence
+#   - Special configurations for electron-enriched beams using copper targets
+#   - File naming convention: H2C.NP-02.XXX for beam configuration files
