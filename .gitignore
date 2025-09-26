@@ -5,5 +5,4 @@ json/*
 output/
 data/
 *.root
-*.dat
 *.cal

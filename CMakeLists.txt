@@ -36,6 +36,24 @@ target_include_directories( PAPERO_convert PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/i
 target_link_libraries( PAPERO_convert ${OCA_LIBS} )
 install( TARGETS PAPERO_convert DESTINATION bin )
 
+cmessage( STATUS "Creating flat_convert app..." )
+add_executable( flat_convert ${CMAKE_CURRENT_SOURCE_DIR}/src/flat_convert.cpp)
+target_include_directories( flat_convert PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( flat_convert ${OCA_LIBS} )
+install( TARGETS flat_convert DESTINATION bin )
+
+cmessage( STATUS "Creating clustering app..." )
+add_executable( clustering ${CMAKE_CURRENT_SOURCE_DIR}/src/clustering.cpp)
+target_include_directories( clustering PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( clustering ${OCA_LIBS} )
+install( TARGETS clustering DESTINATION bin )
+
+cmessage( STATUS "Creating runReport app..." )
+add_executable( runReport ${CMAKE_CURRENT_SOURCE_DIR}/src/runReport.cpp)
+target_include_directories( runReport PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( runReport ${OCA_LIBS} )
+install( TARGETS runReport DESTINATION bin )
+
 cmessage( STATUS "Creating calibration app..." )
 add_executable( calibration ${CMAKE_CURRENT_SOURCE_DIR}/src/calibration.cpp)
 target_include_directories( calibration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
@@ -46,6 +64,12 @@ cmessage( STATUS "Creating dataAnalyzer app..." )
 add_executable( dataAnalyzer ${CMAKE_CURRENT_SOURCE_DIR}/src/dataAnalyzer.cpp)
 target_include_directories( dataAnalyzer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
 target_link_libraries( dataAnalyzer ${OCA_LIBS} )
+
+cmessage( STATUS "Creating formatting app..." )
+add_executable( formatting ${CMAKE_CURRENT_SOURCE_DIR}/src/formatting.cpp)
+target_include_directories( formatting PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( formatting ${OCA_LIBS} )
+install( TARGETS formatting DESTINATION bin )
 
 cmessage( STATUS "Creating event_display app..." )
 add_executable( event_display ${CMAKE_CURRENT_SOURCE_DIR}/src/event_display.cpp)

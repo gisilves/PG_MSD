@@ -270,14 +270,28 @@ int main(int argc, char* argv[]) {
     // Slightly reduce title font size globally to help long titles fit
     gStyle->SetTitleFontSize(0.045);
 
-    // Create a vector of TF1 objects to show the channels that fire, one for each detector
-    std::vector <TH1F*> *h_firingChannels = new std::vector <TH1F*>;
+    // Read firing channel histograms from formatted file
+    std::vector <TH1I*> *h_firingChannels = new std::vector <TH1I*>;
     h_firingChannels->reserve(nDetectors);
     for (int i = 0; i < nDetectors; i++) {
-        TH1F *this_h_firingChannels = new TH1F(Form("Firing channels (Detector %d)", i), Form("Firing channels (Detector %d)", i), nChannels, 0, nChannels);
-        this_h_firingChannels->GetXaxis()->SetTitle("Channel");
-        this_h_firingChannels->GetYaxis()->SetTitle("Counts");
+        TH1I *this_h_firingChannels = (TH1I*)input_root_file->Get(Form("h_firingChannels_D%d", i));
+        if (!this_h_firingChannels) {
+            LogError << "Could not find h_firingChannels_D" << i << " histogram" << std::endl;
+            return 1;
+        }
         h_firingChannels->emplace_back(this_h_firingChannels);
+    }
+
+    // Read hits per event histograms
+    std::vector <TH1I*> *h_hitsPerEvent = new std::vector <TH1I*>;
+    h_hitsPerEvent->reserve(nDetectors);
+    for (int i = 0; i < nDetectors; i++) {
+        TH1I *this_h_hitsPerEvent = (TH1I*)input_root_file->Get(Form("h_hitsPerEvent_D%d", i));
+        if (!this_h_hitsPerEvent) {
+            LogError << "Could not find h_hitsPerEvent_D" << i << " histogram" << std::endl;
+            return 1;
+        }
+        h_hitsPerEvent->emplace_back(this_h_hitsPerEvent);
     }
 
     // plot values of sigma per channel in a tgraph
@@ -866,7 +880,6 @@ int main(int argc, char* argv[]) {
                 if (maskEdgeChannels && isEdgeChannel(ch)) continue;
         eventHitsMasked++;
                 float amplitude = this_event->GetPeak(det, ch) - this_event->GetBaseline(det, ch);
-                h_firingChannels->at(det)->Fill(ch);
                 h_amplitude->at(det)->Fill(amplitude);
                 h_amplitudeVsChannel->at(det)->Fill(ch, amplitude);
             }
