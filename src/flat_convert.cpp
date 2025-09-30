@@ -96,11 +96,11 @@ int main(int argc, char *argv[])
     opt->addUsage("  --dune           ................................. To convert data from protoDUNE setup (3 DAMPE detectors with adapter)");
     opt->setFlag("help", 'h');
     opt->setFlag("verbose", 'v');
-    opt->setFlag("boards");
-    opt->setFlag("nevents");
-    opt->setFlag("cal-file");
-    opt->setFlag("input");
-    opt->setFlag("output");
+    opt->setOption("boards");
+    opt->setOption("nevents");
+    opt->setOption("cal-file");
+    opt->setOption("input");
+    opt->setOption("output");
     opt->setFlag("gsi");
     opt->setFlag("dune");
 

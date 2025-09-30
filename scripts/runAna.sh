@@ -124,7 +124,7 @@ fi
 
 ################################################
 # Execute the code
-cd $HOME_DIR/build # executable is here, for now
+cd $BUILD_DIR # executable is here, for now
 
 if [ -n "$fileName" ]
 then
@@ -185,147 +185,158 @@ do
         runit=$fileName
     fi
   fi
-  if [ "$cleanFiles" = true ]; then
-      echo "Cleaning output files in $outputDirectory for run $runit"
-      rm -f ${outputDirectory}/SCD_RUN$(printf "%05d" $runit)*.root
-      rm -f ${outputDirectory}/SCD_RUN$(printf "%05d" $runit)*.cal
-  fi
-  if [ -f "${outputDirectory}/${fileName}_converted.root" ] && [ "$cleanFiles" != true ]
-  then
-      echo "File ${outputDirectory}/${fileName}_converted.root already exists. Skipping conversion."
-  else
-    # Determine calibration strategy: use previous CAL run's .cal (fallback: next CAL; if current is CAL, use its own)
-    currentBaseName=$(basename "$filePath")
-    currentIsCAL=false
-    if echo "$currentBaseName" | grep -qi "CAL"; then
-      currentIsCAL=true
-    fi
 
-    calRunPath=""
-    if [ -n "$calRun" ]; then
-        calRunPath=$($SCRIPTS_DIR/findRun.sh -r "$calRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
+  if echo "$fileName" | grep -qi "CAL"; then
+    # If CAL, just run calibration
+    # Only run calibration if the .cal file does not exist
+    calFile="${outputDirectory}/${fileName}.cal"
+    if [ -f "$calFile" ]; then
+      echo "Calibration file $calFile already exists. Skipping calibration for this run."
+      fileName="" # reset fileName for the next iteration
+      continue
     else
-        # Search backwards for the most recent previous run whose filename contains "CAL"
-        prevRun=$((runit-1))
-        while [ $prevRun -ge 0 ]; do
-          prevPaths=$($SCRIPTS_DIR/findRun.sh -r "$prevRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
-          if [ -n "$prevPaths" ]; then
-            for p in $prevPaths; do
-              if basename "$p" | grep -qi "CAL"; then
-                calRunPath="$p"
-                break
-              fi
-            done
-          fi
-          if [ -n "$calRunPath" ]; then
-            break
-          fi
-          prevRun=$((prevRun-1))
-        done
+      echo "CAL run detected. Running calibration only."
+      convert_data="./PAPERO_convert ${filePath} ${outputDirectory}/${fileName}.root --dune"
+      echo "Executing command: "$convert_data
+      $convert_data
+      if [ $? -ne 0 ]; then
+        echo "Error: Data conversion failed for run ${runit}. Skipping calibration for this run."
+        fileName="" # reset fileName for the next iteration
+        continue
+      fi
+
+
+      extract_calibration="./calibration ${outputDirectory}/${fileName}.root --output ${outputDirectory}/${fileName} --dune --fast"
+      echo "Executing command: "$extract_calibration
+      $extract_calibration
+      if [ $? -ne 0 ]; then
+        echo "Error: calibration failed for run ${runit}."
+        fileName="" # reset fileName for the next iteration
+        continue
+      fi
+      fileName="" # reset fileName for the next iteration
     fi
+  elif echo "$fileName" | grep -qi "BEAM"; then
+    # BEAM
+    echo "BEAM run detected. Running full analysis chain."
+    if [ -f "${outputDirectory}/${fileName}_converted.root" ] && [ "$cleanFiles" != true ]
+    then
+        echo "File ${outputDirectory}/${fileName}_converted.root already exists. Skipping conversion."
+    else
+      # Determine calibration strategy: use previous CAL run's .cal (fallback: next CAL; if current is CAL, use its own)
+      currentBaseName=$(basename "$filePath")
+      currentIsCAL=false
+      if echo "$currentBaseName" | grep -qi "CAL"; then
+        currentIsCAL=true
+      fi
 
-    if [ -z "$calRunPath" ]; then
-      echo "Error: No previous CAL run found before run $runit. Stopping execution."
-      exit 1
-    fi
+      calRunPath=""
+      if [ -n "$calRun" ]; then
+          calRunPath=$($SCRIPTS_DIR/findRun.sh -r "$calRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
+      else
+          # Search backwards for the most recent previous run whose filename contains "CAL"
+          prevRun=$((runit-1))
+          while [ $prevRun -ge 0 ]; do
+            prevPaths=$($SCRIPTS_DIR/findRun.sh -r "$prevRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
+            if [ -n "$prevPaths" ]; then
+              for p in $prevPaths; do
+                if basename "$p" | grep -qi "CAL"; then
+                  calRunPath="$p"
+                  break
+                fi
+              done
+            fi
+            if [ -n "$calRunPath" ]; then
+              break
+            fi
+            prevRun=$((prevRun-1))
+          done
+      fi
 
-    echo "For calibration, using run: $calRun"
-
-    # Verify calibration file exists
-    calFileName=$(basename "$calRunPath")
-    calFileName=${calFileName%.*}
-    calFile="${outputDirectory}/${calFileName}.cal"
-
-    if [ ! -f "$calFile" ]; then
-        echo "Error: Calibration file not found for run $runit. Expected: $calFile"
-        echo "Stopping execution."
+      if [ -z "$calRunPath" ]; then
+        echo "Error: No previous CAL run found before run $runit. Stopping execution."
         exit 1
+      fi
+
+      echo "For calibration, using run: $calRun"
+
+      # Verify calibration file exists
+      calFileName=$(basename "$calRunPath")
+      calFileName=${calFileName%.*}
+      calFile="${outputDirectory}/${calFileName}.cal"
+
+      if [ ! -f "$calFile" ]; then
+          echo "Error: Calibration file not found for run $runit. Expected: $calFile"
+          echo "Stopping execution."
+          exit 1
+      fi
+
+      echo "Using calibration file: $calFile"
+
+      # Check if conversion is needed (file doesn't exist or calibration changed)
+      needsConversion=true
+      if [ -f "${outputDirectory}/${fileName}_converted.root" ]; then
+          # Check if the converted file has the required detector trees
+          if root -l -q "${outputDirectory}/${fileName}_converted.root" -e "TFile f(\"${outputDirectory}/${fileName}_converted.root\"); if (f.Get(\"raw_detector0\")) { cout << \"TREE_EXISTS\" << endl; } else { cout << \"TREE_MISSING\" << endl; }" 2>/dev/null | grep -q "TREE_EXISTS"; then
+              echo "Converted file exists and has required trees. Checking if calibration matches..."
+              # For now, we'll force re-conversion to ensure calibration is correct
+              # TODO: Add logic to check if calibration file used matches expected
+              echo "Forcing re-conversion to ensure correct calibration is used."
+              rm -f "${outputDirectory}/${fileName}_converted.root"
+          else
+              echo "Converted file exists but is missing required trees. Will re-convert."
+              rm -f "${outputDirectory}/${fileName}_converted.root"
+          fi
+      fi
+
+      if [ "$needsConversion" = true ] || [ ! -f "${outputDirectory}/${fileName}_converted.root" ]; then
+          convert_data="./flat_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --cal-file $calFile --dune"
+          echo "Executing command: "$convert_data
+          $convert_data
+          if [ $? -ne 0 ]; then
+              echo "Error: Data conversion failed for run ${runit}. Skipping analysis for this run."
+              continue
+          fi
+      else
+          echo "File ${outputDirectory}/${fileName}_converted.root already exists with correct calibration. Skipping conversion."
+      fi
     fi
 
-    echo "Using calibration file: $calFile"
+    # Create a formatted file from the converted ROOT and feed it to clustering
+    formattedFile="${outputDirectory}/${fileName}_formatted.root"
 
-    # Check if conversion is needed (file doesn't exist or calibration changed)
-    needsConversion=true
-    if [ -f "${outputDirectory}/${fileName}_converted.root" ]; then
-        # Check if the converted file has the required detector trees
-        if root -l -q "${outputDirectory}/${fileName}_converted.root" -e "TFile f(\"${outputDirectory}/${fileName}_converted.root\"); if (f.Get(\"raw_detector0\")) { cout << \"TREE_EXISTS\" << endl; } else { cout << \"TREE_MISSING\" << endl; }" 2>/dev/null | grep -q "TREE_EXISTS"; then
-            echo "Converted file exists and has required trees. Checking if calibration matches..."
-            # For now, we'll force re-conversion to ensure calibration is correct
-            # TODO: Add logic to check if calibration file used matches expected
-            echo "Forcing re-conversion to ensure correct calibration is used."
-            rm -f "${outputDirectory}/${fileName}_converted.root"
-        else
-            echo "Converted file exists but is missing required trees. Will re-convert."
-            rm -f "${outputDirectory}/${fileName}_converted.root"
-        fi
-    fi
-
-    if [ "$needsConversion" = true ] || [ ! -f "${outputDirectory}/${fileName}_converted.root" ]; then
-        convert_data="./flat_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --cal-file $calFile --dune"
-        echo "Executing command: "$convert_data
-        $convert_data
-        if [ $? -ne 0 ]; then
-            echo "Error: Data conversion failed for run ${runit}. Skipping analysis for this run."
-            continue
-        fi
+    if [ -f "${formattedFile}" ]; then
+      echo "Formatted file already exists: ${formattedFile}. Skipping formatting step."
     else
-        echo "File ${outputDirectory}/${fileName}_converted.root already exists with correct calibration. Skipping conversion."
+      formatting_command="./formatting --cal-file ${calFile} --dune ${outputDirectory}/${fileName}_converted.root ${formattedFile}"
+      echo "Executing command: ${formatting_command}"
+      $formatting_command
+      if [ $? -ne 0 ]; then
+        echo "Error: Formatting failed for run ${runit}. Skipping clustering and report generation for this run."
+        continue
+      fi
     fi
-  fi
 
-  # Create a formatted file from the converted ROOT and feed it to clustering
-  formattedFile="${outputDirectory}/${fileName}_formatted.root"
+    clustering_command="./clustering -i ${formattedFile} -o ${outputDirectory}/${fileName}_clusters.root -s ${nsigma}"
 
-  if [ -f "${formattedFile}" ]; then
-    echo "Formatted file already exists: ${formattedFile}. Skipping formatting step."
-  else
-    formatting_command="./formatting --cal-file ${calFile} --dune ${outputDirectory}/${fileName}_converted.root ${formattedFile}"
-    echo "Executing command: ${formatting_command}"
-    $formatting_command
+    echo "Executing command: ${clustering_command}"
+    $clustering_command
     if [ $? -ne 0 ]; then
-      echo "Error: Formatting failed for run ${runit}. Skipping clustering and report generation for this run."
+      echo "Error: Clustering failed for run ${runit}. Skipping report generation for this run."
       continue
     fi
+
+    runReport_command="./runReport -i ${outputDirectory}/${fileName}_clusters.root -o ${outputDirectory} -s ${nsigma} -v"
+
+    echo "Executing command: "$runReport_command
+    $runReport_command
+    if [ $? -ne 0 ]; then
+        echo "Error: Report generation failed for run ${runit}."
+        # Don't continue here as this is the last step
+    fi
+
+    fileName="" # reset fileName for the next iteration
   fi
-
-  clustering_command="./clustering -i ${formattedFile} -o ${outputDirectory}/${fileName}_clusters.root -s ${nsigma}"
-
-  # if [ "$verbose" = true ]
-  # then
-  #     echo "Verbose mode is on."
-  #     clustering_command+=" -v"
-  # fi
-
-  echo "Executing command: ${clustering_command}"
-  $clustering_command
-  if [ $? -ne 0 ]; then
-    echo "Error: Clustering failed for run ${runit}. Skipping report generation for this run."
-    continue
-  fi
-
-
-  runReport_command="./runReport -i ${outputDirectory}/${fileName}_clusters.root -o ${outputDirectory} -s ${nsigma} -v"
-  
-  if [ "$verbose" = true ]
-  then
-      echo "Verbose mode is on."
-      runReport_command+=" -v"
-  fi
-
-  if [ "$debug" = true ]
-  then
-      echo "Debug mode is on."
-      runReport_command+=" -d"
-  fi
-
-  echo "Executing command: "$runReport_command
-  $runReport_command
-  if [ $? -ne 0 ]; then
-      echo "Error: Report generation failed for run ${runit}."
-      # Don't continue here as this is the last step
-  fi
-
-  fileName="" # reset fileName for the next iteration
  
 done
 

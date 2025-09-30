@@ -46,29 +46,30 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
 
   if(!isDune)
   {
+    TString try_branch;
     if (side == 0)
-    {
-      chain.SetBranchAddress("RAW Event J5", &raw_event, &RAW);
-    }
+      try_branch = "RAW Event J5";
     else if (side == 1)
-    {
-      chain.SetBranchAddress("RAW Event J7", &raw_event, &RAW);
-    }
-    else
-    {
+      try_branch = "RAW Event J7";
+    else {
       std::cout << "Side must be 0 or 1" << std::endl;
       return 1;
     }
+    if (!chain.GetListOfBranches()->FindObject(try_branch)) {
+      std::cout << "[calibration] WARNING: Branch '" << try_branch << "' not found in TTree. Skipping calibration for this board/side." << std::endl;
+      return 1;
+    }
+    chain.SetBranchAddress(try_branch, &raw_event, &RAW);
   }
   else
   {
     if (board == 0 && side == 0)
-    {
       branch_name = (TString) "RAW Event";
-    } 
     else
-    {
       branch_name = (TString) "RAW Event " + alphabet[2 * board + side];
+    if (!chain.GetListOfBranches()->FindObject(branch_name)) {
+      std::cout << "[calibration] WARNING: Branch '" << branch_name << "' not found in TTree. Skipping calibration for this board/side." << std::endl;
+      return 1;
     }
     chain.SetBranchAddress(branch_name, &raw_event, &RAW);
   }
