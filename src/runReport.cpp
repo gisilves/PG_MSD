@@ -759,6 +759,116 @@ int main(int argc, char* argv[]) {
                         }
                 }
 
+                // If SPS mode, try to read beam configuration from parameters/beam_settings.dat
+                if (spsRunMode) {
+                        auto trim = [](std::string s){
+                                // trim both ends
+                                const char *ws = " \t\r\n";
+                                size_t start = s.find_first_not_of(ws);
+                                size_t end = s.find_last_not_of(ws);
+                                if (start == std::string::npos) return std::string("");
+                                return s.substr(start, end - start + 1);
+                        };
+                        struct BeamEntry { std::string date; std::string time; std::string energy; std::string target; std::string cherenkov; std::string collimator; std::string details; };
+                        std::vector<BeamEntry> entries;
+                        const std::vector<std::string> beamCandidates = {"parameters/beam_settings.dat", "../parameters/beam_settings.dat"};
+                        std::string beamPath;
+                        for (const auto &bp: beamCandidates) if (std::filesystem::exists(bp)) { beamPath = bp; break; }
+                        if (!beamPath.empty()) {
+                                std::ifstream fbeam(beamPath);
+                                std::string line;
+                                bool headerPassed = false;
+                                while (std::getline(fbeam, line)) {
+                                        std::string ls = trim(line);
+                                        if (ls.empty()) continue;
+                                        if (ls.size() > 0 && ls[0] == '#') continue;
+                                        // header separator line (---) skip
+                                        bool allDashes = true; for (char c: ls) if (c != '-' && c != '|' && c != ' ' && c != '\t') { allDashes = false; break; }
+                                        if (allDashes) { headerPassed = true; continue; }
+                                        if (!headerPassed) continue; // skip until after header separator
+                                        // split by '|'
+                                        std::vector<std::string> cols;
+                                        size_t p = 0;
+                                        while (p < line.size()) {
+                                                size_t q = line.find('|', p);
+                                                if (q == std::string::npos) q = line.size();
+                                                cols.push_back(trim(line.substr(p, q - p)));
+                                                p = q + 1;
+                                        }
+                                        if (cols.size() < 7) continue;
+                                        BeamEntry be;
+                                        be.date = cols[0]; be.time = cols[1]; be.energy = cols[2]; be.target = cols[3]; be.cherenkov = cols[4]; be.collimator = cols[5]; be.details = cols[6];
+                                        entries.push_back(be);
+                                }
+                        }
+
+                        // Try to extract date and energy from inputFileBase
+                        std::string queryDate = "", queryEnergy = ""; // date in YYYY-MM-DD, energy like +1.5 or -3.0
+                        if (inputFileBase.size() >= 8) {
+                                std::string d = inputFileBase.substr(0,8);
+                                if (d.find_first_not_of("0123456789") == std::string::npos) {
+                                        // format YYYYMMDD to YYYY-MM-DD
+                                        queryDate = d.substr(0,4) + "-" + d.substr(4,2) + "-" + d.substr(6,2);
+                                }
+                        }
+                        // energy: look for + or - followed by digits and optional decimal, possibly followed by "GeV"
+                        size_t epos = inputFileBase.find_first_of("+-", 8);
+                        if (epos != std::string::npos) {
+                                size_t gpos = inputFileBase.find("GeV", epos);
+                                if (gpos != std::string::npos && gpos > epos) {
+                                        queryEnergy = inputFileBase.substr(epos, gpos - epos);
+                                } else {
+                                        // take until next underscore or end
+                                        size_t endp = inputFileBase.find_first_of("_", epos+1);
+                                        if (endp == std::string::npos) endp = inputFileBase.size();
+                                        queryEnergy = inputFileBase.substr(epos, endp - epos);
+                                }
+                                // trim
+                                queryEnergy = trim(queryEnergy);
+                        }
+
+                        // Find best matching entry: prefer date+energy, then date, then energy
+                        int foundIndex = -1;
+                        for (size_t i=0;i<entries.size();++i) {
+                                if (!queryDate.empty() && !queryEnergy.empty()) {
+                                        if (entries[i].date == queryDate && entries[i].energy.find(queryEnergy) != std::string::npos) { foundIndex = (int)i; break; }
+                                }
+                        }
+                        if (foundIndex < 0 && !queryDate.empty()) {
+                                for (size_t i=0;i<entries.size();++i) if (entries[i].date == queryDate) { foundIndex = (int)i; break; }
+                        }
+                        if (foundIndex < 0 && !queryEnergy.empty()) {
+                                for (size_t i=0;i<entries.size();++i) if (entries[i].energy.find(queryEnergy) != std::string::npos) { foundIndex = (int)i; break; }
+                        }
+
+                        // Print result on summary page
+                        latex.SetTextSize(0.026);
+                        latex.SetTextAlign(11);
+                        double yBeam = yTop - 0.5; // reuse yTop area
+                        if (foundIndex >= 0) {
+                                const auto &be = entries[foundIndex];
+                                latex.DrawLatex(xL, yBeam, "Beam settings:"); yBeam -= rowH;
+                                latex.DrawLatex(xL, yBeam, Form("Time: %s", be.time.c_str())); yBeam -= rowH;
+                                latex.DrawLatex(xL, yBeam, Form("Target: %s", be.target.c_str())); yBeam -= rowH;
+                                latex.DrawLatex(xL, yBeam, Form("Cherenkov: %s", be.cherenkov.c_str())); yBeam -= rowH;
+                                latex.DrawLatex(xL, yBeam, Form("Collimator: %s", be.collimator.c_str())); yBeam -= rowH;
+                                latex.DrawLatex(xL, yBeam, Form("Notes: %s", be.details.c_str())); yBeam -= rowH;
+                        } else if (!entries.empty()) {
+                                latex.DrawLatex(xL, yBeam, "Beam settings: (no exact match)"); yBeam -= rowH;
+                                // print first few entries as reference
+                                for (size_t i=0;i<entries.size() && i<3; ++i) {
+                                        const auto &be = entries[i];
+                                        latex.DrawLatex(xL, yBeam, Form("%s %s: T=%s, C=%s, Col=%s", be.date.c_str(), be.energy.c_str(), be.target.c_str(), be.cherenkov.c_str(), be.collimator.c_str())); yBeam -= rowH;
+                                }
+                        } else {
+                                latex.DrawLatex(xL, yBeam, "Beam settings: (no beam_settings.dat found)"); yBeam -= rowH;
+                        }
+                        // restore yTop downward for further summary rows if needed
+                        yTop = yBeam - 0.01;
+                }
+
+
+
                 canvasSummary->Update();
                 canvasSummary->SaveAs((outputFilenameReport + "(").c_str());
 
