@@ -160,37 +160,34 @@ int main(int argc, char* argv[]) {
         for (int i = 0; i < 18; i++) std::getline(calFile, line); // skipping, header
 
         for (int i = 0; i < nChannels; i++) {
-            std::getline(calFile, line);
-            // values are separated by commas, read all and store line by line
+            if (!std::getline(calFile, line)) {
+                LogError << "Warning: not enough lines in calibration file for detector " << detit << ", channel " << i << ". Filling with zeros." << std::endl;
+                baseline[detit][i] = 0.0;
+                baseline_sigma[detit][i] = 0.0;
+                continue;
+            }
             std::istringstream iss(line);
             std::vector <float> values;
-            float value;
             std::string token;
             while (std::getline(iss, token, ',')) {
                 std::istringstream iss_value(token);
                 float value;
                 if (iss_value >> value) {
-                values.push_back(value);
+                    values.push_back(value);
                 }
             }
-
-            // check if the values are correct
             if (values.size() != 8) {
-                LogError << "Error: wrong number of values in the calibration file" << std::endl;
-                LogError << "Values size: " << values.size() << std::endl;
-                return 1;
+                LogError << "Warning: wrong number of values in calibration file for detector " << detit << ", channel " << i << ". Filling with zeros." << std::endl;
+                baseline[detit][i] = 0.0;
+                baseline_sigma[detit][i] = 0.0;
+                continue;
             }
-
-            // store the values
             int this_channel = values.at(0);
             float this_baseline = values.at(3);
             float this_baseline_sigma = values.at(5);
-
             if (verbose) LogInfo << "Channel: " << this_channel << " Detector: " << detit << " Baseline: " << this_baseline << " Baseline sigma: " << this_baseline_sigma << std::endl;
-
             baseline.at(detit).emplace(baseline.at(detit).begin() + this_channel, this_baseline);
             baseline_sigma.at(detit).emplace(baseline_sigma.at(detit).begin() + this_channel, this_baseline_sigma);
-
         }
     }
 

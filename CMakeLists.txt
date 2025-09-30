@@ -89,6 +89,12 @@ target_include_directories( bmRawToRootConverter PRIVATE ${CMAKE_CURRENT_SOURCE_
 target_link_libraries( bmRawToRootConverter ${OCA_LIBS} )
 install( TARGETS bmRawToRootConverter DESTINATION bin )
 
+cmessage( STATUS "Creating groupBeam app..." )
+add_executable( groupBeam ${CMAKE_CURRENT_SOURCE_DIR}/src/groupBeam.cpp)
+target_include_directories( groupBeam PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/inc )
+target_link_libraries( groupBeam ${OCA_LIBS} )
+install( TARGETS groupBeam DESTINATION bin )
+
 ###############################################################3
 
 

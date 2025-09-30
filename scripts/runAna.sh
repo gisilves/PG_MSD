@@ -13,6 +13,7 @@ fileName=""
 noCompile=false
 cleanCompile=false
 nsigma=5 # Default value for nSigma
+calRun="" # Added for explicit cal run
 
 # Function to print help message
 print_help() {
@@ -24,6 +25,7 @@ print_help() {
     echo "  -f | --first-run      first run number"
     echo "  -l | --last-run       last run number" 
     echo "  -j | --json-settings  json settings file to run this app"
+    echo "  --cal-run             explicitly provide the calibration run number"
     echo "  --no-compile          do not recompile the code. Default is to recompile the code"
     echo "  --clean-compile       clean and recompile the code. Default is to recompile the code without cleaning"
     echo "  --clean-files       clean the output files before running the analysis. Default is to not clean the output files"
@@ -42,6 +44,7 @@ while [[ $# -gt 0 ]]; do
       -f|--first-run)      firstRun="$2"; shift 2 ;;
       -l|--last-run)       lastRun="$2"; shift 2 ;;
       -j|--json-settings)  settingsFile="$2"; shift 2 ;;
+      --cal-run)           calRun="$2"; shift 2 ;;
       --no-compile)        noCompile=true; shift ;;
       --clean-compile)     cleanCompile=true; shift ;;
       --clean-files)      cleanFiles=true; shift ;;
@@ -100,7 +103,12 @@ else
     echo "I have received the run name: $fileName"
     # if it has the extension, remove it
     fileName=$(echo $fileName | awk -F'.' '{print $1}')
-    # firstRun=$(echo $fileName | awk -F'_' '{print $2}')
+    runit_from_name=$(echo $fileName | sed -n 's/.*RUN\([0-9]\{5,\}\).*/\1/p' | sed 's/^0*//')
+    if [ -n "$runit_from_name" ]; then
+        firstRun=$runit_from_name
+        lastRun=$runit_from_name
+        fileName="" # Unset fileName to use the loop logic
+    fi
 fi
 
 ################################################
@@ -172,8 +180,17 @@ do
   else
     echo "Received a single file path ${fileName}"
     filePath="${inputDirectory}/${fileName}.dat"
+    runit=$(echo $fileName | sed -n 's/.*RUN\([0-9]*\).*/\1/p' | sed 's/^0*//')
+    if [ -z "$runit" ]; then
+        runit=$fileName
+    fi
   fi
-  if [ -f "${outputDirectory}/${fileName}_converted.root" ]
+  if [ "$cleanFiles" = true ]; then
+      echo "Cleaning output files in $outputDirectory for run $runit"
+      rm -f ${outputDirectory}/SCD_RUN$(printf "%05d" $runit)*.root
+      rm -f ${outputDirectory}/SCD_RUN$(printf "%05d" $runit)*.cal
+  fi
+  if [ -f "${outputDirectory}/${fileName}_converted.root" ] && [ "$cleanFiles" != true ]
   then
       echo "File ${outputDirectory}/${fileName}_converted.root already exists. Skipping conversion."
   else
@@ -184,83 +201,48 @@ do
       currentIsCAL=true
     fi
 
-    # Search backwards for the most recent previous run whose filename contains "CAL"
     calRunPath=""
-    prevRun=$((runit-1))
-    while [ $prevRun -ge 0 ]; do
-      prevPaths=$($SCRIPTS_DIR/findRun.sh -r "$prevRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
-      if [ -n "$prevPaths" ]; then
-        for p in $prevPaths; do
-          if basename "$p" | grep -qi "CAL"; then
-            calRunPath="$p"
+    if [ -n "$calRun" ]; then
+        calRunPath=$($SCRIPTS_DIR/findRun.sh -r "$calRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
+    else
+        # Search backwards for the most recent previous run whose filename contains "CAL"
+        prevRun=$((runit-1))
+        while [ $prevRun -ge 0 ]; do
+          prevPaths=$($SCRIPTS_DIR/findRun.sh -r "$prevRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
+          if [ -n "$prevPaths" ]; then
+            for p in $prevPaths; do
+              if basename "$p" | grep -qi "CAL"; then
+                calRunPath="$p"
+                break
+              fi
+            done
+          fi
+          if [ -n "$calRunPath" ]; then
             break
           fi
+          prevRun=$((prevRun-1))
         done
-      fi
-      if [ -n "$calRunPath" ]; then
-        break
-      fi
-      prevRun=$((prevRun-1))
-    done
+    fi
 
-    calFileToUse=""
-    # Search backwards for the most recent previous run whose filename contains "CAL"
-    calRunPath=""
-    prevRun=$((runit-1))
-    while [ $prevRun -ge 0 ]; do
-      prevPaths=$($SCRIPTS_DIR/findRun.sh -r "$prevRun" -i "$inputDirectory" 2>/dev/null | tail -n 1)
-      if [ -n "$prevPaths" ]; then
-      for p in $prevPaths; do
-        if basename "$p" | grep -qi "CAL"; then
-        calRunPath="$p"
-        break
-        fi
-      done
-      fi
-      if [ -n "$calRunPath" ]; then
-      break
-      fi
-      prevRun=$((prevRun-1))
-    done
-
-    if [ -n "$calRunPath" ]; then
-      calBase=$(basename "$calRunPath")
-      calBase=${calBase%.*}
-      # Ensure previous CAL run converted and calibrated
-      if [ ! -f "${outputDirectory}/${calBase}_converted.root" ]; then
-      echo "Converting previous CAL run for calibration: $calRunPath"
-      prev_convert_data="./flat_convert ${calRunPath} ${outputDirectory}/${calBase}_converted.root --dune"
-      echo "Executing command: $prev_convert_data"
-      $prev_convert_data
-      if [ $? -ne 0 ]; then
-        echo "Error: Failed to convert CAL run $calRunPath for calibration. Stopping execution."
-        exit 1
-      fi
-      fi
-      if [ ! -f "${outputDirectory}/${calBase}.cal" ]; then
-      echo "Extracting calibration from previous CAL run: ${calBase}.root"
-      prev_extract_cal="./calibration ${outputDirectory}/${calBase}_converted.root --output ${outputDirectory}/${calBase} --dune --fast"
-      echo "Executing command: $prev_extract_cal"
-      $prev_extract_cal
-      if [ $? -ne 0 ]; then
-        echo "Error: Failed to extract calibration from CAL run $calBase. Stopping execution."
-        exit 1
-      fi
-      fi
-      calFileToUse="${outputDirectory}/${calBase}.cal"
-    else
-      echo "Error: No previous CAL run found before run ${runit}. Stopping execution."
+    if [ -z "$calRunPath" ]; then
+      echo "Error: No previous CAL run found before run $runit. Stopping execution."
       exit 1
     fi
+
+    echo "For calibration, using run: $calRun"
 
     # Verify calibration file exists
-    if [ -z "$calFileToUse" ] || [ ! -f "$calFileToUse" ]; then
-      echo "Error: Calibration file not found for run ${runit}. Expected: $calFileToUse"
-      echo "Stopping execution."
-      exit 1
+    calFileName=$(basename "$calRunPath")
+    calFileName=${calFileName%.*}
+    calFile="${outputDirectory}/${calFileName}.cal"
+
+    if [ ! -f "$calFile" ]; then
+        echo "Error: Calibration file not found for run $runit. Expected: $calFile"
+        echo "Stopping execution."
+        exit 1
     fi
 
-    echo "Using calibration file: $calFileToUse"
+    echo "Using calibration file: $calFile"
 
     # Check if conversion is needed (file doesn't exist or calibration changed)
     needsConversion=true
@@ -279,7 +261,7 @@ do
     fi
 
     if [ "$needsConversion" = true ] || [ ! -f "${outputDirectory}/${fileName}_converted.root" ]; then
-        convert_data="./flat_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --cal-file $calFileToUse --dune"
+        convert_data="./flat_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --cal-file $calFile --dune"
         echo "Executing command: "$convert_data
         $convert_data
         if [ $? -ne 0 ]; then
@@ -297,7 +279,7 @@ do
   if [ -f "${formattedFile}" ]; then
     echo "Formatted file already exists: ${formattedFile}. Skipping formatting step."
   else
-    formatting_command="./formatting --cal-file ${calFileToUse} --dune ${outputDirectory}/${fileName}_converted.root ${formattedFile}"
+    formatting_command="./formatting --cal-file ${calFile} --dune ${outputDirectory}/${fileName}_converted.root ${formattedFile}"
     echo "Executing command: ${formatting_command}"
     $formatting_command
     if [ $? -ne 0 ]; then

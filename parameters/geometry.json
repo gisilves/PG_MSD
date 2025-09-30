@@ -5,8 +5,8 @@
   [ -25.0, 0.0 ]
   ],
   "centersAxisRanges": {
-  "xmin": -80.0,
-  "xmax": 50.0,
+    "xmin": -80.0,
+    "xmax": 50.0,
     "ymin": -60.0,
     "ymax": 60.0
   }

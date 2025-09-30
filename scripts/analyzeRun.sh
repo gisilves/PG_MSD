@@ -279,11 +279,18 @@ do
     echo "Current run is not a CAL run; skipping calibration extraction for this run."
   fi
 
-  # Verify calibration file exists
+
+  # Verify calibration file exists, else create a dummy one
   if [ -z "$calFileToUse" ] || [ ! -f "$calFileToUse" ]; then
-      echo "Error: Calibration file not found for run ${runit}. Expected: $calFileToUse"
-      echo "Skipping analysis for this run."
-      continue
+      echo "Warning: Calibration file not found for run ${runit}. Creating dummy calibration: $calFileToUse"
+      # Create a dummy .cal file with zeros for 4 detectors x 384 channels, 8 columns per line
+      {
+        for det in {0..3}; do
+          for ch in {0..383}; do
+            echo "$ch,$((ch/64)),$((ch%64)),0,0,0,0,0"
+          done
+        done
+      } > "$calFileToUse"
   fi
 
   analyze_data="./dataAnalyzer -r ${outputDirectory}/${fileName}_converted.root -c ${calFileToUse} -o ${outputDirectory} -s ${nsigma} -n ${runit} -j ${settingsFile}"

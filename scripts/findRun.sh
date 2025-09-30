@@ -17,10 +17,10 @@ runType="all" # unused here
 
 print_help() {
   echo "*****************************************************************************"
-  echo "Usage: $0 -r <run_number> [-i <input_folder>] [-s <settings_file>] [-w <linux|windows>] [--subrun <n>] [-h]"
+  echo "Usage: $0 -r <run_number> [-i <input_folder>] [-j <settings_file>] [-w <linux|windows>] [--subrun <n>] [-h]"
   echo " -r | --run-number     Run number (integer)"
   echo " -i | --input-folder   Folder to search (recursively). If omitted, read from settings file"
-  echo " -s | --settings-file  JSON settings with inputDirectory field"
+  echo " -j | --json-settings  JSON settings with inputDirectory field"
   echo " -w | --which-software linux (default) or windows (reserved)"
   echo " --subrun              Subrun (unused for current pattern; kept for compat)"
   echo "*****************************************************************************"
@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
     -r|--run-number) runNumber="$2"; shift 2 ;;
     --subrun)        subrun="$2"; shift 2 ;;
     -i|--input-folder) inputFolder="$2"; shift 2 ;;
-    -s|--settings-file) settingsFile="$2"; shift 2 ;;
+    -j|--json-settings) settingsFile="$2"; shift 2 ;;
     -w|--which-software) software="$2"; shift 2 ;;
     -h|--help) print_help; exit 0 ;;
     *) shift ;;
