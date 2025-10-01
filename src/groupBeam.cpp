@@ -248,6 +248,11 @@ int main(int argc, char* argv[]) {
 
     // Process each input file
     for (const auto& inputFile : inputFiles) {
+        if (inputFile.find("SCD_RUN00284") != std::string::npos ||
+            inputFile.find("SCD_RUN00282") != std::string::npos) {
+            LogWarning << "Skipping problematic file: " << inputFile << std::endl;
+            continue;
+        }
         LogInfo << "Processing: " << inputFile << std::endl;
         
         TFile* inFile = new TFile(inputFile.c_str(), "READ");
@@ -294,11 +299,11 @@ int main(int argc, char* argv[]) {
         eventInfoTree->SetBranchAddress("file_offset", &eventData.file_offset);
 
         // Set up clusters tree branches with pointers
-        std::vector<int>* detectorPtr = &eventData.cluster_detector;
-        std::vector<int>* startChPtr = &eventData.cluster_start_ch;
-        std::vector<int>* endChPtr = &eventData.cluster_end_ch;
-        std::vector<int>* sizePtr = &eventData.cluster_size;
-        std::vector<float>* amplitudePtr = &eventData.cluster_amplitude;
+        std::vector<int>* detectorPtr = nullptr;
+        std::vector<int>* startChPtr = nullptr;
+        std::vector<int>* endChPtr = nullptr;
+        std::vector<int>* sizePtr = nullptr;
+        std::vector<float>* amplitudePtr = nullptr;
         
         clustersTree->SetBranchAddress("detector", &detectorPtr);
         clustersTree->SetBranchAddress("start_ch", &startChPtr);
@@ -343,20 +348,72 @@ int main(int argc, char* argv[]) {
             eventInfoTree->GetEntry(entry);
             clustersTree->GetEntry(entry);
             
+            // Copy cluster data
+            if (detectorPtr) eventData.cluster_detector = *detectorPtr;
+            else eventData.cluster_detector.clear();
+            if (startChPtr) eventData.cluster_start_ch = *startChPtr;
+            else eventData.cluster_start_ch.clear();
+            if (endChPtr) eventData.cluster_end_ch = *endChPtr;
+            else eventData.cluster_end_ch.clear();
+            if (sizePtr) eventData.cluster_size = *sizePtr;
+            else eventData.cluster_size.clear();
+            if (amplitudePtr) {
+                if (amplitudePtr->size() > 10000) {
+                    LogWarning << "Amplitude size too large: " << amplitudePtr->size() << ", skipping entry" << std::endl;
+                    eventData.cluster_amplitude.clear();
+                } else {
+                    eventData.cluster_amplitude = *amplitudePtr;
+                    // Replace invalid floats with 0
+                    for (auto& val : eventData.cluster_amplitude) {
+                        if (!std::isfinite(val)) {
+                            val = 0.0f;
+                        }
+                    }
+                }
+            } else eventData.cluster_amplitude.clear();
+            
             // Read detector data for this event
             for (int d = 0; d < nDetectors; ++d) {
                 if (detectorTrees[d]) {
                     detectorTrees[d]->GetEntry(entry);
-                    eventData.detectorData[d] = *detDataPtrs[d];
+                    if (detDataPtrs[d]->size() > 10000) {
+                        LogWarning << "Detector " << d << " data size too large: " << detDataPtrs[d]->size() << ", clearing" << std::endl;
+                        eventData.detectorData[d].clear();
+                    } else {
+                        eventData.detectorData[d] = *detDataPtrs[d];
+                        // Replace invalid floats with 0
+                        for (auto& val : eventData.detectorData[d]) {
+                            if (!std::isfinite(val)) {
+                                val = 0.0f;
+                            }
+                        }
+                    }
                 }
                 if (rawDetectorTrees[d]) {
                     rawDetectorTrees[d]->GetEntry(entry);
-                    eventData.rawDetectorData[d] = *rawDetDataPtrs[d];
+                    if (rawDetDataPtrs[d]->size() > 10000) {
+                        LogWarning << "Raw detector " << d << " data size too large: " << rawDetDataPtrs[d]->size() << ", clearing" << std::endl;
+                        eventData.rawDetectorData[d].clear();
+                    } else {
+                        eventData.rawDetectorData[d] = *rawDetDataPtrs[d];
+                        // Replace invalid floats with 0
+                        for (auto& val : eventData.rawDetectorData[d]) {
+                            if (!std::isfinite(val)) {
+                                val = 0.0f;
+                            }
+                        }
+                    }
                 }
             }
 
             // Calculate actual event time (base time + internal timestamp)
             std::tm eventTime = eventToTime(baseTime, eventData.timestamp);
+            
+            // Check if timestamp is reasonable (allow up to ~1 hour of ticks: 1e12)
+            if (eventData.timestamp < 0 || eventData.timestamp > 1e12) {
+                LogWarning << "Invalid timestamp: " << eventData.timestamp << ", skipping entry " << entry << std::endl;
+                continue;
+            }
             
             // Determine beam configuration and output file
             BeamConfig config = findBeamConfig(eventTime, beamConfigs);
