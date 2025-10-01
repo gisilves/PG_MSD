@@ -168,7 +168,8 @@ int main(int argc, char *argv[])
 
     bool dune = false;
 
-    if (opt->getValue("dune"))
+    // Use getFlag for boolean flags
+    if (opt->getFlag("dune"))
     {
         dune = true;
         std::cout << "\tFormatting data for protoDUNE setup" << std::endl;
@@ -305,7 +306,7 @@ int main(int argc, char *argv[])
             trigger_id = std::get<7>(evt_retValues);
             offset = std::get<8>(evt_retValues);
 
-            std::cout << "\r\tReading event " << evtnum << std::flush;
+            if (evtnum%1000 == 0) std::cout << "\r\tReading event " << evtnum << std::flush;
 
             if (verbose)
             {

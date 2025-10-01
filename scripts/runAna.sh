@@ -258,7 +258,7 @@ do
         exit 1
       fi
 
-      echo "For calibration, using run: $calRun"
+      echo "For calibration, using run: $calRunPath"
 
       # Verify calibration file exists
       calFileName=$(basename "$calRunPath")
@@ -290,7 +290,7 @@ do
       fi
 
       if [ "$needsConversion" = true ] || [ ! -f "${outputDirectory}/${fileName}_converted.root" ]; then
-          convert_data="./flat_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --cal-file $calFile --dune"
+          convert_data="./flat_convert ${filePath} ${outputDirectory}/${fileName}_converted.root --dune"
           echo "Executing command: "$convert_data
           $convert_data
           if [ $? -ne 0 ]; then
