@@ -41,11 +41,11 @@ PAPERO_i2c: ./src/PAPERO_i2c.cpp
 raw_clusterize: ./src/raw_clusterize.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
-raw_threshold_scan: ./src/raw_threshold_scan.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
-
 raw_cn: ./src/raw_cn.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
+raw_threshold_scan: ./src/raw_threshold_scan.cpp
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 calibration: ./src/calibration.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)

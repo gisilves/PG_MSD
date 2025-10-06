@@ -29,9 +29,11 @@ int main(int argc, char *argv[])
   opt->addUsage("Options: ");
   opt->addUsage("  -h, --help       ................................. Print this help ");
   opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA or 1313 for 10VA miniTRB ");
+  opt->addUsage("  --version        ................................. 1212 for 6VA miniTRB, 1313 for 10VA miniTRB, 2020 for PAPERO DAQ");
   opt->addUsage("  --output         ................................. Output ROOT file ");
   opt->addUsage("  --calibration    ................................. Calibration file ");
+  opt->addUsage("  --board          ................................. Board number (0,1,2,3, ...) ");
+  opt->addUsage("  --side           ................................. Side number (0,1) ");
 
   opt->setFlag("help", 'h');
   opt->setFlag("verbose", 'v');
@@ -52,23 +54,53 @@ int main(int argc, char *argv[])
 
   if (!opt->getValue("version"))
   {
-    std::cout << "ERROR: no miniTRB version provided" << std::endl;
+    std::cout << "ERROR: no DAQ board version provided" << std::endl;
     return 2;
   }
 
+  int minStrip = 0;
+  int maxStrip = 0;
+  int board = 0;
+  int side = 0;
+
   if (atoi(opt->getValue("version")) == 1212)
   {
-    int NChannels = 384;
-    int NVas = 6;
-    int minStrip = 0;
-    int maxStrip = 383;
+    NChannels = 384;
+    NVas = 6;
+    minStrip = 0;
+    maxStrip = 383;
   }
   else if (atoi(opt->getValue("version")) == 1313)
   {
-    int NChannels = 640;
-    int NVas = 10;
-    int minStrip = 0;
-    int maxStrip = 639;
+    NChannels = 640;
+    NVas = 10;
+    minStrip = 0;
+    maxStrip = 639;
+  }
+  else if (atoi(opt->getValue("version")) == 2020)
+  {
+    NChannels = 640;
+    NVas = 10;
+    minStrip = 0;
+    maxStrip = 639;
+    if (opt->getValue("board"))
+    {
+      board = atoi(opt->getValue("board"));
+    }
+    else
+    {
+      std::cout << "ERROR: no board number provided" << std::endl;
+      return 2;
+    }
+    if (opt->getValue("side"))
+    {
+      side = atoi(opt->getValue("side"));
+    }
+    else
+    {
+      std::cout << "ERROR: no side number provided" << std::endl;
+      return 2;
+    }
   }
   else
   {
@@ -95,12 +127,57 @@ int main(int argc, char *argv[])
   TH1F *hCommonNoise2 = new TH1F("hCommonNoise2", "hCommonNoise2", 1000, -200, 200);
   hCommonNoise2->GetXaxis()->SetTitle("CN");
 
+  TH2F *hCommonNoise0VsVA = new TH2F("hCommonNoise0VsVA", "hCommonNoise0VsVA", 100, -20, 20, 10, -0.5, 9.5);
+  hCommonNoise0VsVA->GetXaxis()->SetTitle("CN");
+  hCommonNoise0VsVA->GetYaxis()->SetTitle("VA");
+
+  TH2F *hCommonNoise1VsVA = new TH2F("hCommonNoise1VsVA", "hCommonNoise1VsVA", 100, -20, 20, 10, -0.5, 9.5);
+  hCommonNoise1VsVA->GetXaxis()->SetTitle("CN");
+  hCommonNoise1VsVA->GetYaxis()->SetTitle("VA");
+
+  TH2F *hCommonNoise2VsVA = new TH2F("hCommonNoise2VsVA", "hCommonNoise2VsVA", 100, -20, 20, 10, -0.5, 9.5);
+  hCommonNoise2VsVA->GetXaxis()->SetTitle("CN");
+  hCommonNoise2VsVA->GetYaxis()->SetTitle("VA");
+
   TGraph *common_noise_0 = new TGraph();
   TGraph *common_noise_1 = new TGraph();
   TGraph *common_noise_2 = new TGraph();
 
+  // Map idx → letter to build TTree suffix (e.g. _A, _B, ...)
+  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
+
+  int detector = 2*board + side;
+
+  // Base TTree name
+  TString tree_name = "raw_events";
+  if(detector > 0)
+  {
+    // If detector > 0, appends "_<letter>"
+    tree_name += "_";
+    tree_name += alphabet[detector];
+  }
+
+  std::cout << "\tOpening TTree with name: " << tree_name << std::endl;
+
+  // TBranch base name
+  TString branch_name = "RAW Event J";
+
+  // Select branch name based on parity of 'detector':
+  // even → ...J5 ; odd → ...J7
+  if(detector % 2 == 0)
+  {
+    branch_name += "5";
+  }
+  else
+  {
+    branch_name += "7";
+  }
+  std::cout << "\t\tReading branch: " << branch_name << std::endl;
+
+
+
   // Join ROOTfiles in a single chain
-  TChain *chain = new TChain("raw_events"); //Chain input rootfiles
+  TChain *chain = new TChain(tree_name.Data()); //Chain input rootfiles
   for (int ii = 0; ii < opt->getArgc(); ii++)
   {
     std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
@@ -110,10 +187,11 @@ int main(int argc, char *argv[])
   int entries = chain->GetEntries();
   std::cout << "This run has " << entries << " entries" << std::endl;
 
+
   // Read raw event from input chain TTree
   std::vector<unsigned short> *raw_event = 0;
   TBranch *RAW = 0;
-  chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
+  chain->SetBranchAddress(branch_name.Data(), &raw_event, &RAW);
 
   // Create output ROOTfile
   TString output_filename;
@@ -138,13 +216,19 @@ int main(int argc, char *argv[])
   }
 
   calib cal;
-  read_calib(opt->getValue("calibration"), &cal);
+  bool is_calib = read_calib(opt->getValue("calibration"), &cal, NChannels, 2 * board + side, verb);
+
+  if (!is_calib)
+  {
+    std::cout << "ERROR: no calibration file found" << endl;
+    return 2;
+  }
 
   for(int chan = 0; chan < cal.ped.size(); chan++)
     {
       hPedestals->Fill(cal.ped[chan]);
     }
-  
+
   // Loop over events
   int perc = 0;
 
@@ -215,7 +299,7 @@ int main(int argc, char *argv[])
           maxcn = cn;
         }
         hCommonNoise0->Fill(cn);
-        //hCommonNoiseVsVA->Fill(cn, va);
+        hCommonNoise0VsVA->Fill(cn, va);
       }
     }
     meanCN = meanCN / NVas;
@@ -238,7 +322,7 @@ int main(int argc, char *argv[])
           maxcn = cn;
         }
         hCommonNoise1->Fill(cn);
-        //hCommonNoiseVsVA->Fill(cn, va);
+        hCommonNoise1VsVA->Fill(cn, va);
       }
     }
     meanCN = meanCN / NVas;
@@ -261,7 +345,7 @@ int main(int argc, char *argv[])
           maxcn = cn;
         }
         hCommonNoise2->Fill(cn);
-        //hCommonNoiseVsVA->Fill(cn, va);
+        hCommonNoise2VsVA->Fill(cn, va);
       }
     }
     meanCN = meanCN / NVas;
@@ -271,6 +355,9 @@ int main(int argc, char *argv[])
   hCommonNoise0->Write();
   hCommonNoise1->Write();
   hCommonNoise2->Write();
+  hCommonNoise0VsVA->Write();
+  hCommonNoise1VsVA->Write();
+  hCommonNoise2VsVA->Write();
   hPedestals->Write();
   common_noise_0->Write();
   common_noise_1->Write();
