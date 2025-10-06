@@ -1,3 +1,4 @@
+// raw_cn_cli11.cpp
 #include "TChain.h"
 #include "TFile.h"
 #include "TH1.h"
@@ -6,14 +7,14 @@
 #include "TGraph.h"
 
 #include <iostream>
+#include <vector>
+#include <string>
+#include <filesystem>
 
-#include "anyoption.h"
-#include "event.h"
+#include <CLI/CLI.hpp>   // modern CLI
+#include "event.h" 
 
-AnyOption *opt; //Handle the option input
-
-int main(int argc, char *argv[])
-{
+int main(int argc, char* argv[]) {
   bool verb = false;
 
   float meanCN = 0;
@@ -23,327 +24,174 @@ int main(int argc, char *argv[])
   int NChannels = 384;
   int NVas = 6;
 
-  opt = new AnyOption();
-  opt->addUsage("Usage: ./raw_cn [options] [arguments] rootfile1 rootfile2 ...");
-  opt->addUsage("");
-  opt->addUsage("Options: ");
-  opt->addUsage("  -h, --help       ................................. Print this help ");
-  opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA miniTRB, 1313 for 10VA miniTRB, 2020 for PAPERO DAQ");
-  opt->addUsage("  --output         ................................. Output ROOT file ");
-  opt->addUsage("  --calibration    ................................. Calibration file ");
-  opt->addUsage("  --board          ................................. Board number (0,1,2,3, ...) ");
-  opt->addUsage("  --side           ................................. Side number (0,1) ");
+  // ———————————————— CLI11 ————————————————
+  int version = 0;
+  std::string output;
+  std::string calibration;
+  int board = 0;
+  int side = 0;
+  std::vector<std::string> inputs;
 
-  opt->setFlag("help", 'h');
-  opt->setFlag("verbose", 'v');
+  CLI::App app{"Compute common-noise statistics and pedestals"};
+  app.set_help_all_flag("--help-all", "Show all help");
 
-  opt->setOption("version");
-  opt->setOption("output");
-  opt->setOption("calibration");
+  app.add_flag("-v,--verbose", verb, "Verbose");
+  app.add_option("--version", version, "1212 (6VA miniTRB), 1313 (10VA miniTRB), 2020 (PAPERO)")
+     ->required();
+  app.add_option("--output", output, "Output ROOT file")->required();
+  app.add_option("--calibration", calibration, "Calibration file")->required();
+  app.add_option("--board", board, "Board number (0,1,2,...)");
+  app.add_option("--side", side, "Side number (0,1)");
+  app.add_option("inputs", inputs, "Input ROOT files")->required()->expected(-1);
 
-  opt->processFile("./options.txt");
-  opt->processCommandArgs(argc, argv);
-
-  if (!opt->hasOptions())
-  { /* print usage if no options */
-    opt->printUsage();
-    delete opt;
-    return 2;
+  // Optional config file, same keys as CLI flags (e.g. version=2020)
+  if (std::filesystem::exists("options.txt")) {
+    try { app.parse_from_file("options.txt", false); } catch (...) {}
   }
+  CLI11_PARSE(app, argc, argv);
 
-  if (!opt->getValue("version"))
-  {
-    std::cout << "ERROR: no DAQ board version provided" << std::endl;
+  if (version == 1212) {
+    NChannels = 384; NVas = 6;
+  } else if (version == 1313) {
+    NChannels = 640; NVas = 10;
+  } else if (version == 2020) {
+    NChannels = 640; NVas = 10;
+    if (!app.get_option("--board")->count()) { std::cerr << "ERROR: no board number provided\n"; return 2; }
+    if (!app.get_option("--side")->count())  { std::cerr << "ERROR: no side number provided\n";  return 2; }
+  } else {
+    std::cerr << "ERROR: invalid miniTRB version\n";
     return 2;
   }
 
   int minStrip = 0;
-  int maxStrip = 0;
-  int board = 0;
-  int side = 0;
+  int maxStrip = NChannels - 1;
 
-  if (atoi(opt->getValue("version")) == 1212)
-  {
-    NChannels = 384;
-    NVas = 6;
-    minStrip = 0;
-    maxStrip = 383;
-  }
-  else if (atoi(opt->getValue("version")) == 1313)
-  {
-    NChannels = 640;
-    NVas = 10;
-    minStrip = 0;
-    maxStrip = 639;
-  }
-  else if (atoi(opt->getValue("version")) == 2020)
-  {
-    NChannels = 640;
-    NVas = 10;
-    minStrip = 0;
-    maxStrip = 639;
-    if (opt->getValue("board"))
-    {
-      board = atoi(opt->getValue("board"));
-    }
-    else
-    {
-      std::cout << "ERROR: no board number provided" << std::endl;
-      return 2;
-    }
-    if (opt->getValue("side"))
-    {
-      side = atoi(opt->getValue("side"));
-    }
-    else
-    {
-      std::cout << "ERROR: no side number provided" << std::endl;
-      return 2;
-    }
-  }
-  else
-  {
-    std::cout << "ERROR: invalid miniTRB version" << std::endl;
-    return 2;
-  }
-
-  if (opt->getFlag("help") || opt->getFlag('h'))
-    opt->printUsage();
-
-  if (opt->getFlag("verbose") || opt->getFlag('v'))
-    verb = true;
-
-  //////////////////Histos//////////////////
+  // ———————————————— Histos ————————————————
   TH1F *hPedestals = new TH1F("hPedestals", "hPedestals", 1000, 0, 500);
   hPedestals->GetXaxis()->SetTitle("Pedestals");
 
   TH1F *hCommonNoise0 = new TH1F("hCommonNoise0", "hCommonNoise0", 1000, -200, 200);
   hCommonNoise0->GetXaxis()->SetTitle("CN");
-
   TH1F *hCommonNoise1 = new TH1F("hCommonNoise1", "hCommonNoise1", 1000, -200, 200);
   hCommonNoise1->GetXaxis()->SetTitle("CN");
-
   TH1F *hCommonNoise2 = new TH1F("hCommonNoise2", "hCommonNoise2", 1000, -200, 200);
   hCommonNoise2->GetXaxis()->SetTitle("CN");
 
   TH2F *hCommonNoise0VsVA = new TH2F("hCommonNoise0VsVA", "hCommonNoise0VsVA", 100, -20, 20, 10, -0.5, 9.5);
-  hCommonNoise0VsVA->GetXaxis()->SetTitle("CN");
-  hCommonNoise0VsVA->GetYaxis()->SetTitle("VA");
-
+  hCommonNoise0VsVA->GetXaxis()->SetTitle("CN"); hCommonNoise0VsVA->GetYaxis()->SetTitle("VA");
   TH2F *hCommonNoise1VsVA = new TH2F("hCommonNoise1VsVA", "hCommonNoise1VsVA", 100, -20, 20, 10, -0.5, 9.5);
-  hCommonNoise1VsVA->GetXaxis()->SetTitle("CN");
-  hCommonNoise1VsVA->GetYaxis()->SetTitle("VA");
-
+  hCommonNoise1VsVA->GetXaxis()->SetTitle("CN"); hCommonNoise1VsVA->GetYaxis()->SetTitle("VA");
   TH2F *hCommonNoise2VsVA = new TH2F("hCommonNoise2VsVA", "hCommonNoise2VsVA", 100, -20, 20, 10, -0.5, 9.5);
-  hCommonNoise2VsVA->GetXaxis()->SetTitle("CN");
-  hCommonNoise2VsVA->GetYaxis()->SetTitle("VA");
+  hCommonNoise2VsVA->GetXaxis()->SetTitle("CN"); hCommonNoise2VsVA->GetYaxis()->SetTitle("VA");
 
   TGraph *common_noise_0 = new TGraph();
   TGraph *common_noise_1 = new TGraph();
   TGraph *common_noise_2 = new TGraph();
 
-  // Map idx → letter to build TTree suffix (e.g. _A, _B, ...)
   std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
+  int detector = 2 * board + side;
 
-  int detector = 2*board + side;
-
-  // Base TTree name
   TString tree_name = "raw_events";
-  if(detector > 0)
-  {
-    // If detector > 0, appends "_<letter>"
+  if (detector > 0) {
     tree_name += "_";
     tree_name += alphabet[detector];
   }
-
   std::cout << "\tOpening TTree with name: " << tree_name << std::endl;
 
-  // TBranch base name
   TString branch_name = "RAW Event J";
-
-  // Select branch name based on parity of 'detector':
-  // even → ...J5 ; odd → ...J7
-  if(detector % 2 == 0)
-  {
-    branch_name += "5";
-  }
-  else
-  {
-    branch_name += "7";
-  }
+  branch_name += (detector % 2 == 0) ? "5" : "7";
   std::cout << "\t\tReading branch: " << branch_name << std::endl;
 
-
-
-  // Join ROOTfiles in a single chain
-  TChain *chain = new TChain(tree_name.Data()); //Chain input rootfiles
-  for (int ii = 0; ii < opt->getArgc(); ii++)
-  {
-    std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-    chain->Add(opt->getArgv(ii));
+  TChain *chain = new TChain(tree_name.Data());
+  for (const auto& f : inputs) {
+    std::cout << "Adding file " << f << " to the chain..." << std::endl;
+    chain->Add(f.c_str());
   }
 
   int entries = chain->GetEntries();
   std::cout << "This run has " << entries << " entries" << std::endl;
 
-
-  // Read raw event from input chain TTree
-  std::vector<unsigned short> *raw_event = 0;
-  TBranch *RAW = 0;
+  std::vector<unsigned short> *raw_event = nullptr;
+  TBranch *RAW = nullptr;
   chain->SetBranchAddress(branch_name.Data(), &raw_event, &RAW);
 
-  // Create output ROOTfile
-  TString output_filename;
-  if (opt->getValue("output"))
-  {
-    output_filename = opt->getValue("output");
-  }
-  else
-  {
-    std::cout << "Error: no output file" << std::endl;
-    return 2;
-  }
-
-  TFile *foutput = new TFile(output_filename.Data(), "RECREATE");
+  TFile *foutput = new TFile(output.c_str(), "RECREATE");
   foutput->cd();
 
-  //Read Calibration file
-  if (!opt->getValue("calibration"))
-  {
-    std::cout << "Error: no calibration file" << std::endl;
-    return 2;
-  }
-
   calib cal;
-  bool is_calib = read_calib(opt->getValue("calibration"), &cal, NChannels, 2 * board + side, verb);
+  bool is_calib = read_calib(calibration.c_str(), &cal, NChannels, detector, verb);
+  if (!is_calib) { std::cout << "ERROR: no calibration file found" << std::endl; return 2; }
 
-  if (!is_calib)
-  {
-    std::cout << "ERROR: no calibration file found" << endl;
-    return 2;
+  for (int chan = 0; chan < static_cast<int>(cal.ped.size()); chan++) {
+    hPedestals->Fill(cal.ped[chan]);
   }
 
-  for(int chan = 0; chan < cal.ped.size(); chan++)
-    {
-      hPedestals->Fill(cal.ped[chan]);
-    }
-
-  // Loop over events
   int perc = 0;
-
-  for (int index_event = 0; index_event < entries; index_event++)
-  {
+  for (int index_event = 0; index_event < entries; index_event++) {
     chain->GetEntry(index_event);
 
-    if (verb)
-    {
-      std::cout << std::endl;
-      std::cout << "EVENT: " << index_event << std::endl;
+    if (verb) {
+      std::cout << "\nEVENT: " << index_event << std::endl;
     }
 
     Double_t pperc = 10.0 * ((index_event + 1.0) / entries);
-    if (pperc >= perc)
-    {
+    if (pperc >= perc) {
       std::cout << "Processed " << (index_event + 1) << " out of " << entries
-                << ":" << (int)(100.0 * (index_event + 1.0) / entries) << "%"
-                << std::endl;
+                << ":" << (int)(100.0 * (index_event + 1.0) / entries) << "%" << std::endl;
       perc++;
     }
 
-    std::vector<float> signal(raw_event->size()); //Vector of pedestal subtracted signal
+    std::vector<float> signal(raw_event->size());
 
-    if (raw_event->size() == 384 || raw_event->size() == 640)
-    {
-      if (cal.ped.size() >= raw_event->size())
-      {
-        for (size_t i = 0; i != raw_event->size(); i++)
-        {
-          signal.at(i) = (raw_event->at(i) - cal.ped[i]);
+    if (raw_event->size() == 384 || raw_event->size() == 640) {
+      if (cal.ped.size() >= raw_event->size()) {
+        for (size_t i = 0; i != raw_event->size(); i++) {
+          signal[i] = (raw_event->at(i) - cal.ped[i]);
         }
+      } else {
+        if (verb) std::cout << "Error: calibration file is not compatible" << std::endl;
       }
-      else
-      {
-        if (verb)
-        {
-          std::cout << "Error: calibration file is not compatible" << std::endl;
-        }
-      }
-    }
-    else
-    {
-      if (verb)
-      {
-        std::cout << "Error: event " << index_event << " is not complete, skipping it" << std::endl;
-      }
+    } else {
+      if (verb) std::cout << "Error: event " << index_event << " is not complete, skipping it" << std::endl;
       continue;
     }
 
     meanCN = 0;
-
-#pragma omp parallel for //Multithread for loop
-
-    for (int va = 0; va < NVas; va++) //Loop on VA
-    {
+#pragma omp parallel for
+    for (int va = 0; va < NVas; va++) {
       float cn = GetCN(&signal, va, 0);
-
-      if (cn != -999)
-      {
-        meanCN += cn;
-        if (cn < mincn)
+      if (cn != -999) {
+        #pragma omp critical
         {
-          mincn = cn;
+          meanCN += cn;
+          if (cn < mincn) mincn = cn; else if (cn > maxcn) maxcn = cn;
+          hCommonNoise0->Fill(cn);
+          hCommonNoise0VsVA->Fill(cn, va);
         }
-        else if (cn > maxcn)
-        {
-          maxcn = cn;
-        }
-        hCommonNoise0->Fill(cn);
-        hCommonNoise0VsVA->Fill(cn, va);
       }
     }
     meanCN = meanCN / NVas;
     common_noise_0->SetPoint(common_noise_0->GetN(), index_event, meanCN);
+
     meanCN = 0;
-
-    for (int va = 0; va < NVas; va++) //Loop on VA
-    {
+    for (int va = 0; va < NVas; va++) {
       float cn = GetCN(&signal, va, 1);
-      if (cn != -999)
-      {
+      if (cn != -999) {
         meanCN += cn;
-
-        if (cn < mincn)
-        {
-          mincn = cn;
-        }
-        else if (cn > maxcn)
-        {
-          maxcn = cn;
-        }
+        if (cn < mincn) mincn = cn; else if (cn > maxcn) maxcn = cn;
         hCommonNoise1->Fill(cn);
         hCommonNoise1VsVA->Fill(cn, va);
       }
     }
     meanCN = meanCN / NVas;
     common_noise_1->SetPoint(common_noise_1->GetN(), index_event, meanCN);
+
     meanCN = 0;
-
-    for (int va = 0; va < NVas; va++) //Loop on VA
-    {
+    for (int va = 0; va < NVas; va++) {
       float cn = GetCN(&signal, va, 2);
-      if (cn != -999)
-      {
+      if (cn != -999) {
         meanCN += cn;
-
-        if (cn < mincn)
-        {
-          mincn = cn;
-        }
-        else if (cn > maxcn)
-        {
-          maxcn = cn;
-        }
+        if (cn < mincn) mincn = cn; else if (cn > maxcn) maxcn = cn;
         hCommonNoise2->Fill(cn);
         hCommonNoise2VsVA->Fill(cn, va);
       }
@@ -352,6 +200,7 @@ int main(int argc, char *argv[])
     common_noise_2->SetPoint(common_noise_2->GetN(), index_event, meanCN);
     meanCN = 0;
   }
+
   hCommonNoise0->Write();
   hCommonNoise1->Write();
   hCommonNoise2->Write();
@@ -366,6 +215,5 @@ int main(int argc, char *argv[])
   foutput->Close();
 
   std::cout << "Min CN: " << mincn << " Max CN: " << maxcn << std::endl;
-
   return 0;
 }

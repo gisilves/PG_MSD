@@ -7,9 +7,11 @@ SRC=./src/
 ANYOPTION=$(SRC)/anyoption.cpp
 
 UNAME := $(shell uname)
+CLI11_DIR ?= third_party/CLI11
 
-CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include
+CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include -I$(CLI11_DIR)
 OPTFLAGS += -O3
+
 
 default: all
 
@@ -42,7 +44,7 @@ raw_clusterize: ./src/raw_clusterize.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
 raw_cn: ./src/raw_cn.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_threshold_scan: ./src/raw_threshold_scan.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
