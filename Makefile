@@ -7,7 +7,7 @@ SRC=./src/
 ANYOPTION=$(SRC)/anyoption.cpp
 
 UNAME := $(shell uname)
-CLI11_DIR ?= third_party/CLI11
+CLI11_DIR ?= third_party/CLI11/include
 
 CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include -I$(CLI11_DIR)
 OPTFLAGS += -O3
