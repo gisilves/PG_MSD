@@ -9,9 +9,7 @@
 #include "CmdLineParser.h"
 #include "Logger.h"
 
-LoggerInit([]{
-    Logger::getUserHeader() << "[" << FILENAME << "]";
-});
+LoggerInit([]{Logger::getUserHeader() << "[" << FILENAME << "]";});
 
 // A more robust way to get the base name, removing known suffixes
 std::string GetBaseName(std::string const & path) {
@@ -49,11 +47,9 @@ int main(int argc, char* argv[]) {
         commandLineParser.addOption("inputRootFile", {"-i", "--input"}, "Input clusters ROOT file");
         commandLineParser.addOption("outputDir", {"-o", "--output"}, "Output directory for PDF report");
         commandLineParser.addOption("nSigma", {"-s", "--n-sigma"}, "Number of sigmas used for clustering (for labeling only)");
-
         commandLineParser.addDummyOption("Triggers");
         commandLineParser.addTriggerOption("verboseMode", {"-v"}, "Run in verbose mode");
         commandLineParser.addTriggerOption("spsRun", {"--sps-run"}, "Produce compact SPS-mode report (minimal pages)");
-
         commandLineParser.addDummyOption();
 
         LogInfo << commandLineParser.getDescription().str() << std::endl;
@@ -98,9 +94,9 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-        std::cout << "UTC TIME IS: " << runTimeUTC << std::endl;
+        LogInfo << "UTC TIME IS: " << runTimeUTC << std::endl;
 
-        // Try to extract energy for SPS mode (e.g. _plus1.5GeV or _minus0.5GeV)
+        // Try to extract energy for SPS mode (e.g. _plus1.5GeV or _minus0.5GeV or +1.5GeV or -1.5GeV)
         size_t epos = inputFileBase.find("plus");
         if (epos == std::string::npos) epos = inputFileBase.find("minus");
         if (epos != std::string::npos) {
@@ -108,13 +104,110 @@ int main(int argc, char* argv[]) {
                 if (endE != std::string::npos) {
                         std::string sign = (inputFileBase[epos] == 'p') ? "+" : "-";
                         std::string val = inputFileBase.substr(epos+4, endE-epos-4);
-                        runEnergy = "Run " + sign + val + "GeV";
-                        runNumber = sign + val + "GeV";
+                        runEnergy = sign + val + " GeV";
+                        runNumber = sign + val + " GeV";
+                }
+        }
+        
+        // Also try pattern with + or - directly (e.g., 20250811_+1.0GeV.root)
+        if (runEnergy.empty()) {
+                size_t pluspos = inputFileBase.find_first_of("+-");
+                if (pluspos != std::string::npos) {
+                        size_t gevpos = inputFileBase.find("GeV", pluspos);
+                        if (gevpos != std::string::npos && gevpos > pluspos) {
+                                runEnergy = inputFileBase.substr(pluspos, gevpos - pluspos + 3); // include "GeV"
+                                runNumber = runEnergy;
+                        }
                 }
         }
 
         LogInfo << "Input file: " << inputFile << std::endl;
         LogInfo << "Output directory: " << outputDir << std::endl;
+
+        // Create display name for use in histogram titles
+        std::string displayTitle = runEnergy.empty() ? ("Run " + runNumber) : runEnergy;
+
+        // Try to extract date from beam_settings.dat for title display
+        std::string beamDate = "";
+        {
+                auto trim = [](std::string s){
+                        const char *ws = " \t\r\n";
+                        size_t start = s.find_first_not_of(ws);
+                        size_t end = s.find_last_not_of(ws);
+                        if (start == std::string::npos) return std::string("");
+                        return s.substr(start, end - start + 1);
+                };
+                struct BeamEntry { std::string date; std::string time; std::string energy; };
+                std::vector<BeamEntry> entries;
+                const std::vector<std::string> beamCandidates = {"parameters/beam_settings.dat", "../parameters/beam_settings.dat"};
+                std::string beamPath;
+                for (const auto &bp: beamCandidates) if (std::filesystem::exists(bp)) { beamPath = bp; break; }
+                if (!beamPath.empty()) {
+                        std::ifstream fbeam(beamPath);
+                        std::string line;
+                        bool headerPassed = false;
+                        while (std::getline(fbeam, line)) {
+                                std::string ls = trim(line);
+                                if (ls.empty()) continue;
+                                if (ls.size() > 0 && ls[0] == '#') continue;
+                                bool allDashes = true; for (char c: ls) if (c != '-' && c != '|' && c != ' ' && c != '\t') { allDashes = false; break; }
+                                if (allDashes) { headerPassed = true; continue; }
+                                if (!headerPassed) continue;
+                                std::vector<std::string> cols;
+                                size_t p = 0;
+                                while (p < line.size()) {
+                                        size_t q = line.find('|', p);
+                                        if (q == std::string::npos) q = line.size();
+                                        cols.push_back(trim(line.substr(p, q - p)));
+                                        p = q + 1;
+                                }
+                                if (cols.size() < 3) continue;
+                                BeamEntry be;
+                                be.date = cols[0]; be.time = cols[1]; be.energy = cols[2];
+                                entries.push_back(be);
+                        }
+                }
+                // Try to extract date and energy from inputFileBase
+                std::string queryDate = "", queryEnergy = "";
+                if (inputFileBase.size() >= 8) {
+                        std::string d = inputFileBase.substr(0,8);
+                        if (d.find_first_not_of("0123456789") == std::string::npos) {
+                                queryDate = d.substr(0,4) + "-" + d.substr(4,2) + "-" + d.substr(6,2);
+                        }
+                }
+                size_t epos = inputFileBase.find_first_of("+-", 8);
+                if (epos != std::string::npos) {
+                        size_t gpos = inputFileBase.find("GeV", epos);
+                        if (gpos != std::string::npos && gpos > epos) {
+                                queryEnergy = inputFileBase.substr(epos, gpos - epos);
+                        } else {
+                                size_t endp = inputFileBase.find_first_of("_", epos+1);
+                                if (endp == std::string::npos) endp = inputFileBase.size();
+                                queryEnergy = inputFileBase.substr(epos, endp - epos);
+                        }
+                        queryEnergy = trim(queryEnergy);
+                }
+                // Find best matching entry
+                int foundIndex = -1;
+                for (size_t i=0;i<entries.size();++i) {
+                        if (!queryDate.empty() && !queryEnergy.empty()) {
+                                if (entries[i].date == queryDate && entries[i].energy.find(queryEnergy) != std::string::npos) { foundIndex = (int)i; break; }
+                        }
+                }
+                if (foundIndex < 0 && !queryDate.empty()) {
+                        for (size_t i=0;i<entries.size();++i) if (entries[i].date == queryDate) { foundIndex = (int)i; break; }
+                }
+                if (foundIndex < 0 && !queryEnergy.empty()) {
+                        for (size_t i=0;i<entries.size();++i) if (entries[i].energy.find(queryEnergy) != std::string::npos) { foundIndex = (int)i; break; }
+                }
+                if (foundIndex >= 0) {
+                        // Format date from YYYY-MM-DD to YYYY/MM/DD
+                        std::string d = entries[foundIndex].date;
+                        if (d.size() == 10 && d[4] == '-' && d[7] == '-') {
+                                beamDate = d.substr(0,4) + "/" + d.substr(5,2) + "/" + d.substr(8,2);
+                        }
+                }
+        }
 
         // Open input file
         TFile *inputRootFile = new TFile(inputFile.c_str(), "READ");
@@ -668,7 +761,7 @@ int main(int argc, char* argv[]) {
 
         try {
                 LogInfo << "Creating multi-page PDF report..." << std::endl;
-                auto drawPageTag = [](int page){ TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.025); pageNum.SetTextAlign(31); pageNum.DrawLatex(0.95, 0.03, Form("Page %d", page)); };
+                auto drawPageTag = [](int page){ TLatex pageNum; pageNum.SetNDC(true); pageNum.SetTextSize(0.015); pageNum.SetTextAlign(33); pageNum.DrawLatex(0.98, 0.98, Form("%d", page)); };
                 int page = 1;
                 // Page 1: Summary page
                 TCanvas *canvasSummary = new TCanvas(Form("c_summary_Run%s", runNumber.c_str()),
@@ -687,7 +780,18 @@ int main(int argc, char* argv[]) {
                 latex.SetTextAlign(11);
                 latex.SetTextSize(0.030);
 
-                latex.DrawLatex(0.10, yTop, Form("Run %s cluster summary", runNumber.c_str()));
+                // Title with beam energy and date if available
+                std::string titleText;
+                if (runEnergy.empty()) {
+                        titleText = Form("Run %s cluster summary", runNumber.c_str());
+                } else {
+                        if (!beamDate.empty()) {
+                                titleText = Form("%s cluster summary - %s", runEnergy.c_str(), beamDate.c_str());
+                        } else {
+                                titleText = Form("%s cluster summary", runEnergy.c_str());
+                        }
+                }
+                latex.DrawLatex(0.10, yTop, titleText.c_str());
                 yTop -= dyHead;
 
                 // Statistics table
@@ -702,11 +806,6 @@ int main(int argc, char* argv[]) {
                 latex.DrawLatex(xL, yL, "Total events");
                 latex.DrawLatex(xL_num, yL, Form("%d", numberOfEntries));
                 latex.DrawLatex(xL_pct, yL, "100.00%");
-                yL -= rowH;
-
-                latex.DrawLatex(xL, yL, "Events with clusters");
-                latex.DrawLatex(xL_num, yL, Form("%d", totalEventsWithClusters));
-                latex.DrawLatex(xL_pct, yL, Form("%.2f%%", (numberOfEntries > 0) ? (100.0 * totalEventsWithClusters / numberOfEntries) : 0.0));
                 yL -= rowH;
 
                 latex.DrawLatex(xL, yL, "Events with hits");
@@ -729,6 +828,7 @@ int main(int argc, char* argv[]) {
                 yL -= 0.02;
                 latex.DrawLatex(xL, yL, "Avg clusters per detector per event (with clusters):");
                 yL -= rowH;
+                double yL_start = yL; // Save starting Y position for beam center info
                 for (int detectorIndex = 0; detectorIndex < numberOfDetectors; ++detectorIndex) {
                         double totalClustersInDetector = 0.0;
                         for (int b = 1; b <= histogramClustersPerEvent[detectorIndex]->GetNbinsX(); ++b) {
@@ -737,6 +837,23 @@ int main(int argc, char* argv[]) {
                         double avg = (totalEventsWithClusters > 0) ? (totalClustersInDetector / totalEventsWithClusters) : 0.0;
                         latex.DrawLatex(xL, yL, Form("D%d: %.2f", detectorIndex, avg));
                         yL -= rowH;
+                }
+
+                // Add beam center statistics from 2/3 clusters histogram (on the right side)
+                if (histogramReconstructedCenter2Or3 && histogramReconstructedCenter2Or3->GetEntries() > 0) {
+                        double xR = 0.55; // Right column X position
+                        double yR = yL_start; // Start at same height as detector averages
+                        latex.SetTextSize(0.026);
+                        latex.DrawLatex(xR, yR, "Beam center (2/3 clusters):"); yR -= rowH;
+                        double meanX = histogramReconstructedCenter2Or3->GetMean(1);
+                        double meanY = histogramReconstructedCenter2Or3->GetMean(2);
+                        double sigmaX = histogramReconstructedCenter2Or3->GetRMS(1);
+                        double sigmaY = histogramReconstructedCenter2Or3->GetRMS(2);
+                        latex.DrawLatex(xR, yR, Form("Mean X: %.2f mm", meanX)); yR -= rowH;
+                        latex.DrawLatex(xR, yR, Form("Mean Y: %.2f mm", meanY)); yR -= rowH;
+                        latex.DrawLatex(xR, yR, Form("#sigma_{X}: %.2f mm", sigmaX)); yR -= rowH;
+                        latex.DrawLatex(xR, yR, Form("#sigma_{Y}: %.2f mm", sigmaY)); yR -= rowH;
+                        latex.SetTextSize(0.030); // Restore original text size
                 }
 
                 // Add CEST time if not SPS mode and runTimeUTC is available
@@ -847,7 +964,10 @@ int main(int argc, char* argv[]) {
                         double yBeam = yTop - 0.5; // reuse yTop area
                         if (foundIndex >= 0) {
                                 const auto &be = entries[foundIndex];
+                                // make the "Beam settings:" label slightly larger than the following lines
+                                latex.SetTextSize(0.036);
                                 latex.DrawLatex(xL, yBeam, "Beam settings:"); yBeam -= rowH;
+                                latex.SetTextSize(0.026);
                                 latex.DrawLatex(xL, yBeam, Form("Time: %s", be.time.c_str())); yBeam -= rowH;
                                 latex.DrawLatex(xL, yBeam, Form("Target: %s", be.target.c_str())); yBeam -= rowH;
                                 latex.DrawLatex(xL, yBeam, Form("Cherenkov: %s", be.cherenkov.c_str())); yBeam -= rowH;
@@ -867,6 +987,16 @@ int main(int argc, char* argv[]) {
                         yTop = yBeam - 0.01;
                 }
 
+                // Add report generation date/time at bottom center
+                time_t now = time(nullptr);
+                struct tm *timeinfo = localtime(&now);
+                char dateBuffer[80];
+                strftime(dateBuffer, sizeof(dateBuffer), "Report generated: %Y-%m-%d %H:%M", timeinfo);
+                latex.SetTextSize(0.022);
+                latex.SetTextAlign(21); // center alignment
+                latex.DrawLatex(0.50, 0.03, dateBuffer);
+                latex.SetTextAlign(11); // restore left alignment
+
 
 
                 canvasSummary->Update();
@@ -875,21 +1005,40 @@ int main(int argc, char* argv[]) {
         if (histogramReconstructedCenterExactly3) {
                 // Calculate percent for title
                 double percent = (graphReconstructedCentersExactly3 && graphReconstructedCentersExactly3->GetN() > 0 && numberOfEntries > 0) ? (100.0 * graphReconstructedCentersExactly3->GetN() / numberOfEntries) : 0.0;
-                std::string title = !runEnergy.empty() ? runEnergy : ("Run " + runNumber);
-                std::string title3 = Form("Tracking (1 cluster/Det) [%.1f%% of events] - %s;X [mm];Y [mm]", percent, title.c_str());
-                histogramReconstructedCenterExactly3->SetTitle(title3.c_str());
+                std::string title3 = Form("Tracking (1 cluster/Det) [%.1f%% of events] - %s", percent, displayTitle.c_str());
+                std::string title3_2d = Form(";X [mm];Y [mm]");
+                histogramReconstructedCenterExactly3->SetTitle(title3_2d.c_str());
                 TCanvas *c = new TCanvas("c_recoCenter_3", Form("Exactly 3 (Run %s)", runNumber.c_str()), 980, 820);
-                TPad *padLeft3   = new TPad("padLeft3",   "padLeft3",   0.0, 0.2, 0.2, 1.0);
-                TPad *padBottom3 = new TPad("padBottom3", "padBottom3", 0.2, 0.0, 1.0, 0.2);
-                TPad *padMain3   = new TPad("padMain3",   "padMain3",   0.2, 0.2, 1.0, 1.0);
-                padMain3->SetRightMargin(0.15); padMain3->SetTopMargin(0.16); padMain3->SetBottomMargin(0.12); padMain3->SetLeftMargin(0.12);
-                padBottom3->SetTopMargin(0.18); padBottom3->SetBottomMargin(0.35); padBottom3->SetLeftMargin(0.12); padBottom3->SetRightMargin(0.15);
-                padLeft3->SetRightMargin(0.05); padLeft3->SetTopMargin(0.05); padLeft3->SetBottomMargin(0.12); padLeft3->SetLeftMargin(0.28);
-                c->cd(); padMain3->Draw(); padBottom3->Draw(); padLeft3->Draw();
+                TPad *padTitle3  = new TPad("padTitle3",  "padTitle3",  0.0, 0.95, 0.8, 1.0);
+                TPad *padTop3    = new TPad("padTop3",    "padTop3",    0.0, 0.75, 0.8, 0.95);
+                TPad *padRight3  = new TPad("padRight3",  "padRight3",  0.8, 0.0, 1.0, 0.75);
+                TPad *padMain3   = new TPad("padMain3",   "padMain3",   0.0, 0.0, 0.8, 0.75);
+                padMain3->SetRightMargin(0.02); padMain3->SetTopMargin(0.02); padMain3->SetBottomMargin(0.12); padMain3->SetLeftMargin(0.12);
+                padTop3->SetTopMargin(0.02); padTop3->SetBottomMargin(0.02); padTop3->SetLeftMargin(0.12); padTop3->SetRightMargin(0.02);
+                padRight3->SetRightMargin(0.28); padRight3->SetTopMargin(0.02); padRight3->SetBottomMargin(0.12); padRight3->SetLeftMargin(0.05);
+                padTitle3->SetTopMargin(0.1); padTitle3->SetBottomMargin(0.1); padTitle3->SetLeftMargin(0.12); padTitle3->SetRightMargin(0.02);
+                c->cd(); padMain3->Draw(); padTop3->Draw(); padRight3->Draw(); padTitle3->Draw();
                 // Main 2D plot
                 padMain3->cd();
+                // Set color palette without red (to avoid conflict with red marker)
+                const Int_t NRGBs = 5;
+                const Int_t NCont = 255;
+                Double_t stops[NRGBs] = { 0.00, 0.25, 0.50, 0.75, 1.00 };
+                Double_t red[NRGBs]   = { 0.00, 0.00, 0.50, 0.90, 1.00 };
+                Double_t green[NRGBs] = { 0.00, 0.50, 0.80, 0.90, 1.00 };
+                Double_t blue[NRGBs]  = { 0.50, 1.00, 1.00, 0.30, 0.00 };
+                TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+                gStyle->SetNumberContours(NCont);
                 histogramReconstructedCenterExactly3->GetXaxis()->SetTitle("X [mm]");
                 histogramReconstructedCenterExactly3->GetYaxis()->SetTitle("Y [mm]");
+                histogramReconstructedCenterExactly3->GetZaxis()->SetTitle("Counts");
+                histogramReconstructedCenterExactly3->GetXaxis()->SetTitleSize(0.05);
+                histogramReconstructedCenterExactly3->GetYaxis()->SetTitleSize(0.05);
+                histogramReconstructedCenterExactly3->GetXaxis()->SetLabelSize(0.045);
+                histogramReconstructedCenterExactly3->GetYaxis()->SetLabelSize(0.045);
+                histogramReconstructedCenterExactly3->GetZaxis()->SetLabelSize(0.045);
+                histogramReconstructedCenterExactly3->GetZaxis()->SetTitleSize(0.05);
+                histogramReconstructedCenterExactly3->GetZaxis()->SetTitleOffset(1.2);
                                         // enforce identical axis ranges used for reconstruction so both canvases look identical
                                         // Force the X-axis maximum to 60.0 (user-requested fixed upper limit)
                                         histogramReconstructedCenterExactly3->GetXaxis()->SetRangeUser(centersXMinimum, 60.0);
@@ -905,9 +1054,12 @@ int main(int argc, char* argv[]) {
                         for (int ip=0; ip<(int)activePolygonPoints.size(); ++ip) gpoly->SetPoint(ip, activePolygonPoints[ip].first , activePolygonPoints[ip].second);
                         gpoly->SetPoint((int)activePolygonPoints.size(), activePolygonPoints[0].first, activePolygonPoints[0].second);
                         gpoly->SetLineColor(kBlack); gpoly->SetLineWidth(2); gpoly->SetFillStyle(0); gpoly->Draw("L SAME");
-                        auto leg = new TLegend(0.20, 0.68, 0.78, 0.9);
+                        auto leg = new TLegend(0.13, 0.91, 0.68, 0.98);
                         leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.028);
-                        leg->AddEntry(gpoly, "Active area with all 3 detectors", "l"); leg->Draw();
+                        leg->SetNColumns(2);
+                        leg->AddEntry(gpoly, "Active area with all 3 detectors", "l");
+                        leg->AddEntry(centerMarker3, "Beam plug center", "p");
+                        leg->Draw();
                 }
                 // Place stats box
                 padMain3->Modified(); padMain3->Update();
@@ -942,52 +1094,87 @@ int main(int argc, char* argv[]) {
                         st->SetX1NDC(p1.first); st->SetX2NDC(p2.first);
                         st->SetY1NDC(newY1);    st->SetY2NDC(newY2);
                 }
-                // Bottom projection X
-                padBottom3->cd();
+                // Title pad
+                padTitle3->cd();
+                TLatex *titleText3 = new TLatex();
+                titleText3->SetNDC();
+                titleText3->SetTextAlign(21);
+                titleText3->SetTextSize(0.45);
+                titleText3->DrawLatex(0.5, 0.5, title3.c_str());
+                // Top projection X
+                padTop3->cd();
                 TH1D *projX3 = histogramReconstructedCenterExactly3->ProjectionX("h_projX_3");
+                projX3->Rebin(3);
                 projX3->SetTitle("");
-                projX3->GetXaxis()->SetLabelSize(0.08);
+                projX3->GetXaxis()->SetLabelSize(0.0);
+                projX3->GetXaxis()->SetTickLength(0.03);
                 projX3->GetYaxis()->SetTitle("");
-                projX3->GetYaxis()->SetTitleSize(0.08);
-                projX3->GetYaxis()->SetLabelSize(0.0);
+                projX3->GetYaxis()->SetTitleSize(0.0);
+                projX3->GetYaxis()->SetLabelSize(0.14);
+                projX3->GetYaxis()->SetNdivisions(505);
                 projX3->SetStats(0);
-                projX3->SetFillStyle(0);
+                projX3->SetFillColorAlpha(kAzure+7, 0.5);
+                projX3->SetLineColor(kBlack);
                 projX3->Draw("HIST");
-                // Left projection Y
-                padLeft3->cd();
+                // Right projection Y
+                padRight3->cd();
                 TH1D *projY3 = histogramReconstructedCenterExactly3->ProjectionY("h_projY_3");
+                projY3->Rebin(3);
                 projY3->SetTitle("");
                 projY3->GetXaxis()->SetTitle("");
-                projY3->GetXaxis()->SetTitleSize(0.08);
-                projY3->GetXaxis()->SetLabelSize(0.08);
+                projY3->GetXaxis()->SetTitleSize(0.0);
+                projY3->GetXaxis()->SetLabelSize(0.0);
+                projY3->GetYaxis()->SetTickLength(0.03);
+                projY3->GetYaxis()->SetTitle("");
+                projY3->GetYaxis()->SetTitleSize(0.0);
                 projY3->GetYaxis()->SetLabelSize(0.0);
                 projY3->SetStats(0);
-                projY3->SetFillStyle(0);
+                projY3->SetFillColorAlpha(kAzure+7, 0.5);
+                projY3->SetLineColor(kBlack);
                 projY3->Draw("HBAR");
                 c->Update(); drawPageTag(++page); c->SaveAs(outputFilenameReport.c_str());
         }
 
         if (histogramReconstructedCenter2Or3) {
                 double percent2 = (graphReconstructedCenters2Or3 && graphReconstructedCenters2Or3->GetN() > 0 && numberOfEntries > 0) ? (100.0 * graphReconstructedCenters2Or3->GetN() / numberOfEntries) : 0.0;
-                std::string title2 = !runEnergy.empty() ? runEnergy : ("Run " + runNumber);
-                std::string title23 = Form("Tracking (2/3 clusters, 1/detector) [%.1f%% of events] - %s;X [mm];Y [mm]", percent2, title2.c_str());
-                histogramReconstructedCenter2Or3->SetTitle(title23.c_str());
+                std::string title23 = Form("Tracking (2/3 clusters, 1/detector) [%.1f%% of events] - %s", percent2, displayTitle.c_str());
+                std::string title23_2d = Form(";X [mm];Y [mm]");
+                histogramReconstructedCenter2Or3->SetTitle(title23_2d.c_str());
                 TCanvas *c = new TCanvas("c_recoCenter_2to3", Form("2 or 3 (Run %s)", runNumber.c_str()), 980, 820);
-                TPad *padLeft23   = new TPad("padLeft23",   "padLeft23",   0.0, 0.2, 0.2, 1.0);
-                TPad *padBottom23 = new TPad("padBottom23", "padBottom23", 0.2, 0.0, 1.0, 0.2);
-                TPad *padMain23   = new TPad("padMain23",   "padMain23",   0.2, 0.2, 1.0, 1.0);
-                padMain23->SetRightMargin(0.15); padMain23->SetTopMargin(0.16); padMain23->SetBottomMargin(0.12); padMain23->SetLeftMargin(0.12);
-                padBottom23->SetTopMargin(0.18); padBottom23->SetBottomMargin(0.35); padBottom23->SetLeftMargin(0.12); padBottom23->SetRightMargin(0.15);
-                padLeft23->SetRightMargin(0.05); padLeft23->SetTopMargin(0.05); padLeft23->SetBottomMargin(0.12); padLeft23->SetLeftMargin(0.28);
-                c->cd(); padMain23->Draw(); padBottom23->Draw(); padLeft23->Draw();
+                TPad *padTitle23 = new TPad("padTitle23", "padTitle23", 0.0, 0.95, 0.8, 1.0);
+                TPad *padTop23   = new TPad("padTop23",   "padTop23",   0.0, 0.75, 0.8, 0.95);
+                TPad *padRight23 = new TPad("padRight23", "padRight23", 0.8, 0.0, 1.0, 0.75);
+                TPad *padMain23  = new TPad("padMain23",  "padMain23",  0.0, 0.0, 0.8, 0.75);
+                padMain23->SetRightMargin(0.02); padMain23->SetTopMargin(0.02); padMain23->SetBottomMargin(0.12); padMain23->SetLeftMargin(0.12);
+                padTop23->SetTopMargin(0.02); padTop23->SetBottomMargin(0.02); padTop23->SetLeftMargin(0.12); padTop23->SetRightMargin(0.02);
+                padRight23->SetRightMargin(0.28); padRight23->SetTopMargin(0.02); padRight23->SetBottomMargin(0.12); padRight23->SetLeftMargin(0.05);
+                padTitle23->SetTopMargin(0.1); padTitle23->SetBottomMargin(0.1); padTitle23->SetLeftMargin(0.12); padTitle23->SetRightMargin(0.02);
+                c->cd(); padMain23->Draw(); padTop23->Draw(); padRight23->Draw(); padTitle23->Draw();
                 // Main 2D plot
                 padMain23->cd();
+                // Set color palette without red (to avoid conflict with red marker)
+                const Int_t NRGBs = 5;
+                const Int_t NCont = 255;
+                Double_t stops[NRGBs] = { 0.00, 0.25, 0.50, 0.75, 1.00 };
+                Double_t red[NRGBs]   = { 0.00, 0.00, 0.50, 0.90, 1.00 };
+                Double_t green[NRGBs] = { 0.00, 0.50, 0.80, 0.90, 1.00 };
+                Double_t blue[NRGBs]  = { 0.50, 1.00, 1.00, 0.30, 0.00 };
+                TColor::CreateGradientColorTable(NRGBs, stops, red, green, blue, NCont);
+                gStyle->SetNumberContours(NCont);
                 histogramReconstructedCenter2Or3->GetXaxis()->SetTitle("X [mm]");
                 histogramReconstructedCenter2Or3->GetYaxis()->SetTitle("Y [mm]");
-                                        // enforce identical axis ranges used for reconstruction so both canvases look identical
-                                        // Force the X-axis maximum to 60.0 (user-requested fixed upper limit)
-                                        histogramReconstructedCenter2Or3->GetXaxis()->SetRangeUser(centersXMinimum, 60.0);
-                                        histogramReconstructedCenter2Or3->GetYaxis()->SetRangeUser(centersYMinimum, centersYMaximum);
+                histogramReconstructedCenter2Or3->GetZaxis()->SetTitle("Counts");
+                histogramReconstructedCenter2Or3->GetXaxis()->SetTitleSize(0.05);
+                histogramReconstructedCenter2Or3->GetYaxis()->SetTitleSize(0.05);
+                histogramReconstructedCenter2Or3->GetXaxis()->SetLabelSize(0.045);
+                histogramReconstructedCenter2Or3->GetYaxis()->SetLabelSize(0.045);
+                histogramReconstructedCenter2Or3->GetZaxis()->SetLabelSize(0.045);
+                histogramReconstructedCenter2Or3->GetZaxis()->SetTitleSize(0.05);
+                histogramReconstructedCenter2Or3->GetZaxis()->SetTitleOffset(1.2);
+                // enforce identical axis ranges used for reconstruction so both canvases look identical
+                // Force the X-axis maximum to 60.0 (user-requested fixed upper limit)
+                histogramReconstructedCenter2Or3->GetXaxis()->SetRangeUser(centersXMinimum, 60.0);
+                histogramReconstructedCenter2Or3->GetYaxis()->SetRangeUser(centersYMinimum, centersYMaximum);
                 histogramReconstructedCenter2Or3->Draw("COLZ");
                 TMarker *centerMarker23 = new TMarker(0.0, 0.0, kFullCircle);
                 centerMarker23->SetMarkerColor(kRed); centerMarker23->SetMarkerSize(1.2); centerMarker23->Draw("SAME");
@@ -996,9 +1183,12 @@ int main(int argc, char* argv[]) {
                         for (int ip=0; ip<(int)activePolygonPoints.size(); ++ip) gpoly->SetPoint(ip, activePolygonPoints[ip].first, activePolygonPoints[ip].second);
                         gpoly->SetPoint((int)activePolygonPoints.size(), activePolygonPoints[0].first, activePolygonPoints[0].second);
                         gpoly->SetLineColor(kBlack); gpoly->SetLineWidth(2); gpoly->SetFillStyle(0); gpoly->Draw("L SAME");
-                        auto leg = new TLegend(0.20, 0.68, 0.78, 0.9);
+                        auto leg = new TLegend(0.13, 0.91, 0.68, 0.98);
                         leg->SetBorderSize(0); leg->SetFillStyle(0); leg->SetTextSize(0.028);
-                        leg->AddEntry(gpoly, "Active area with all 3 detectors", "l"); leg->Draw();
+                        leg->SetNColumns(2);
+                        leg->AddEntry(gpoly, "Active area with all 3 detectors", "l");
+                        leg->AddEntry(centerMarker23, "Beam plug center", "p");
+                        leg->Draw();
                 }
                 // Place stats box
                 padMain23->Modified(); padMain23->Update();
@@ -1033,34 +1223,50 @@ int main(int argc, char* argv[]) {
                         st->SetX1NDC(p1.first); st->SetX2NDC(p2.first);
                         st->SetY1NDC(newY1);    st->SetY2NDC(newY2);
                 }
-                // Bottom projection X
-                padBottom23->cd();
+                // Title pad
+                padTitle23->cd();
+                TLatex *titleText23 = new TLatex();
+                titleText23->SetNDC();
+                titleText23->SetTextAlign(21);
+                titleText23->SetTextSize(0.45);
+                titleText23->DrawLatex(0.5, 0.5, title23.c_str());
+                // Top projection X
+                padTop23->cd();
                 TH1D *projX23 = histogramReconstructedCenter2Or3->ProjectionX("h_projX_23");
+                projX23->Rebin(3);
                 projX23->SetTitle("");
-                projX23->GetXaxis()->SetLabelSize(0.08);
+                projX23->GetXaxis()->SetLabelSize(0.0);
+                projX23->GetXaxis()->SetTickLength(0.03);
                 projX23->GetYaxis()->SetTitle("");
-                projX23->GetYaxis()->SetTitleSize(0.08);
-                projX23->GetYaxis()->SetLabelSize(0.0);
+                projX23->GetYaxis()->SetTitleSize(0.0);
+                projX23->GetYaxis()->SetLabelSize(0.14);
+                projX23->GetYaxis()->SetNdivisions(505);
                 projX23->SetStats(0);
-                projX23->SetFillStyle(0);
+                projX23->SetFillColorAlpha(kAzure+7, 0.5);
+                projX23->SetLineColor(kBlack);
                 projX23->Draw("HIST");
-                // Left projection Y
-                padLeft23->cd();
+                // Right projection Y
+                padRight23->cd();
                 TH1D *projY23 = histogramReconstructedCenter2Or3->ProjectionY("h_projY_23");
+                projY23->Rebin(3);
                 projY23->SetTitle("");
                 projY23->GetXaxis()->SetTitle("");
-                projY23->GetXaxis()->SetTitleSize(0.08);
-                projY23->GetXaxis()->SetLabelSize(0.08);
+                projY23->GetXaxis()->SetTitleSize(0.0);
+                projY23->GetXaxis()->SetLabelSize(0.0);
+                projY23->GetYaxis()->SetTickLength(0.03);
+                projY23->GetYaxis()->SetTitle("");
+                projY23->GetYaxis()->SetTitleSize(0.0);
                 projY23->GetYaxis()->SetLabelSize(0.0);
                 projY23->SetStats(0);
-                projY23->SetFillStyle(0);
+                projY23->SetFillColorAlpha(kAzure+7, 0.5);
+                projY23->SetLineColor(kBlack);
                 projY23->Draw("HBAR");
                 c->Update(); drawPageTag(++page); c->SaveAs(outputFilenameReport.c_str());
         }
 
         // Page 2: Clusters per event per detector
         TCanvas *canvasClustersPerEvent = new TCanvas(Form("c_clustersPerEvent_Run%s", runNumber.c_str()),
-                                                                                                Form("Clusters per event (Run %s)", runNumber.c_str()), 800, 600);
+                                                                                                Form("Clusters per event (%s)", displayTitle.c_str()), 800, 600);
         canvasClustersPerEvent->Divide(2, 2);
         canvasClustersPerEvent->cd();
         drawPageTag(++page);
@@ -1068,7 +1274,7 @@ int main(int argc, char* argv[]) {
         for (int detectorIndex = 0; detectorIndex < numberOfDetectors; ++detectorIndex) {
                 canvasClustersPerEvent->cd(detectorIndex + 1);
                 gPad->SetLogy(0);
-                histogramClustersPerEvent[detectorIndex]->SetTitle(Form("Clusters per event - D%d (Run %s);Clusters;Events", detectorIndex, runNumber.c_str()));
+                histogramClustersPerEvent[detectorIndex]->SetTitle(Form("Clusters per event - D%d (%s);Clusters;Events", detectorIndex, displayTitle.c_str()));
                 histogramClustersPerEvent[detectorIndex]->GetXaxis()->SetRangeUser(0, 6);
                 double maxVal = histogramClustersPerEvent[detectorIndex]->GetMaximum();
                 if (maxVal > 0) histogramClustersPerEvent[detectorIndex]->SetMaximum(maxVal * 1.25);
@@ -1094,10 +1300,10 @@ int main(int argc, char* argv[]) {
 
         // Page 3: Total clusters per event
         TCanvas *canvasTotalClusters = new TCanvas(Form("c_totalClusters_Run%s", runNumber.c_str()),
-                                                                                        Form("Total clusters per event (Run %s)", runNumber.c_str()), 800, 600);
+                                                                                        Form("Total clusters per event (%s)", displayTitle.c_str()), 800, 600);
         canvasTotalClusters->cd();
         gPad->SetLogy(0);
-        histogramTotalClustersPerEvent->SetTitle(Form("Total clusters per event (Run %s);Clusters;Events", runNumber.c_str()));
+        histogramTotalClustersPerEvent->SetTitle(Form("Total clusters per event (%s);Clusters;Events", displayTitle.c_str()));
         histogramTotalClustersPerEvent->Draw();
         drawPageTag(++page);
 
@@ -1106,10 +1312,10 @@ int main(int argc, char* argv[]) {
 
         // Page 4: Cluster sizes
         TCanvas *canvasClusterSizes = new TCanvas(Form("c_clusterSizes_Run%s", runNumber.c_str()),
-                                                                                        Form("Cluster sizes (Run %s)", runNumber.c_str()), 800, 600);
+                                                                                        Form("Cluster sizes (%s)", displayTitle.c_str()), 800, 600);
         canvasClusterSizes->cd();
         gPad->SetLogy(1); // Log scale for sizes
-        histogramClusterSizes->SetTitle(Form("Cluster sizes (Run %s);Size (channels);Count", runNumber.c_str()));
+        histogramClusterSizes->SetTitle(Form("Cluster sizes (%s);Size (channels);Count", displayTitle.c_str()));
         histogramClusterSizes->Draw();
         drawPageTag(++page);
 
@@ -1128,10 +1334,10 @@ int main(int argc, char* argv[]) {
 
         // Page: Cluster amplitudes
         TCanvas *canvasClusterAmplitudes = new TCanvas(Form("c_clusterAmplitudes_Run%s", runNumber.c_str()),
-                                                                                                Form("Cluster amplitudes (Run %s)", runNumber.c_str()), 800, 600);
+                                                                                                Form("Cluster amplitudes (%s)", displayTitle.c_str()), 800, 600);
         canvasClusterAmplitudes->cd();
         gPad->SetLogy(1); // Log scale for amplitudes
-        histogramClusterAmplitudes->SetTitle(Form("Cluster amplitudes (Run %s);Amplitude;Count", runNumber.c_str()));
+        histogramClusterAmplitudes->SetTitle(Form("Cluster amplitudes (%s);Amplitude;Count", displayTitle.c_str()));
         histogramClusterAmplitudes->Draw();
         drawPageTag(++page);
 
@@ -1140,10 +1346,10 @@ int main(int argc, char* argv[]) {
 
         // Page: Firing channels 
         TCanvas *canvasChannelsFiring = new TCanvas(Form("c_channelsFiring_Run%s", runNumber.c_str()),
-                                                                                        Form("Channels Firing (Run %s)", runNumber.c_str()), 800, 600);
+                                                                                        Form("Channels Firing (%s)", displayTitle.c_str()), 800, 600);
         canvasChannelsFiring->cd();
         gPad->SetLogy(1);
-        histogramFiringChannels[0]->SetTitle(Form("Firing channels (Run %s);Channel;Counts", runNumber.c_str()));
+        histogramFiringChannels[0]->SetTitle(Form("Firing channels (%s);Channel;Counts", displayTitle.c_str()));
         histogramFiringChannels[0]->SetLineColor(detectorColors[0]);
         histogramFiringChannels[0]->Draw();
 
