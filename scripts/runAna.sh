@@ -306,8 +306,16 @@ do
     formattedFile="${outputDirectory}/${fileName}_formatted.root"
 
     if [ -f "${formattedFile}" ]; then
-      echo "Formatted file already exists: ${formattedFile}. Skipping formatting step."
-    else
+      # Validate that the formatted file has detector trees before skipping formatting
+      if root -l -q "${formattedFile}" -e "TFile f(\"${formattedFile}\"); bool hasTree = (f.Get(\"detector_0\") != nullptr || f.Get(\"detector0\") != nullptr); if (hasTree) { cout << \"TREE_EXISTS\" << endl; } else { cout << \"TREE_MISSING\" << endl; }" 2>/dev/null | grep -q "TREE_EXISTS"; then
+        echo "Formatted file already exists: ${formattedFile}. Skipping formatting step."
+      else
+        echo "Formatted file exists but is missing required detector trees. Removing and will re-format."
+        rm -f "${formattedFile}"
+      fi
+    fi
+
+    if [ ! -f "${formattedFile}" ]; then
       formatting_command="./formatting --cal-file ${calFile} --dune ${outputDirectory}/${fileName}_converted.root ${formattedFile}"
       echo "Executing command: ${formatting_command}"
       $formatting_command
@@ -322,7 +330,8 @@ do
     echo "Executing command: ${clustering_command}"
     $clustering_command
     if [ $? -ne 0 ]; then
-      echo "Error: Clustering failed for run ${runit}. Skipping report generation for this run."
+      echo "Error: Clustering failed for run ${runit}. Removing bad formatted file and skipping report generation for this run."
+      rm -f "${formattedFile}"
       continue
     fi
 
