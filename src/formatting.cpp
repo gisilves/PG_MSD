@@ -154,7 +154,8 @@ int main(int argc, char *argv[]) {
         if (std::string(key->GetClassName()) != "TTree") continue;
         std::string name = key->GetName();
         if (name == "event_info") continue;
-        if (name.rfind("raw_detector", 0) == 0 || name.rfind("sigma", 0) == 0 || name.rfind("pedestal", 0) == 0) continue;
+    // Skip purely auxiliary trees, but accept detector trees named in common conventions
+    if (name.rfind("sigma", 0) == 0 || name.rfind("pedestal", 0) == 0) continue;
 
         int detIdx = -1;
         if (name == "raw_events") {
@@ -176,6 +177,18 @@ int main(int argc, char *argv[]) {
             }
         }
 
+        // Also accept trees named raw_detectorN (common in converted files)
+        if (detIdx < 0) {
+            if (name.rfind("raw_detector", 0) == 0) {
+                std::string suffix = name.substr(std::string("raw_detector").size());
+                if (!suffix.empty() && (suffix[0] == '_' || std::isdigit(static_cast<unsigned char>(suffix[0])))) {
+                    if (suffix[0] == '_') suffix.erase(0, 1);
+                    try {
+                        detIdx = std::stoi(suffix);
+                    } catch (...) { detIdx = -1; }
+                }
+            }
+        }
         if (detIdx < 0 || detIdx >= static_cast<int>(kMaxDetectors)) continue;
 
         // Prefer names without underscore when both exist

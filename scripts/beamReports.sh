@@ -128,6 +128,24 @@ else
     for groupedFile in $groupedFiles; do
         echo "Processing grouped file: $(basename "$groupedFile")"
 
+        # Ensure the grouped file actually contains the clusters tree before running runReport
+        root_check_output=$(root -l -b <<EOF
+TFile f("$groupedFile");
+auto t = f.Get< TTree >("clusters");
+if (t) { std::cout << "CLUSTERS_OK" << std::endl; }
+.q
+EOF
+        )
+
+        if ! echo "$root_check_output" | grep -q "CLUSTERS_OK"; then
+            if [ -n "$root_check_output" ]; then
+                echo "$root_check_output" | sed 's/^/ROOT check: /'
+            fi
+            echo "Skipping $(basename "$groupedFile"): no 'clusters' tree found."
+            echo ""
+            continue
+        fi
+
         # Run runReport from project root so it can access parameters/beam_settings.dat
         runReport_cmd=("$BUILD_DIR/runReport" -i "$groupedFile" -o "$outputDirectory" --sps-run)
 
