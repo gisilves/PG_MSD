@@ -8,6 +8,7 @@
 #include <ctime>
 #include <tuple>
 #include <algorithm>
+#include <cstdint>
 
 #include "PAPERO.h"
 
@@ -32,7 +33,7 @@ std::vector<T> reorder(std::vector<T> const &v)
     std::vector<int> order = {1, 0};
     for (int ch = 0; ch < nCH; ch++)
     {
-        for (int adc = 0; adc < order.size(); adc++)
+        for (int adc = 0; adc < (int)order.size(); adc++)
         {
             reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j);
             j++;
@@ -41,9 +42,9 @@ std::vector<T> reorder(std::vector<T> const &v)
 
     std::vector<bool> mirror = {false, true};
 
-    for (int adc = 0; adc < order.size(); adc++)
+    for (int adc = 0; adc < (int)order.size(); adc++)
     {
-        if(mirror.at(adc))
+        if (mirror.at(adc))
             std::reverse(reordered_vec.begin() + (adc * nCH), reordered_vec.begin() + ((adc + 1) * nCH));
     }
 
@@ -55,7 +56,7 @@ AnyOption *opt; // Handle the option input
 int main(int argc, char *argv[])
 {
     opt = new AnyOption();
-    opt->addUsage("Usage: ./ASTRA_convert [options] raw_data_file output_rootfile");
+    opt->addUsage("Usage: ./ASTRA_info [options] raw_data_file output_rootfile");
     opt->addUsage("");
     opt->addUsage("Options: ");
     opt->addUsage("  -h, --help       ................................. Print this help ");
@@ -100,37 +101,12 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
 
-    // Initialize TTree(s)
+    // Empty vector to store raw events
     std::vector<unsigned int> raw_event_buffer;
 
-    std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
-    std::vector<TTree *> raw_events_tree(max_detectors);
-    std::vector<std::vector<unsigned int>> raw_event_vector(max_detectors);
-    TString ttree_name;
-
-    for (size_t detector = 0; detector < max_detectors; detector++)
-    {
-        if (detector == 0)
-        {
-            raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
-            raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
-        else
-        {
-            ttree_name = (TString) "raw_events_" + alphabet.at(detector);
-            raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            if(detector%2)
-            {
-                raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
-            }
-            else
-            {
-                raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            }
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
-    }
+    // Timestamp TGraph
+    TGraph *timestamp_graph = new TGraph();
+    TGraph *timestamp_diff_graph = new TGraph();
 
     // Find if there is an offset before first event
     uint64_t offset = 0;
@@ -171,6 +147,11 @@ int main(int argc, char *argv[])
         evt_to_read = atoi(opt->getValue("nevents"));
     }
 
+    int64_t previous_timestamp = 0;     // stores previous event timestamp (as signed 64-bit)
+    int64_t first_timestamp = 0;        // timestamp of event 0 (kept for reference if needed)
+    int64_t baseline_step = 0;          // baseline = step between event 1 and 0
+    bool baseline_set = false;          // set after first observed difference
+
     while (!file.eof())
     {
         is_good = false;
@@ -183,6 +164,7 @@ int main(int argc, char *argv[])
 
         evt_retValues = read_de10_header(file, offset, verbose); // read de10 header
         is_good = std::get<0>(evt_retValues);
+
 
         if (is_good)
         {
@@ -215,9 +197,35 @@ int main(int argc, char *argv[])
             raw_event_buffer.clear();
             raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, true));
 
-            raw_event_vector.at(board_id).clear();
-            raw_event_vector.at(board_id) = raw_event_buffer;
-            raw_events_tree.at(board_id)->Fill();
+            if (evtnum == 0)
+            {
+                first_timestamp = static_cast<int64_t>(timestamp);
+                previous_timestamp = static_cast<int64_t>(timestamp);
+                // Do not set baseline yet; wait for event 1
+                // Add the timestamp point for event 0
+                timestamp_graph->SetPoint(timestamp_graph->GetN(), evtnum, static_cast<double>(timestamp));
+            }
+            else
+            {
+                // raw difference between this event and previous event
+                int64_t raw_diff = static_cast<int64_t>(timestamp) - previous_timestamp;
+                // update previous timestamp to current event's timestamp
+                previous_timestamp = static_cast<int64_t>(timestamp);
+
+                // on first observed difference (event 1), set baseline
+                if (!baseline_set)
+                {
+                    baseline_step = raw_diff;
+                    baseline_set = true;
+                }
+
+                // scaled difference relative to baseline_step
+                int64_t scaled_diff = raw_diff - baseline_step;
+
+                // store points in graphs
+                timestamp_graph->SetPoint(timestamp_graph->GetN(), evtnum, static_cast<double>(timestamp));
+                timestamp_diff_graph->SetPoint(timestamp_diff_graph->GetN(), evtnum, static_cast<double>(scaled_diff));
+            }
 
             if (boards_read == boards)
             {
@@ -241,16 +249,39 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "\n\tClosing file after " << evtnum << " events" << std::endl;
+    timestamp_graph->SetName("timestamp_graph");
+    timestamp_graph->Write();
 
-    for (size_t detector = 0; detector < max_detectors; detector++)
-    {
-        if (raw_events_tree.at(detector)->GetEntries())
-        {
-            raw_events_tree.at(detector)->Write();
-        }
-    }
+    timestamp_diff_graph->SetName("timestamp_diff_graph");
+    timestamp_diff_graph->Write();
 
     foutput->Close();
     file.close();
+
+    // Retrive array of events with timestamp differences greater than threshold
+
+    int threshold = 1;
+    std::vector<int> evts_to_keep;
+    for (int i = 0; i < timestamp_diff_graph->GetN(); i++)
+    {
+        if (timestamp_diff_graph->GetY()[i] > threshold)
+        {
+            evts_to_keep.push_back(timestamp_diff_graph->GetX()[i]);
+        }
+    }
+
+    // Output csv file with EventNum and TimestampDiff (if greater than threshold)
+    
+    // CSV file name is the same as the output root file, but with .csv extension
+    TString csv_name = output_filename;
+    csv_name.ReplaceAll(".root", ".csv");
+    std::ofstream output_file(csv_name);
+    if (output_file.is_open())
+    {
+        for (int i = 0; i < evts_to_keep.size(); i++)
+        {
+            output_file << evts_to_keep.at(i) << std::endl;
+        }
+    }
     return 0;
 }

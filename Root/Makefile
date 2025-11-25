@@ -32,6 +32,9 @@ AMS_convert: ./src/AMS_convert.cpp
 ASTRA_convert: ./src/ASTRA_convert.cpp
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
 
+ASTRA_info: ./src/ASTRA_info.cpp
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+
 PAPERO_info: ./src/PAPERO_info.cpp
 	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)	
 
