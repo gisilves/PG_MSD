@@ -1,13 +1,16 @@
 #include <iostream>
+#include <fstream>
+#include <vector>
+#include <tuple>
+#include <algorithm>
+#include <ctime>
+
+#include "CLI.hpp"
 #include "TFile.h"
 #include "TTree.h"
 #include "TString.h"
 #include "TH1.h"
 #include "TGraph.h"
-#include "anyoption.h"
-#include <ctime>
-#include <tuple>
-#include <algorithm>
 
 #include "PAPERO.h"
 
@@ -17,9 +20,7 @@ template <typename T>
 void print(std::vector<T> const &v)
 {
     for (auto i : v)
-    {
         std::cout << std::hex << i << ' ' << std::endl;
-    }
     std::cout << '\n';
 }
 
@@ -31,117 +32,66 @@ std::vector<T> reorder(std::vector<T> const &v)
     int j = 0;
     std::vector<int> order = {1, 0};
     for (int ch = 0; ch < nCH; ch++)
-    {
         for (int adc = 0; adc < order.size(); adc++)
-        {
-            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j);
-            j++;
-        }
-    }
+            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j++);
 
     std::vector<bool> mirror = {false, true};
-
     for (int adc = 0; adc < order.size(); adc++)
-    {
-        if(mirror.at(adc))
+        if (mirror.at(adc))
             std::reverse(reordered_vec.begin() + (adc * nCH), reordered_vec.begin() + ((adc + 1) * nCH));
-    }
 
     return reordered_vec;
 }
 
-AnyOption *opt; // Handle the option input
-
 int main(int argc, char *argv[])
 {
-    opt = new AnyOption();
-    opt->addUsage("Usage: ./ASTRA_convert [options] raw_data_file output_rootfile");
-    opt->addUsage("");
-    opt->addUsage("Options: ");
-    opt->addUsage("  -h, --help       ................................. Print this help ");
-    opt->addUsage("  -v, --verbose    ................................. Verbose ");
-    opt->addUsage("  --boards         ................................. Number of DE10 boards connected ");
-    opt->addUsage("  --nevents        ................................. Number of events to be read ");
-    opt->setOption("boards");
-    opt->setOption("nevents");
-
-    opt->setFlag("help", 'h');
-    opt->setFlag("verbose", 'v');
-
-    opt->processFile("./options.txt");
-    opt->processCommandArgs(argc, argv);
-
-    TFile *foutput;
-
-    if (!opt->hasOptions())
-    { /* print usage if no options */
-        opt->printUsage();
-        delete opt;
-        return 2;
-    }
+    CLI::App app{"ASTRA_convert"};
 
     bool verbose = false;
-    if (opt->getFlag("verbose") || opt->getFlag('v'))
-        verbose = true;
+    int boards = 0;
+    int nevents = -1;
+    std::string input_file;
+    std::string output_file;
 
-    // Open binary data file
-    std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
+    app.add_flag("-v,--verbose", verbose, "Verbose output");
+    app.add_option("--boards", boards, "Number of DE10 boards connected")->required();
+    app.add_option("--nevents", nevents, "Number of events to read");
+    app.add_option("raw_data_file", input_file, "Raw data input file")->required();
+    app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
+
+    CLI11_PARSE(app, argc, argv);
+
+    std::fstream file(input_file, std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
     {
-        std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
+        std::cerr << "ERROR: can't open input file\n";
         return 2;
     }
 
-    std::cout << " " << std::endl;
-    std::cout << "Processing file " << opt->getArgv(0) << std::endl;
+    std::cout << "Processing file " << input_file << std::endl;
 
-    // Create output ROOT file
-    TString output_filename = opt->getArgv(1);
-    foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
+    TFile *foutput = new TFile(output_file.c_str(), "RECREATE", "PAPERO data");
     foutput->cd();
 
-    // Initialize TTree(s)
     std::vector<unsigned int> raw_event_buffer;
-
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
     std::vector<TTree *> raw_events_tree(max_detectors);
     std::vector<std::vector<unsigned int>> raw_event_vector(max_detectors);
-    TString ttree_name;
 
     for (size_t detector = 0; detector < max_detectors; detector++)
     {
-        if (detector == 0)
-        {
-            raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
-            raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
-        else
-        {
-            ttree_name = (TString) "raw_events_" + alphabet.at(detector);
-            raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            if(detector%2)
-            {
-                raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
-            }
-            else
-            {
-                raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            }
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
+        TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
+        raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+        std::string branch_name = (detector % 2) ? "RAW Event J7" : "RAW Event J5";
+        raw_events_tree.at(detector)->Branch(branch_name.c_str(), &raw_event_vector.at(detector));
+        raw_events_tree.at(detector)->SetAutoSave(0);
     }
 
-    // Find if there is an offset before first event
-    uint64_t offset = 0;
-    offset = seek_first_evt_header(file, offset, verbose);
+    uint64_t offset = seek_first_evt_header(file, 0, verbose);
     int padding_offset = 0;
-
-    // Read raw events and write to TTree
     bool is_good = false;
     int evtnum = 0;
-    int evt_to_read = -1;
-    int boards = 0;
+    int evt_to_read = nevents;
     unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
@@ -150,38 +100,19 @@ int main(int argc, char *argv[])
     unsigned long timestamp = 0;
     unsigned long ext_timestamp = 0;
     int boards_read = 0;
-    float mean_rate = 0;
     std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, unsigned long, int> evt_retValues;
-
-    unsigned int old_offset = 0;
-    char dummy[100];
-
-    if (!opt->getValue("boards"))
-    {
-        std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
-        return 2;
-    }
-    else
-    {
-        boards = atoi(opt->getValue("boards"));
-    }
-
-    if (opt->getValue("nevents"))
-    {
-        evt_to_read = atoi(opt->getValue("nevents"));
-    }
 
     while (!file.eof())
     {
         is_good = false;
-        if (evt_to_read > 0 && evtnum == evt_to_read) // stop reading after the number of events specified
+        if (evt_to_read > 0 && evtnum == evt_to_read)
             break;
 
         if (boards_read == 0)
-            if (!read_evt_header(file, offset, verbose)) // check for event header if this is the first board
+            if (!read_evt_header(file, offset, verbose))
                 break;
 
-        evt_retValues = read_de10_header(file, offset, verbose); // read de10 header
+        evt_retValues = read_de10_header(file, offset, verbose);
         is_good = std::get<0>(evt_retValues);
 
         if (is_good)
@@ -200,15 +131,14 @@ int main(int argc, char *argv[])
 
             if (verbose)
             {
-                std::cout << "\tBoard ID " << board_id << std::endl;
-                std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
-                std::cout << "\tTrigger ID " << trigger_id << std::endl;
-                std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
-                std::cout << "\tEvt lenght: " << evt_size << std::endl;
-                std::cout << "\tOffset: " << offset << std::endl;
-                std::cout << "\tEvent number: " << evtnum << std::endl;
-                std::cout << "\tTimestamp: " << timestamp << std::endl;
-                std::cout << "\tExt timestamp: " << ext_timestamp << std::endl;
+                std::cout << "\tBoard ID " << board_id << "\n";
+                std::cout << "\tBoards read " << boards_read << " out of " << boards << "\n";
+                std::cout << "\tTrigger ID " << trigger_id << "\n";
+                std::cout << "\tFW version: " << std::hex << fw_version << std::dec << "\n";
+                std::cout << "\tEvent length: " << evt_size << "\n";
+                std::cout << "\tOffset: " << offset << "\n";
+                std::cout << "\tTimestamp: " << timestamp << "\n";
+                std::cout << "\tExt timestamp: " << ext_timestamp << "\n";
             }
 
             padding_offset = 0;
@@ -229,9 +159,7 @@ int main(int argc, char *argv[])
             {
                 offset = (int)file.tellg() + padding_offset + 4;
                 if (verbose)
-                {
-                    std::cout << "WARNING: not all boards were read" << std::endl;
-                }
+                    std::cout << "WARNING: not all boards were read\n";
             }
         }
         else
@@ -240,17 +168,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    std::cout << "\n\tClosing file after " << evtnum << " events" << std::endl;
-
+    std::cout << "\n\tClosing file after " << evtnum << " events\n";
     for (size_t detector = 0; detector < max_detectors; detector++)
-    {
         if (raw_events_tree.at(detector)->GetEntries())
-        {
             raw_events_tree.at(detector)->Write();
-        }
-    }
 
     foutput->Close();
     file.close();
+
     return 0;
 }

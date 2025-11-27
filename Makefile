@@ -4,36 +4,35 @@ MARCH := `root-config --arch`
 LD:=$(CXX)
 SRC=./src/
 
-ANYOPTION=$(SRC)/anyoption.cpp
-
 UNAME := $(shell uname)
+CLI11_DIR ?= third_party/CLI11/include/CLI
 
-CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include
+CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include -I$(CLI11_DIR)
 OPTFLAGS += -O3
 
 default: all
 
-all: PAPERO_convert PAPERO_info raw_clusterize raw_viewer calibration bias_control
+all: ASTRA_convert ASTRA_info raw_clusterize raw_threshold_scan raw_cn calibration raw_viewer
 
 .PHONY: raw_viewer
 
 ASTRA_convert: ./src/ASTRA_convert.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 ASTRA_info: ./src/ASTRA_info.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_clusterize: ./src/raw_clusterize.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_threshold_scan: ./src/raw_threshold_scan.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_cn: ./src/raw_cn.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 calibration: ./src/calibration.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS) $(ANYOPTION)
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_viewer: 
 	$(ROOTCLING) -f guiDict.cpp ./src/viewerGUI.h ./src/guiLinkDef.h

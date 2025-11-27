@@ -1,14 +1,16 @@
 #include <iostream>
+#include <fstream>
+#include <vector>
+#include <tuple>
+#include <algorithm>
+#include <ctime>
+
+#include "CLI.hpp"
 #include "TFile.h"
 #include "TTree.h"
 #include "TString.h"
 #include "TH1.h"
 #include "TGraph.h"
-#include "anyoption.h"
-#include <ctime>
-#include <tuple>
-#include <algorithm>
-#include <cstdint>
 
 #include "PAPERO.h"
 
@@ -18,9 +20,7 @@ template <typename T>
 void print(std::vector<T> const &v)
 {
     for (auto i : v)
-    {
         std::cout << std::hex << i << ' ' << std::endl;
-    }
     std::cout << '\n';
 }
 
@@ -32,61 +32,37 @@ std::vector<T> reorder(std::vector<T> const &v)
     int j = 0;
     std::vector<int> order = {1, 0};
     for (int ch = 0; ch < nCH; ch++)
-    {
-        for (int adc = 0; adc < (int)order.size(); adc++)
-        {
-            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j);
-            j++;
-        }
-    }
+        for (int adc = 0; adc < order.size(); adc++)
+            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j++);
 
     std::vector<bool> mirror = {false, true};
-
-    for (int adc = 0; adc < (int)order.size(); adc++)
-    {
+    for (int adc = 0; adc < order.size(); adc++)
         if (mirror.at(adc))
             std::reverse(reordered_vec.begin() + (adc * nCH), reordered_vec.begin() + ((adc + 1) * nCH));
-    }
 
     return reordered_vec;
 }
 
-AnyOption *opt; // Handle the option input
-
 int main(int argc, char *argv[])
 {
-    opt = new AnyOption();
-    opt->addUsage("Usage: ./ASTRA_info [options] raw_data_file output_rootfile");
-    opt->addUsage("");
-    opt->addUsage("Options: ");
-    opt->addUsage("  -h, --help       ................................. Print this help ");
-    opt->addUsage("  -v, --verbose    ................................. Verbose ");
-    opt->addUsage("  --boards         ................................. Number of DE10 boards connected ");
-    opt->addUsage("  --nevents        ................................. Number of events to be read ");
-    opt->setOption("boards");
-    opt->setOption("nevents");
-
-    opt->setFlag("help", 'h');
-    opt->setFlag("verbose", 'v');
-
-    opt->processFile("./options.txt");
-    opt->processCommandArgs(argc, argv);
-
-    TFile *foutput;
-
-    if (!opt->hasOptions())
-    { /* print usage if no options */
-        opt->printUsage();
-        delete opt;
-        return 2;
-    }
+    CLI::App app{"ASTRA_info"};
 
     bool verbose = false;
-    if (opt->getFlag("verbose") || opt->getFlag('v'))
-        verbose = true;
+    int boards = 0;
+    int nevents = -1;
+    std::string input_file;
+    std::string output_file;
+
+    app.add_flag("-v,--verbose", verbose, "Verbose output");
+    app.add_option("--boards", boards, "Number of DE10 boards connected")->required();
+    app.add_option("--nevents", nevents, "Number of events to read");
+    app.add_option("raw_data_file", input_file, "Raw data input file")->required();
+    app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
+
+    CLI11_PARSE(app, argc, argv);
 
     // Open binary data file
-    std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
+    std::fstream file(input_file, std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
     {
         std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
@@ -94,11 +70,11 @@ int main(int argc, char *argv[])
     }
 
     std::cout << " " << std::endl;
-    std::cout << "Processing file " << opt->getArgv(0) << std::endl;
+    std::cout << "Processing file " << input_file << std::endl;
 
     // Create output ROOT file
-    TString output_filename = opt->getArgv(1);
-    foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
+    TString output_filename = output_file.c_str();
+    TFile *foutput = new TFile(output_filename, "RECREATE", "PAPERO data");
     foutput->cd();
 
     // Empty vector to store raw events
@@ -117,7 +93,6 @@ int main(int argc, char *argv[])
     bool is_good = false;
     int evtnum = 0;
     int evt_to_read = -1;
-    int boards = 0;
     unsigned long fw_version = 0;
     int board_id = -1;
     int trigger_number = -1;
@@ -132,19 +107,15 @@ int main(int argc, char *argv[])
     unsigned int old_offset = 0;
     char dummy[100];
 
-    if (!opt->getValue("boards"))
+    if (boards == 0)
     {
         std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
         return 2;
     }
-    else
-    {
-        boards = atoi(opt->getValue("boards"));
-    }
 
-    if (opt->getValue("nevents"))
+    if (nevents > 0)
     {
-        evt_to_read = atoi(opt->getValue("nevents"));
+        evt_to_read = nevents;
     }
 
     int64_t previous_timestamp = 0;     // stores previous event timestamp (as signed 64-bit)
@@ -275,12 +246,12 @@ int main(int argc, char *argv[])
     // CSV file name is the same as the output root file, but with .csv extension
     TString csv_name = output_filename;
     csv_name.ReplaceAll(".root", ".csv");
-    std::ofstream output_file(csv_name);
-    if (output_file.is_open())
+    std::ofstream output_csv_file(csv_name);
+    if (output_csv_file.is_open())
     {
         for (int i = 0; i < evts_to_keep.size(); i++)
         {
-            output_file << evts_to_keep.at(i) << std::endl;
+            output_csv_file << evts_to_keep.at(i) << std::endl;
         }
     }
     return 0;

@@ -310,10 +310,10 @@ bool GoodCluster(cluster clus, calib *cal) // cluster is good if all the strips 
   return good;
 }
 
-bool read_calib(const char *calib_file, calib *cal, int NChannels, int detector, bool verb) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
+bool read_calib(std::string calib_file, calib *cal, int NChannels, int detector, bool verb) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
 {
   std::ifstream in;
-  in.open(calib_file);
+  in.open(calib_file.c_str());
 
   if (!in.is_open())
     return 0;
