@@ -23,7 +23,7 @@ Software for Microstrip Silicon Detectors data analysis
 
 *PAPERO branch*
 
-- **miniTRB_convert, FOOT_convert, PAPERO_convert and AMS_convert:** to compress binary raw data into rootfiles
+- **PAPERO_convert:** to compress binary raw data into rootfiles
 
 - **PAPERO_info:** to retrieve info from PAPERO event headers
 
