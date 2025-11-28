@@ -4,9 +4,9 @@
 #include "TString.h"
 #include "TH1.h"
 #include "TGraph.h"
-#include "anyoption.h"
 #include <ctime>
 #include <tuple>
+#include "CLI.hpp"
 
 #include "PAPERO.h"
 
@@ -56,46 +56,30 @@ std::vector<T> reorder_DAMPE(std::vector<T> const &v)
     return reordered_vec;
 }
 
-AnyOption *opt; // Handle the option input
-
 int main(int argc, char *argv[])
 {
-    opt = new AnyOption();
-    opt->addUsage("Usage: ./PAPERO_convert [options] raw_data_file output_rootfile");
-    opt->addUsage("");
-    opt->addUsage("Options: ");
-    opt->addUsage("  -h, --help       ................................. Print this help ");
-    opt->addUsage("  --verbose        ................................. Verbose level (1 - headers info, 2 - timestamps info)");
-    opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected (for old data format)");
-    opt->addUsage("  --nevents        ................................. Number of events to be read ");
-    opt->addUsage("  --gsi            ................................. To convert data from GSI hybrids (10 ADC per detector)");
-    opt->setOption("boards");
-    opt->setOption("nevents");
-    opt->setOption("verbose");
+    CLI::App app{"PAPERO_convert"};
 
-    opt->setFlag("help", 'h');
-    opt->setFlag("gsi");
+    bool verbose = false;
+    bool gsi = false;
+    int boards = 0;
+    int nevents = -1;
+    std::string input_file;
+    std::string output_file;
 
-    opt->processFile("./options.txt");
-    opt->processCommandArgs(argc, argv);
+    app.add_flag("-v,--verbose", verbose, "Verbose output");
+    app.add_flag("--gsi", gsi, "To convert data from GSI hybrids (10 ADC per detector)");
+    app.add_option("--boards", boards, "Number of DE10Nano boards connected (for old data format)");
+    app.add_option("--nevents", nevents, "Number of events to be read");
+    app.add_option("raw_data_file", input_file, "Raw data input file")->required();
+    app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
+
+    CLI11_PARSE(app, argc, argv);
 
     TFile *foutput;
 
-    if (!opt->hasOptions())
-    { /* print usage if no options */
-        opt->printUsage();
-        delete opt;
-        return 2;
-    }
-
-    int verbose = 0;
-    if (opt->getValue("verbose"))
-    {
-        verbose = atoi(opt->getValue("verbose"));
-    }
-
     // Open binary data file
-    std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
+    std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
     {
         std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
@@ -103,10 +87,10 @@ int main(int argc, char *argv[])
     }
 
     std::cout << " " << std::endl;
-    std::cout << "Processing file " << opt->getArgv(0) << std::endl;
+    std::cout << "Processing file " << input_file.c_str() << std::endl;
 
     // Create output ROOT file
-    TString output_filename = opt->getArgv(1);
+    TString output_filename = output_file.c_str();
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
@@ -146,10 +130,8 @@ int main(int argc, char *argv[])
 
     // Find if there is an offset before file header
     bool is_good = false;
-    bool gsi = false;
     int evtnum = 0;
     int evt_to_read = -1;
-    int boards = 0;
     int board_id = -1;
     int trigger_number = -1;
     int trigger_id = -1;
@@ -205,27 +187,22 @@ int main(int argc, char *argv[])
 
     if (!is_new_format)
     {
-        if (!opt->getValue("boards"))
+        if (boards == 0)
         {
             std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
             return 2;
         }
-        else
-        {
-            boards = atoi(opt->getValue("boards"));
-        }
         offset = seek_first_evt_header(file, 0, verbose);
     }
 
-    if (opt->getValue("gsi"))
+    if (gsi)
     {
-        gsi = true;
         std::cout << "\tFormatting data for GSI hybrids" << std::endl;
     }
 
-    if (opt->getValue("nevents"))
+    if (nevents > 0)
     {
-        evt_to_read = atoi(opt->getValue("nevents"));
+        evt_to_read = nevents;
         std::cout << "\tReading " << evt_to_read << " events" << std::endl;
     }
 

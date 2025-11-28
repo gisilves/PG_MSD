@@ -15,10 +15,9 @@
 #include "TLine.h"
 #include "TKey.h"
 #include "TPaveText.h"
-#include "anyoption.h"
 #include "event.h"
 
-AnyOption *opt; // Handle the option input
+#include "CLI.hpp"
 
 int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1)
 {
@@ -112,7 +111,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
   char curr3v[100];
   char delay[100];
 
-  ofstream calfile;
+  std::ofstream calfile;
   if (!pdf_only)
   {
     if (!fast)
@@ -445,10 +444,10 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
     c1.Print(output_filename + ".pdf", "pdf");
   }
 
-  cout << "\tMean pedestal \t Mean RSigma \t Mean Sigma \t Max Sigma " << endl;
-  cout << Form("\t%f \t %f \t %f \t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << endl;
-  cout << "\tRMS pedestal \t RMS RSigma \t RMS Sigma " << endl;
-  cout << Form("\t%f \t %f \t %f", rms_pedestal, rms_rsigma, rms_sigma) << endl;
+  std::cout << "\tMean pedestal \t Mean RSigma \t Mean Sigma \t Max Sigma " << std::endl;
+  std::cout << Form("\t%f \t %f \t %f \t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << std::endl;
+  std::cout << "\tRMS pedestal \t RMS RSigma \t RMS Sigma " << std::endl;
+  std::cout << Form("\t%f \t %f \t %f", rms_pedestal, rms_rsigma, rms_sigma) << std::endl;
 
   if (!pdf_only)
   {
@@ -464,194 +463,92 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
 
 int main(int argc, char *argv[])
 {
-  gErrorIgnoreLevel = kWarning;
-  bool verb = false;
-  bool pdf_only = false;
-  bool fast_mode = false;
-  bool fit_mode = false;
-  bool single_file = true;
-  int max_ADC = -1;
+    gErrorIgnoreLevel = kWarning;
 
-  float sigmaraw_cut = 15;
-  float sigma_cut = 10;
-  int cntype = 0;
+    CLI::App app{"calibration"};
 
-  int NChannels = -1;
-  int NVas = -1;
+    bool verb = false;
+    bool pdf_only = false;
+    bool fast_mode = false;
+    bool fit_mode = false;
+    bool multiple = false;
+    int max_ADC = -1;
+    int cntype = 0;
+    std::string output_filename;
+    std::vector<std::string> input_files;
 
-  bool newDAQ = true;
-  int side = 0;
+    app.add_flag("-v,--verbose", verb, "Verbose output");
+    app.add_flag("--pdf", pdf_only, "PDF only, no .cal file");
+    app.add_flag("--fast", fast_mode, "No info prompt");
+    app.add_flag("--fit", fit_mode, "Compute calibration parameters with gaussian fits");
+    app.add_flag("-m,--multiple", multiple, "Save calibrations in multiple .cal files");
+    app.add_option("--cn", cntype, "CN algorithm selection (0,1,2)");
+    app.add_option("--max_ADC", max_ADC, "Maximum ADC value for noise plots");
+    app.add_option("--output", output_filename, "Output .cal file")->required();
+    app.add_option("input_files", input_files, "Input ROOT files")->required()->expected(-1);
 
-  opt = new AnyOption();
-  opt->addUsage("Usage: ./calibration [options] [arguments] rootfile");
-  opt->addUsage("");
-  opt->addUsage("Options: ");
-  opt->addUsage("  -h, --help       ................................. Print this help ");
-  opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  -m, --multiple   ................................. Save calibrations in multiple .cal files (one for each detector)");
-  opt->addUsage("  --output         ................................. Output .cal file ");
-  opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
-  opt->addUsage("  --pdf            ................................. PDF only, no .cal file ");
-  opt->addUsage("  --fast           ................................. no info prompt");
-  opt->addUsage("  --minitrb        ................................. For files acquired with the miniTRB");
-  opt->addUsage("  --fit            ................................. Compute calibration parameters with gaussian fits");
-  opt->addUsage("  --max_ADC        ................................. Maximum ADC value for noise plots");
-  opt->setFlag("help", 'h');
-  opt->setFlag("minitrb");
-  opt->setFlag("verbose", 'v');
-  opt->setFlag("single");
-  opt->setFlag("pdf");
-  opt->setFlag("fast");
-  opt->setFlag("fit");
-  opt->setOption("max_ADC");
+    CLI11_PARSE(app, argc, argv);
 
-  opt->setOption("output");
-  opt->setOption("cn");
+    bool single_file = !multiple;
 
-  opt->processFile("./options.txt");
-  opt->processCommandArgs(argc, argv);
-
-  if (!opt->hasOptions())
-  { /* print usage if no options */
-    opt->printUsage();
-    delete opt;
-    return 2;
-  }
-
-  if (opt->getFlag("help") || opt->getFlag('h'))
-    opt->printUsage();
-
-  if (opt->getFlag("verbose") || opt->getFlag('v'))
-    verb = true;
-
-  if (opt->getFlag("multiple") || opt->getFlag('m'))
-  {
-    single_file = false;
-  }
-
-  if (opt->getValue("cn"))
-    cntype = atoi(opt->getValue("cn"));
-
-  if (opt->getValue("minitrb"))
-  {
-    newDAQ = false;
-    std::cout << "\nminiTRB flag activated" << std::endl;
-  }
-
-  if (opt->getValue("pdf"))
-  {
-    pdf_only = true;
-    std::cout << "\nPDF flag activated: no .cal file will be written on disk" << std::endl;
-  }
-
-  if (opt->getFlag("fast"))
-  {
-    fast_mode = true;
-    std::cout << "\nFast flag activated: no additional info will be written in the .cal file" << std::endl;
-  }
-
-  if (opt->getFlag("single"))
-  {
-    std::cout << "\nSingle file flag activated: only one .cal file will be written on disk" << std::endl;
-  }
-
-  if (opt->getFlag("fit"))
-  {
-    fit_mode = true;
-    std::cout << "\nUsing Gaussian fits to compute calibrations" << std::endl;
-  }
-
-  // Create output .cal file
-  TString output_filename;
-  if (opt->getValue("output"))
-  {
-    output_filename = opt->getValue("output");
-  }
-  else
-  {
-    std::cout << "Error: no output file" << std::endl;
-    return 2;
-  }
-  
-  if (opt->getValue("max_ADC"))
-    max_ADC = atoi(opt->getValue("max_ADC"));
-
-  int detectors = 0;
-  int detector_num = 0;
-  int ladder_side = 0;
-
-  // Join ROOTfiles in a single chain
-  TChain *chain = new TChain("raw_events"); // Chain input rootfiles
-  for (int ii = 0; ii < opt->getArgc(); ii++)
-  {
-    std::cout << "\nAdding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-    chain->Add(opt->getArgv(ii));
-  }
-
-  if (single_file && std::ifstream(output_filename + ".cal"))
-  {
-    remove(output_filename + ".cal");
-  }
-
-  TCanvas *c1 = new TCanvas("calibration", "Canvas", 1920, 1080);
-  c1->Divide(2, 2);
-
-  TFile tempfile(opt->getArgv(0));
-  TIter list(tempfile.GetListOfKeys());
-  TKey *key;
-  while ((key = (TKey *)list()))
-  {
-    if (!strcmp(key->GetClassName(), "TTree"))
-    {
-      detectors++;
-    }
-  }
-  std::cout << "File with " << detectors << " detector(s)" << std::endl;
-  if (detectors == 1)
-    newDAQ = false;
-
-  if (!newDAQ)
-  {
-    compute_calibration(*chain, output_filename, *c1, sigmaraw_cut, sigma_cut, 0, 0, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC);
-  }
-  else
-  {
-    std::cout << "\nNEW DAQ FILE" << std::endl;
-
-    TTree *T;
-    TIter list2(tempfile.GetListOfKeys());
-    while ((key = (TKey *)list2()))
-    {
-      if (!strcmp(key->GetClassName(), "TTree"))
-      {
-        TChain *chain2 = new TChain(key->GetName());
-
-        for (int ii = 0; ii < opt->getArgc(); ii++)
-        {
-          chain2->Add(opt->getArgv(ii));
-        }
-        if (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1)
-        {
-          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, true, max_ADC);
-        }
-        else
-        {
-          compute_calibration(*chain2, output_filename, *c1, sigmaraw_cut, sigma_cut, detector_num / 2, ladder_side, pdf_only, fast_mode, fit_mode, single_file, false, max_ADC);
-        }
-        detector_num++;
-        if (ladder_side == 0)
-        {
-          ladder_side = 1;
-        }
-        else
-        {
-          ladder_side = 0;
-        }
-      }
+    TChain *chain = new TChain("raw_events");
+    for (auto const &f : input_files) {
+        std::cout << "\nAdding file " << f << " to the chain..." << std::endl;
+        chain->Add(f.c_str());
     }
 
-    tempfile.Close();
-  }
+    if (single_file && std::ifstream(output_filename + ".cal")) {
+        remove((output_filename + ".cal").c_str());
+    }
 
-  return 0;
+    TCanvas *c1 = new TCanvas("calibration", "Canvas", 1920, 1080);
+    c1->Divide(2, 2);
+
+    TFile tempfile(input_files[0].c_str());
+    TIter list(tempfile.GetListOfKeys());
+    TKey *key;
+    int detectors = 0;
+    while ((key = (TKey *)list())) {
+        if (!strcmp(key->GetClassName(), "TTree")) {
+            detectors++;
+        }
+    }
+    std::cout << "File with " << detectors << " detector(s)" << std::endl;
+
+    bool newDAQ = true;
+    if (detectors == 1) newDAQ = false;
+
+    if (!newDAQ) {
+        compute_calibration(*chain, output_filename, *c1,
+                            /*sigmaraw_cut*/15, /*sigma_cut*/10,
+                            /*board*/0, /*side*/0,
+                            pdf_only, fast_mode, fit_mode,
+                            single_file, true,
+                            max_ADC);
+    } else {
+        std::cout << "\nNEW DAQ FILE" << std::endl;
+        TIter list2(tempfile.GetListOfKeys());
+        int detector_num = 0;
+        int ladder_side = 0;
+        while ((key = (TKey *)list2())) {
+            if (!strcmp(key->GetClassName(), "TTree")) {
+                TChain *chain2 = new TChain(key->GetName());
+                for (auto const &f : input_files) {
+                    chain2->Add(f.c_str());
+                }
+                bool last = (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1);
+                compute_calibration(*chain2, output_filename, *c1,
+                                    /*sigmaraw_cut*/15, /*sigma_cut*/10,
+                                    detector_num / 2, ladder_side,
+                                    pdf_only, fast_mode, fit_mode,
+                                    single_file, last,
+                                    max_ADC);
+                detector_num++;
+                ladder_side = 1 - ladder_side;
+            }
+        }
+        tempfile.Close();
+    }
+
+    return 0;
 }

@@ -10,55 +10,42 @@
 
 #include "PAPERO.h"
 
-AnyOption *opt; // Handle the option input
+#include "CLI.hpp"
 
 int main(int argc, char *argv[])
 {
-    opt = new AnyOption();
-    opt->addUsage("Usage: ./PAPERO_info [options] raw_data_file output_rootfile");
-    opt->addUsage("");
-    opt->addUsage("Options: ");
-    opt->addUsage("  -h, --help       ................................. Print this help ");
-    opt->addUsage("  -v, --verbose    ................................. Verbose ");
-    opt->addUsage("  --boards         ................................. Number of DE10Nano boards connected ");
-    opt->addUsage("  --nevents        ................................. Number of events to be read ");
-    opt->setOption("boards");
-    opt->setOption("nevents");
-    opt->setOption("verbose");
+    CLI::App app{"PAPERO_info"};
 
-    opt->setFlag("help", 'h');
+    std::string input_file;
+    std::string output_file;
+    bool verbose = false;
+    int boards = 0;
+    int nevents = -1;
 
-    opt->processFile("./options.txt");
-    opt->processCommandArgs(argc, argv);
+    app.add_flag("-v,--verbose", verbose, "Verbose output");
+    app.add_option("--boards", boards, "Number of DE10Nano boards connected (for old data format)");
+    app.add_option("--nevents", nevents, "Number of events to be read");
+    app.add_option("raw_data_file", input_file, "Raw data input file")->required();
+    app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
+
+    CLI11_PARSE(app, argc, argv);
 
     TFile *foutput;
     // textfile to save trigger timestamps
-    std::string string_output_rootfile = opt->getArgv(1);
+    std::string string_output_rootfile = output_file.c_str();
     std::string string_output_txtfile = string_output_rootfile.substr(0, string_output_rootfile.size() - 5) + ".txt";
     std::cout << "Output txt file: " << string_output_txtfile << std::endl;
     std::ofstream output_txt_file(string_output_txtfile);
-
-    if (!opt->hasOptions())
-    { /* print usage if no options */
-        opt->printUsage();
-        delete opt;
-        return 2;
-    }
-
-    int verbose = 0;
-    if (opt->getValue("verbose"))
+    
+    if (verbose == 2)
     {
-        verbose = atoi(opt->getValue("verbose"));
-        if (verbose == 2)
-        {
-            //open output_txt_file
-            output_txt_file.open(string_output_txtfile);
-            output_txt_file << "Writing PAPERO_info (Timestamps)" << std::endl;
-        }
+        //open output_txt_file
+        output_txt_file.open(string_output_txtfile);
+        output_txt_file << "Writing PAPERO_info (Timestamps)" << std::endl;
     }
 
     // Open binary data file
-    std::fstream file(opt->getArgv(0), std::ios::in | std::ios::out | std::ios::binary);
+    std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
     {
         std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
@@ -66,10 +53,10 @@ int main(int argc, char *argv[])
     }
 
     std::cout << " " << std::endl;
-    std::cout << "Processing file " << opt->getArgv(0) << std::endl;
+    std::cout << "Processing file " << input_file.c_str() << std::endl;
 
     // Create output ROOT file
-    TString output_filename = opt->getArgv(1);
+    TString output_filename = output_file.c_str();
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO info");
     foutput->cd();
 
@@ -80,7 +67,6 @@ int main(int argc, char *argv[])
     bool is_good = false;
     int evtnum = 0;
     int evt_to_read = -1;
-    int boards = 0;
     int board_id = -1;
     int trigger_number = -1;
     int trigger_id = -1;
@@ -137,14 +123,10 @@ int main(int argc, char *argv[])
 
     if (!is_new_format)
     {
-        if (!opt->getValue("boards"))
+        if (boards == 0)
         {
             std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
             return 2;
-        }
-        else
-        {
-            boards = atoi(opt->getValue("boards"));
         }
         offset = seek_first_evt_header(file, 0, verbose);
     }
@@ -193,9 +175,9 @@ int main(int argc, char *argv[])
         g_ext_timestamp_delta[i]->GetYaxis()->SetTitle("Ext Timestamp delta");
     }
 
-    if (opt->getValue("nevents"))
+    if (nevents > 0)
     {
-        evt_to_read = atoi(opt->getValue("nevents"));
+        evt_to_read = nevents;
         std::cout << "\tReading " << evt_to_read << " events" << std::endl;
     }
 

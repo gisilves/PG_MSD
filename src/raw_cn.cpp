@@ -1,4 +1,3 @@
-// raw_cn_cli11.cpp
 #include "TChain.h"
 #include "TFile.h"
 #include "TH1.h"
@@ -11,7 +10,7 @@
 #include <string>
 #include <filesystem>
 
-#include <CLI/CLI.hpp> // modern CLI
+#include "CLI.hpp" // modern CLI
 #include "event.h"
 
 int main(int argc, char *argv[])
@@ -25,7 +24,6 @@ int main(int argc, char *argv[])
   int NChannels = 384;
   int NVas = 6;
 
-  // ———————————————— CLI11 ————————————————
   int version = 0;
   std::string output;
   std::string calibration;
@@ -33,7 +31,7 @@ int main(int argc, char *argv[])
   int side = 0;
   std::vector<std::string> inputs;
 
-  CLI::App app{"Compute common-noise statistics and pedestals"};
+  CLI::App app{"raw_cn"};
   app.set_help_all_flag("--help-all", "Show all help");
 
   app.add_flag("-v,--verbose", verb, "Verbose");

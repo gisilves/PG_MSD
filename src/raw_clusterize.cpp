@@ -15,10 +15,8 @@
 
 #include "TTreeReader.h"
 
-#include "anyoption.h"
+#include "CLI.hpp"
 #include "event.h"
-
-AnyOption *opt; // Handle the input options
 
 calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 // Dynamic pedestal calculation while processing the file:
@@ -59,12 +57,12 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
   return new_calibration;
 }
 
-int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int minStrip, int maxStrip, AnyOption *opt,
+int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int minStrip, int maxStrip,
                         bool newDAQ, int first_event, int NChannels, bool verb, bool dynped,
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        float sensor_pitch, bool AMS)
+                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "")
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
@@ -95,10 +93,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       new TH1F((TString) "hADCClusterSeed_board_" + board + "_side_" + side, (TString) "hADCClusterSeed_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCClusterSeed->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hADCClusterSecond = // ADC content of the second strip in the cluster (by ADC)
-      new TH1F((TString) "hADCClusterSecond_board_" + board + "_side_" + side, (TString) "hADCClusterSecond_board_" + board + "_side_" + side, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
-  hADCClusterSecond->GetXaxis()->SetTitle("ADC");
-
   TH1F *hPercentageSeed = // percentage of the "seed strip" wrt the whole cluster
       new TH1F((TString) "hPercentageSeed_board_" + board + "_side_" + side, (TString) "hPercentageSeed_board_" + board + "_side_" + side, 200, 20, 150);
   hPercentageSeed->GetXaxis()->SetTitle("percentage");
@@ -108,7 +102,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hPercSeedintegral->GetXaxis()->SetTitle("percentage");
 
   TH1F *hClusterCharge = // sqrt(ADC signal / MIP_ADC) for the cluster
-      new TH1F((TString) "hClusterCharge_board_" + board + "_side_" + side, (TString) "hClusterCharge_board_" + board + "_side_" + side, 1000, -0.5, 50.5);
+      new TH1F((TString) "hClusterCharge_board_" + board + "_side_" + side, (TString) "hClusterCharge_board_" + board + "_side_" + side, 1000, -0.5, 25.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
   TH1F *hSeedCharge = new TH1F((TString) "hSeedCharge_board_" + board + "_side_" + side, (TString) "hSeedCharge_board_" + board + "_side_" + side, 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
@@ -209,22 +203,22 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   TChain *chain = new TChain();  // TChain for the first detector TTree (we read 2 detectors with each board on the new DAQ and 1 with the miniTRB)
   TChain *chain2 = new TChain(); // TChain for the second detector TTree
 
-  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
+  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
   if (board == 0) // TTree name depends on DAQ board
   {
     chain->SetName("raw_events"); // simply called raw_events for retrocompatibility with old files from the prototype
-    for (int ii = 0; ii < opt->getArgc(); ii++)
+    for (int ii = 0; ii < input_files.size(); ii++)
     {
-      std::cout << "\nAdding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-      chain->Add(opt->getArgv(ii));
+      std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
+      chain->Add(input_files[ii].c_str());
     }
     if (newDAQ)
     {
       chain2->SetName("raw_events_B");
-      for (int ii = 0; ii < opt->getArgc(); ii++)
+      for (int ii = 0; ii < input_files.size(); ii++)
       {
-        chain2->Add(opt->getArgv(ii));
+        chain2->Add(input_files[ii].c_str());
       }
       chain->AddFriend(chain2);
     }
@@ -232,24 +226,24 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   else
   {
     chain->SetName((TString) "raw_events_" + alphabet.at(2 * board));
-    for (int ii = 0; ii < opt->getArgc(); ii++)
+    for (int ii = 0; ii < input_files.size(); ii++)
     {
-      std::cout << "\nAdding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-      chain->Add(opt->getArgv(ii));
+      std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
+      chain->Add(input_files[ii].c_str());
     }
     chain2->SetName((TString) "raw_events_" + alphabet.at(2 * board + 1));
-    for (int ii = 0; ii < opt->getArgc(); ii++)
+    for (int ii = 0; ii < input_files.size(); ii++)
     {
-      chain2->Add(opt->getArgv(ii));
+      chain2->Add(input_files[ii].c_str());
     }
     chain->AddFriend(chain2);
   }
 
   int entries = chain->GetEntries();
 
-  if (opt->getValue("nevents")) // to process only the first "nevents" events in the chain
+  if (nevents) // to process only the first "nevents" events in the chain 
   {
-    unsigned int temp_entries = atoi(opt->getValue("nevents"));
+    unsigned int temp_entries = nevents;
     if (temp_entries < entries)
     {
       entries = temp_entries;
@@ -272,7 +266,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   std::vector<unsigned int> *raw_event = 0; // buffer vector for the raw event in the TTree
   TBranch *RAW = 0;
 
-  if (side == 0)
+  if(side == 0)
   {
     chain->SetBranchAddress("RAW Event J5", &raw_event, &RAW);
   }
@@ -289,7 +283,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   t_clusters->Branch("clusters", &result);
 
   // Read Calibration file
-  if (!opt->getValue("calibration"))
+  if (!calibration_file.size())
   {
     std::cout << "Error: no calibration file" << std::endl;
     return 2;
@@ -298,11 +292,11 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   calib cal; // calibration struct
   bool is_calib = false;
 
-  is_calib = read_calib(opt->getValue("calibration"), &cal, NChannels, 2 * board + side, verb);
+  is_calib = read_calib(calibration_file.c_str(), &cal, NChannels, 2 * board + side, verb);
 
   if (!is_calib)
   {
-    std::cout << "ERROR: no calibration file found" << endl;
+    std::cout << "ERROR: no calibration file found" << std::endl;
     return 2;
   }
 
@@ -319,6 +313,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   int maxADC = 0; // max ADC in all the events, to set proper graph/histo limits
   int maxEVT = 0; // event where maxADC was found
   int maxPOS = 0; // position of the strip with value maxADC
+  bool AMS = false;
 
   std::cout << "\n===========================================================" << std::endl;
   std::cout << "\nProcessing events for board " << board << " side " << side << std::endl;
@@ -326,14 +321,14 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
 
   bool BL_monster = false;
-  if (atoi(opt->getValue("version")) == 2023 || atoi(opt->getValue("version")) == 2024)
+  if (version == 2023 || version == 2024)
   {
     AMS = true;
-    // cout << "AMS is " << AMS << endl;
-    if (atoi(opt->getValue("version")) == 2024)
+    //cout << "AMS is " << AMS << endl;
+    if (version == 2024)
     {
       BL_monster = true;
-      // cout << "BL_monster is " << BL_monster << endl;
+      //cout << "BL_monster is " << BL_monster << endl;
     }
   }
 
@@ -557,8 +552,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
           }
 
           hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
-          if (GetClusterSecondIndex(result.at(i), &cal) != -1)
-            hADCClusterSecond->Fill(GetClusterSecondADC(result.at(i), &cal));
           hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
           hSeedCharge->Fill(GetSeedMIPCharge(result.at(i), &cal));
           hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i), &cal) / GetClusterSignal(result.at(i)));
@@ -657,31 +650,31 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hNclus->Write();
   delete hNclus;
 
-  // Double_t norm = hADCCluster->GetEntries();
-  // hADCCluster->Scale(1 / norm);
+ // Double_t norm = hADCCluster->GetEntries();
+ // hADCCluster->Scale(1 / norm);
   hADCCluster->Write();
   delete hADCCluster;
 
   hHighest->Write();
   delete hHighest;
 
-  // norm = hADCClusterEdge->GetEntries();
-  // hADCClusterEdge->Scale(1 / norm);
+ // norm = hADCClusterEdge->GetEntries();
+ // hADCClusterEdge->Scale(1 / norm);
   hADCClusterEdge->Write();
   delete hADCClusterEdge;
 
-  // norm = hADCCluster1Strip->GetEntries();
-  // hADCCluster1Strip->Scale(1 / norm);
+ // norm = hADCCluster1Strip->GetEntries();
+ // hADCCluster1Strip->Scale(1 / norm);
   hADCCluster1Strip->Write();
   delete hADCCluster1Strip;
 
-  // norm = hADCCluster2Strip->GetEntries();
-  // hADCCluster2Strip->Scale(1 / norm);
+  //norm = hADCCluster2Strip->GetEntries();
+ // hADCCluster2Strip->Scale(1 / norm);
   hADCCluster2Strip->Write();
   delete hADCCluster2Strip;
 
-  // norm = hADCClusterManyStrip->GetEntries();
-  // hADCClusterManyStrip->Scale(1 / norm);
+  //norm = hADCClusterManyStrip->GetEntries();
+  //hADCClusterManyStrip->Scale(1 / norm);
   hADCClusterManyStrip->Write();
   delete hADCClusterManyStrip;
 
@@ -689,7 +682,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   delete hEtaVsADC;
 
   hADCClusterSeed->Write();
-  hADCClusterSecond->Write();
   hClusterCharge->Write();
   hSeedCharge->Write();
   hClusterSN->Write();
@@ -716,7 +708,6 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hCommonNoiseVsVA->Write();
 
   delete hADCClusterSeed;
-  delete hADCClusterSecond;
   delete hClusterCharge;
   delete hSeedCharge;
   delete hClusterSN;
@@ -792,6 +783,9 @@ int main(int argc, char *argv[])
   int symmetricwidth = 0;
   int cntype = 0;
   int maxCN = 999;
+  int first_event = 0;
+  int nevents = -1;
+  int version = 0;
 
   int NChannels = 384;
   int NVas = 6;
@@ -802,79 +796,47 @@ int main(int argc, char *argv[])
   float sensor_pitch = 0.150;
 
   bool newDAQ = false;
+  
   int side = 0;
   int board = 0;
 
-  opt = new AnyOption();
-  opt->addUsage("Usage: ./raw_clusterize [options] [arguments] rootfile1 rootfile2 ...");
-  opt->addUsage("");
-  opt->addUsage("Options: ");
-  opt->addUsage("  -h, --help       ................................. Print this help ");
-  opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  --nevents        ................................. Number of events to process ");
-  opt->addUsage("  --first          ................................. First event to process ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB");
-  opt->addUsage("                   ................................. 1313 for 10VA miniTRB");
-  opt->addUsage("                   ................................. 2020 for FOOT DAQ");
-  opt->addUsage("                   ................................. 2021 for PAN StripX");
-  opt->addUsage("                   ................................. 2022 for PAN StripY");
-  opt->addUsage("                   ................................. 2023 for AMSL0");
-  opt->addUsage("                   ................................. 2024 for AMSL0 BabyLong Monster");
-  opt->addUsage("  --output         ................................. Output ROOT file ");
-  opt->addUsage("  --calibration    ................................. Calibration file ");
-  opt->addUsage("  --dynped         ................................. Enable dynamic pedestals ");
-  opt->addUsage("  --highthreshold  ................................. High threshold used in the clusterization ");
-  opt->addUsage("  --lowthreshold   ................................. Low threshold used in the clusterization ");
-  opt->addUsage("  -s, --symmetric  ................................. Use symmetric cluster instead of double threshold ");
-  opt->addUsage("  --symmetricwidth ................................. Width of symmetric clusters ");
-  opt->addUsage("  -a, --absolute   ................................. Use absolute ADC value instead of S/N for thresholds ");
-  opt->addUsage("  --cn             ................................. CN algorithm selection (0,1,2) ");
-  opt->addUsage("  --maxcn          ................................. Max CN for a good event");
-  opt->addUsage("  --minstrip       ................................. Minimun strip number to analyze");
-  opt->addUsage("  --maxstrip       ................................. Maximum strip number to analyze");
-  opt->addUsage("  --min_histo_ADC  ................................. Minimun ADC value on histo axis");
-  opt->addUsage("  --max_histo_ADC  ................................. Maximum ADC value on histo axis");
-  opt->addUsage("  --invert         ................................. To search for negative signal peaks (prototype ADC board)");
+  std::vector<std::string> input_files;
+  std::string calibration_file, output_file;
 
-  opt->setFlag("help", 'h');
-  opt->setFlag("symmetric", 's');
-  opt->setFlag("absolute", 'a');
-  opt->setFlag("verbose", 'v');
-  opt->setFlag("invert");
-  opt->setFlag("dynped");
+  CLI::App app{"raw_clusterize"};
 
-  opt->setOption("version");
-  opt->setOption("nevents");
-  opt->setOption("first");
-  opt->setOption("output");
-  opt->setOption("calibration");
-  opt->setOption("highthreshold");
-  opt->setOption("lowthreshold");
-  opt->setOption("symmetricwidth");
-  opt->setOption("cn");
-  opt->setOption("maxcn");
-  opt->setOption("minstrip");
-  opt->setOption("maxstrip");
-  opt->setOption("min_histo_ADC");
-  opt->setOption("max_histo_ADC");
+  // Flags
+  app.add_flag("-v,--verbose", verb, "Verbose output");
+  app.add_flag("-s,--symmetric", symmetric, "Use symmetric cluster instead of double threshold");
+  app.add_flag("-a,--absolute", absolute, "Use absolute ADC value instead of S/N");
+  app.add_flag("--invert", invert, "Invert signal");
+  app.add_flag("--dynped", dynped, "Enable dynamic pedestals");
+  app.add_flag("--newDAQ", newDAQ, "Use new DAQ format");
 
-  opt->processFile("./options.txt");
-  opt->processCommandArgs(argc, argv);
+  // Options
+  app.add_option("--highthreshold", highthreshold, "High threshold for clustering");
+  app.add_option("--lowthreshold", lowthreshold, "Low threshold for clustering");
+  app.add_option("--symmetricwidth", symmetricwidth, "Symmetric cluster width");
+  app.add_option("--cntype", cntype, "Clusterizer type");
+  app.add_option("--maxCN", maxCN, "Max number of clusters");
+  app.add_option("--NChannels", NChannels, "Number of channels");
+  app.add_option("--NVas", NVas, "Number of VA chips");
+  app.add_option("--minStrip", minStrip, "Minimum strip index");
+  app.add_option("--maxStrip", maxStrip, "Maximum strip index");
+  app.add_option("--sensor_pitch", sensor_pitch, "Sensor pitch in mm");
+  app.add_option("--side", side, "Side of the detector");
+  app.add_option("--board", board, "Board number");
+  app.add_option("--version", version, "DAQ board version")->required();
+  app.add_option("--calibration_file", calibration_file, "Path to calibration file")->check(CLI::ExistingFile);
+  app.add_option("--output_file", output_file, "Output file name");
+  app.add_option("--nevents", nevents, "Number of events to process");
+  app.add_option("--first_event", first_event, "First event to process");
+  app.add_option("--input_files", input_files, "Input ROOT files")->required()->expected(-1);
 
-  if (!opt->hasOptions())
-  { /* print usage if no options */
-    opt->printUsage();
-    delete opt;
-    return 2;
-  }
+  CLI11_PARSE(app, argc, argv);
 
-  if (!opt->getValue("version"))
-  {
-    std::cout << "ERROR: no DAQ board version provided" << std::endl;
-    return 2;
-  }
 
-  if (atoi(opt->getValue("version")) == 1212) // original DaMPE miniTRB system
+  if (version == 1212) // original DaMPE miniTRB system
   {
     NChannels = 384;
     NVas = 6;
@@ -882,7 +844,7 @@ int main(int argc, char *argv[])
     maxStrip = 383;
     sensor_pitch = 0.242;
   }
-  else if (atoi(opt->getValue("version")) == 1313) // modded DaMPE miniTRB system for the first FOOT prototype
+  else if (version == 1313) // modded DaMPE miniTRB system for the first FOOT prototype
   {
     NChannels = 640;
     NVas = 10;
@@ -890,7 +852,7 @@ int main(int argc, char *argv[])
     maxStrip = 639;
     sensor_pitch = 0.150;
   }
-  else if (atoi(opt->getValue("version")) == 2020) // FOOT ADC boards + DE10Nano
+  else if (version == 2020) // FOOT ADC boards + DE10Nano
   {
     NChannels = 640;
     NVas = 10;
@@ -899,7 +861,7 @@ int main(int argc, char *argv[])
     sensor_pitch = 0.150;
     newDAQ = true;
   }
-  else if (atoi(opt->getValue("version")) == 2021) // PAN StripX
+  else if (version == 2021) // PAN StripX
   {
     NChannels = 2048;
     NVas = 32;
@@ -907,7 +869,7 @@ int main(int argc, char *argv[])
     maxStrip = 2047;
     sensor_pitch = 0.050;
   }
-  else if (atoi(opt->getValue("version")) == 2022) // PAN StripY
+  else if (version == 2022) // PAN StripY
   {
     NChannels = 128;
     NVas = 1;
@@ -915,7 +877,7 @@ int main(int argc, char *argv[])
     maxStrip = 127;
     sensor_pitch = 0.400;
   }
-  else if (atoi(opt->getValue("version")) == 2023) // AMSL0
+  else if (version == 2023) // AMSL0
   {
     NChannels = 1024;
     NVas = 16;
@@ -924,14 +886,23 @@ int main(int argc, char *argv[])
     sensor_pitch = 0.109;
     maxADC_h = 2000;
   }
-  else if (atoi(opt->getValue("version")) == 2024) // AMSL0 BL Monster
+  else if (version == 2024) // AMSL0 BL Monster
   {
     NChannels = 1024;
     NVas = 16;
     minStrip = 0;
     maxStrip = 1023;
     sensor_pitch = 0.109;
-    maxADC_h = 500;
+    maxADC_h = 200;
+  }
+  else if (version == 2025) // ASTRA
+  {
+    NChannels = 64;
+    NVas = 1;
+    minStrip = 0;
+    maxStrip = 63;
+    sensor_pitch = 0.150;
+    maxADC_h = 200;
   }
   else
   {
@@ -939,64 +910,9 @@ int main(int argc, char *argv[])
     return 2;
   }
 
-  if (opt->getFlag("help") || opt->getFlag('h'))
-    opt->printUsage();
-
-  if (opt->getFlag("verbose") || opt->getFlag('v'))
-    verb = true;
-
-  if (opt->getFlag("invert"))
-    invert = true;
-
-  if (opt->getValue("highthreshold"))
-    highthreshold = atof(opt->getValue("highthreshold"));
-
-  if (opt->getValue("lowthreshold"))
-    lowthreshold = atof(opt->getValue("lowthreshold"));
-
-  if (opt->getValue("symmetric"))
-    symmetric = true;
-
-  if (opt->getValue("dynped"))
-    dynped = true;
-
-  if (opt->getValue("symmetric") && opt->getValue("symmetricwidth"))
-    symmetricwidth = atoi(opt->getValue("symmetricwidth"));
-
-  if (opt->getValue("absolute"))
-    absolute = true;
-
-  if (opt->getValue("cn"))
-    cntype = atoi(opt->getValue("cn"));
-
-  if (opt->getValue("maxcn"))
-    maxCN = atoi(opt->getValue("maxcn"));
-
-  if (opt->getValue("minstrip"))
-    minStrip = atoi(opt->getValue("minstrip"));
-
-  if (opt->getValue("maxstrip"))
-    maxStrip = atoi(opt->getValue("maxstrip"));
-
-  if (opt->getValue("min_ADC_histo"))
-    minADC_h = atoi(opt->getValue("min_histo_ADC"));
-
-  if (opt->getValue("max_histo_ADC"))
-    maxADC_h = atoi(opt->getValue("max_histo_ADC"));
-
-  int first_event = 0;
-  if (opt->getValue("first")) // to choose the first event to process
-  {
-    first_event = atoi(opt->getValue("first"));
-  }
-
   // Create output ROOTfile
   TString output_filename;
-  if (opt->getValue("output"))
-  {
-    output_filename = opt->getValue("output");
-  }
-  else
+  if (!output_file.size())
   {
     std::cout << "Error: no output file" << std::endl;
     return 2;
@@ -1007,11 +923,11 @@ int main(int argc, char *argv[])
   {
     std::cout << "============================================================" << std::endl;
     std::cout << "Reading alignment file ./config/alignment.dat" << std::endl;
-    cout << "Size of alignment_params: " << alignment_params.size() << endl;
+    std::cout << "Size of alignment_params: " << alignment_params.size() << std::endl;
     // print all alignment parameters
     for (int i = 0; i < alignment_params.size(); i++)
     {
-      cout << "Alignment parameter " << i << ": " << alignment_params[i].first << " " << alignment_params[i].second << endl;
+      std::cout << "Alignment parameter " << i << ": " << alignment_params[i].first << " " << alignment_params[i].second << std::endl;
     }
     std::cout << "============================================================" << std::endl;
   }
@@ -1020,7 +936,7 @@ int main(int argc, char *argv[])
   if (newDAQ)
     std::cout << "\nNEW DAQ FILE" << std::endl;
 
-  TFile tempfile(opt->getArgv(0));
+  TFile tempfile(input_files[0].c_str());
   TIter list(tempfile.GetListOfKeys());
   TKey *key;
   while ((key = (TKey *)list()))
@@ -1033,86 +949,69 @@ int main(int argc, char *argv[])
   tempfile.Close();
   std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
-  // Beam Profile 2D Histos
-  TH2F *h2D_Cog[detectors / 2];
-  for (int i = 0; i < detectors / 2; i++)
+  //Beam Profile 2D Histos
+  TH2F *h2D_Cog[detectors/2];
+  for (int i = 0; i < detectors/2; i++)
   {
-    h2D_Cog[i] = new TH2F(Form("h2D_Cog_board_%d", i), Form("h2D_Cog_board_%d", i), (maxStrip - minStrip) / 10, minStrip, maxStrip, (maxStrip - minStrip) / 10, minStrip, maxStrip);
+    h2D_Cog[i] = new TH2F(Form("h2D_Cog_board_%d", i), Form("h2D_Cog_board_%d", i), (maxStrip-minStrip)/10, minStrip, maxStrip, (maxStrip-minStrip)/10, minStrip, maxStrip);
     h2D_Cog[i]->GetXaxis()->SetTitle("J5");
     h2D_Cog[i]->GetYaxis()->SetTitle("J7");
   }
-
-  // Position correlation Histos of all detectors
-  TH2F *h2D_Cog_corr_side0[detectors];
-  for (int i = 0; i < detectors; i++)
-  {
-    h2D_Cog_corr_side0[i] = new TH2F(Form("h2D_Cog_corr_detector_%d_with_side0", i), Form("h2D_Cog_corr_detector_%d_with_side0", i), (maxStrip - minStrip) / 10, minStrip, maxStrip, (maxStrip - minStrip) / 10, minStrip, maxStrip);
-    h2D_Cog_corr_side0[i]->GetXaxis()->SetTitle("board_0_side_0");
-  }
-
-  TH2F *h2D_Cog_corr_side1[detectors];
-  for (int i = 0; i < detectors; i++)
-  {
-    h2D_Cog_corr_side1[i] = new TH2F(Form("h2D_Cog_corr_detector_%d_with_side1", i), Form("h2D_Cog_corr_detector_%d_with_side1", i), (maxStrip - minStrip) / 10, minStrip, maxStrip, (maxStrip - minStrip) / 10, minStrip, maxStrip);
-    h2D_Cog_corr_side1[i]->GetXaxis()->SetTitle("board_0_side_1");
-  }
-
-  // Mean Z charge of all detectors
-  TH1F *h_Z_mean_charge;
-  h_Z_mean_charge = new TH1F("h_Z_mean_charge", "h_Z_mean_charge", 1000, -0.5, 50.5);
-  h_Z_mean_charge->GetXaxis()->SetTitle("Mean Z charge [ADC]");
-
-  TH1F *h_Z_mean_chargeGold;
-  h_Z_mean_chargeGold = new TH1F("h_Z_mean_chargeGold", "h_Z_mean_chargeGold", 1000, -0.5, 50.5);
-  h_Z_mean_chargeGold->GetXaxis()->SetTitle("Mean Z charge [ADC]");
-  h_Z_mean_chargeGold->SetLineColor(kRed);
 
   // TFile *foutput = new TFile(output_filename + "_board" + std::to_string(board) + "_side" + std::to_string(side) + ".root", "RECREATE");
   TFile *foutput = new TFile(output_filename + ".root", "RECREATE");
   foutput->cd();
 
   TDirectory *doutput;
-  cout << "Creating output directory" << endl;
+  std::cout << "Creating output directory" << std::endl;
 
   if (detectors == 1)
   {
     doutput = foutput->mkdir("histos");
     doutput->cd();
-    clusterize_detector(0, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
+    clusterize_detector(0, 0, minADC_h, maxADC_h, minStrip, maxStrip,
                         newDAQ, first_event, NChannels, verb, dynped,
                         invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                         symmetric, symmetricwidth,
                         sensor_pitch,
-                        atoi(opt->getValue("version")) == 2023);
+                        version == 2023,
+                        input_files,
+                        nevents,
+                        calibration_file);
   }
   else
   {
     for (int i = 0; i < detectors / 2; i++)
     {
-      cout << "Creating output directory " << i << endl;
+      std::cout << "Creating output directory " << i << std::endl;
       doutput = foutput->mkdir((TString) "board_" + i + "_side_0");
       doutput->cd();
-      clusterize_detector(i, 0, minADC_h, maxADC_h, minStrip, maxStrip, opt,
+      clusterize_detector(i, 0, minADC_h, maxADC_h, minStrip, maxStrip,
                           newDAQ, first_event, NChannels, verb, dynped,
                           invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                           symmetric, symmetricwidth,
                           sensor_pitch,
-                          atoi(opt->getValue("version")) == 2023);
+                          version == 2023,
+                          input_files,
+                          nevents,
+                          calibration_file);
 
       doutput = foutput->mkdir((TString) "board_" + i + "_side_1");
       doutput->cd();
-      clusterize_detector(i, 1, minADC_h, maxADC_h, minStrip, maxStrip, opt,
+      clusterize_detector(i, 1, minADC_h, maxADC_h, minStrip, maxStrip,
                           newDAQ, first_event, NChannels, verb, dynped,
                           invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                           symmetric, symmetricwidth,
                           sensor_pitch,
-                          atoi(opt->getValue("version")) == 2023);
+                          version == 2023,
+                          input_files,
+                          nevents,
+                          calibration_file);
 
       // Fill 2D Beam Profile Histos
-      std::cout << "Filling 2D Beam Profile Histos" << std::endl;
-      TTreeReader j5Reader((TString) "board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
+      TTreeReader j5Reader((TString)"board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
       TTreeReaderValue<std::vector<cluster>> j5Clusters(j5Reader, "clusters");
-      TTreeReader j7Reader((TString) "board_" + i + "_side_1/t_clusters_board_" + i + "_side_1", foutput);
+      TTreeReader j7Reader((TString)"board_" + i + "_side_1/t_clusters_board_" + i + "_side_1", foutput);
       TTreeReaderValue<std::vector<cluster>> j7Clusters(j7Reader, "clusters");
 
       while (j5Reader.Next())
@@ -1129,161 +1028,12 @@ int main(int argc, char *argv[])
     }
   }
 
-  // Fill 2D correlation histos
-  std::cout << "Filling 2D correlation histos" << std::endl;
-  TTreeReader firstdetector((TString) "board_0_side_0/t_clusters_board_0_side_0", foutput);
-  TTreeReader secondetector((TString) "board_0_side_1/t_clusters_board_0_side_1", foutput);
-  TTreeReaderValue<std::vector<cluster>> firstdetector_clus(firstdetector, "clusters");
-  TTreeReaderValue<std::vector<cluster>> secondetector_clus(secondetector, "clusters");
-  for (int board = 0; board < detectors / 2; board++)
-  {
-    for (int side = 0; side < 2; side++)
-    {
-      firstdetector.Restart();
-      TTreeReader detector((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side, foutput);
-      TTreeReaderValue<std::vector<cluster>> detector_clus(detector, "clusters");
-
-      while (firstdetector.Next())
-      {
-        detector.Next();
-        for (int j = 0; j < (*firstdetector_clus).size(); j++)
-        {
-          for (int k = 0; k < (*detector_clus).size(); k++)
-          {
-            h2D_Cog_corr_side0[board * 2 + side]->Fill(GetClusterCOG((*firstdetector_clus)[j]), GetClusterCOG((*detector_clus)[k]));
-            h2D_Cog_corr_side0[board * 2 + side]->GetYaxis()->SetTitle(Form("board_%d_side_%d", board, side));
-          }
-        }
-      }
-    }
-  }
-
-  for (int board = 0; board < detectors / 2; board++)
-  {
-    for (int side = 0; side < 2; side++)
-    {
-      secondetector.Restart();
-      TTreeReader detector((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side, foutput);
-      TTreeReaderValue<std::vector<cluster>> detector_clus(detector, "clusters");
-      while (secondetector.Next())
-      {
-        detector.Next();
-        for (int j = 0; j < (*secondetector_clus).size(); j++)
-        {
-          for (int k = 0; k < (*detector_clus).size(); k++)
-          {
-            h2D_Cog_corr_side1[board * 2 + side]->Fill(GetClusterCOG((*secondetector_clus)[j]), GetClusterCOG((*detector_clus)[k]));
-            h2D_Cog_corr_side1[board * 2 + side]->GetYaxis()->SetTitle(Form("board_%d_side_%d", board, side));
-          }
-        }
-      }
-    }
-  }
-
-  std::cout << "Filling mean charge histos" << std::endl;
-  // Mean charge of all detectors for gold events
-  vector<TTreeReaderValue<std::vector<cluster>>> clusters_array;
-  TTreeReader goldReader;
-  for (size_t board = 0; board < detectors / 2; board++)
-  {
-    for (size_t side = 0; side < 2; side++)
-    {
-      goldReader.SetTree((TTree *)foutput->Get((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side));
-      // TTreeReader goldReader((TString) "board_" + board + "_side_" + side + "/t_clusters_board_" + board + "_side_" + side, foutput);
-      TTreeReaderValue<std::vector<cluster>> goldClusters(goldReader, "clusters");
-      clusters_array.push_back(goldClusters);
-    }
-  }
-
-  // Loop over gold events
-  bool gold = true;
-  int evt = 0;
-  float mean_charge = 0;
-
-  while (evt < goldReader.GetEntries(true))
-  {
-    gold = true;
-    mean_charge = 0;
-    goldReader.Next();
-    for (size_t det = 0; det < detectors; det++)
-    {
-
-      // ONLY FOR HERD TB WITH STRIPY DETECTOR
-      if (det == 2 || det == 3)
-        continue;
-
-      if ((*clusters_array[det]).size() != 1)
-      {
-        gold = false;
-        break;
-      }
-    }
-    if (gold)
-    {
-      for (size_t det = 0; det < detectors; det++)
-      {
-        mean_charge += GetClusterMIPCharge((*clusters_array[det])[0]);
-      }
-      h_Z_mean_chargeGold->Fill((float)mean_charge / detectors);
-    }
-    evt++;
-  }
-
-  goldReader.Restart();
-  evt = 0;
-
-  while (evt < goldReader.GetEntries(true))
-  {
-    mean_charge = 0;
-    goldReader.Next();
-    for (size_t det = 0; det < detectors; det++)
-    {
-
-      // ONLY FOR HERD TB WITH STRIPY DETECTOR
-      if (det == 2 || det == 3)
-        continue;
-
-      if ((*clusters_array[det]).size() != 1)
-      {
-        // get the cluster with highest ADC
-        float max_charge = 0;
-        int max_charge_index = 0;
-        for (size_t i = 0; i < (*clusters_array[det]).size(); i++)
-        {
-          if (GetClusterSignal((*clusters_array[det])[i]) > max_charge)
-          {
-            max_charge = GetClusterSignal((*clusters_array[det])[i]);
-            max_charge_index = i;
-          }
-        }
-      }
-      mean_charge += GetClusterMIPCharge((*clusters_array[det])[0]);
-    }
-    h_Z_mean_charge->Fill((float)mean_charge / detectors);
-    evt++;
-  }
-
   // Write 2D Beam Profile Histos
-  doutput = foutput->mkdir("2D_Beam_Profile");
-  doutput->cd();
-  for (int i = 0; i < detectors / 2; i++)
+  foutput->cd();
+  for (int i = 0; i < detectors/2; i++)
   {
     h2D_Cog[i]->Write();
   }
-
-  // Write 2D correlation histos
-  doutput = foutput->mkdir("2D_Correlation");
-  doutput->cd();
-  for (int i = 0; i < detectors; i++)
-  {
-    h2D_Cog_corr_side0[i]->Write();
-    h2D_Cog_corr_side1[i]->Write();
-  }
-
-  foutput->cd();
-  // Write Mean charge of all detectors
-  h_Z_mean_charge->Write();
-  h_Z_mean_chargeGold->Write();
 
   foutput->Close();
   return 0;
