@@ -8,14 +8,15 @@
 
 #include "anyoption.h"
 #include "event.h"
+#include "CLI.hpp"
 
-AnyOption *opt; // Handle the input options
 
 #define verbose false
 
 int main(int argc, char *argv[])
 {
-  opt = new AnyOption();
+
+  CLI::App app{"raw_threshold_scan"};
 
   int NChannels = 384;
   int NVas = 6;
@@ -29,77 +30,54 @@ int main(int argc, char *argv[])
   float low_max = 0;
   float high_min = 0;
   float high_max = 0;
+  int version = 0;
+  int nevents = -1;
 
   bool newDAQ = false;
   int side = 0;
   int board = 0;
 
-  opt->addUsage("Usage: raw_threshold_scan [OPTIONS]");
-  opt->addUsage("");
-  opt->addUsage("Options: ");
-  opt->addUsage("  -h, --help       ................................. Print this help ");
-  opt->addUsage("  -v, --verbose    ................................. Verbose ");
-  opt->addUsage("  --version        ................................. 1212 for 6VA  miniTRB");
-  opt->addUsage("                   ................................. 1313 for 10VA miniTRB");
-  opt->addUsage("                   ................................. 2020 for FOOT DAQ");
-  opt->addUsage("                   ................................. 2021 for PAN StripX");
-  opt->addUsage("                   ................................. 2022 for PAN StripY");
-  opt->addUsage("                   ................................. 2023 for AMSL0");
-  opt->addUsage("  --calibration    ................................. Calibration file ");
-  opt->addUsage("  --output         ................................. Output ROOT file ");
-  opt->addUsage("  --minlow         ................................. Minimum low threshold ");
-  opt->addUsage("  --maxlow         ................................. Maximum low threshold ");
-  opt->addUsage("  --minhigh        ................................. Minimum high threshold ");
-  opt->addUsage("  --maxhigh        ................................. Maximum high threshold ");
-  opt->addUsage("  -a, --absolute   ................................. Use absolute ADC value instead of S/N for thresholds ");
-  opt->addUsage("  --cn             ................................. Common noise type ");
-  opt->addUsage("  --steps          ................................. Number of steps ");
-  opt->addUsage("  --nevents        ................................. Number of events to process ");
+  std::string calibration, output_filename;
+  std::vector<std::string> inputs;
 
-  opt->setFlag("help", 'h');
-  opt->setFlag("verbose", 'v');
-  opt->setOption("version");
-  opt->setOption("calibration");
-  opt->setOption("output");
-  opt->setOption("minlow");
-  opt->setOption("maxlow");
-  opt->setOption("minhigh");
-  opt->setOption("maxhigh");
-  opt->setFlag("absolute", 'a');
-  opt->setOption("cn");
-  opt->setOption("steps");
-  opt->setOption("nevents");
+  app.add_flag("-v,--verbose", verb, "Verbose output");
+  app.add_option("--version", version, "1212 (6VA miniTRB), 1313 (10VA miniTRB), 2020 (PAPERO)")->required();
+  app.add_option("--calibration", calibration, "Calibration file")->required();
+  app.add_option("--output", output_filename, "Output ROOT file");
+  app.add_option("--minlow", low_min, "Minimum low threshold");
+  app.add_option("--maxlow", low_max, "Maximum low threshold");
+  app.add_option("--minhigh", high_min, "Minimum high threshold");
+  app.add_option("--maxhigh", high_max, "Maximum high threshold");
+  app.add_flag("--absolute", absolute, "Use absolute ADC value instead of S/N for thresholds");
+  app.add_option("--cn", commonNoiseType, "Common noise type");
+  app.add_option("--steps", steps, "Number of steps");  
+  app.add_option("--nevents", nevents, "Number of events to process");
+  app.add_option("inputs", inputs, "Input ROOT files")->required()->expected(-1);
 
-  opt->processFile("./options.txt");
-  opt->processCommandArgs(argc, argv);
 
-  if (!opt->hasOptions())
-  { /* print usage if no options */
-    opt->printUsage();
-    delete opt;
-    return 2;
-  }
-  if (!opt->getValue("version"))
+  CLI11_PARSE(app, argc, argv);
+
+  if (!app.get_option("--version")->count())
   {
     std::cout << "ERROR: no DAQ board version provided" << std::endl;
     return 2;
   }
 
-  if (atoi(opt->getValue("version")) == 1212) // original DaMPE miniTRB system
+  if (version == 1212) // original DaMPE miniTRB system
   {
     NChannels = 384;
     NVas = 6;
     minStrip = 0;
     maxStrip = 383;
   }
-  else if (atoi(opt->getValue("version")) == 1313) // modded DaMPE miniTRB system for the first FOOT prototype
+  else if (version == 1313) // modded DaMPE miniTRB system for the first FOOT prototype
   {
     NChannels = 640;
     NVas = 10;
     minStrip = 0;
     maxStrip = 639;
   }
-  else if (atoi(opt->getValue("version")) == 2020) // FOOT ADC boards + DE10Nano
+  else if (version == 2020) // FOOT ADC boards + DE10Nano
   {
     NChannels = 640;
     NVas = 10;
@@ -107,21 +85,21 @@ int main(int argc, char *argv[])
     maxStrip = 639;
     newDAQ = true;
   }
-  else if (atoi(opt->getValue("version")) == 2021) // PAN StripX
+  else if (version == 2021) // PAN StripX
   {
     NChannels = 2048;
     NVas = 32;
     minStrip = 0;
     maxStrip = 2047;
   }
-  else if (atoi(opt->getValue("version")) == 2022) // PAN StripY
+  else if (version == 2022) // PAN StripY
   {
     NChannels = 128;
     NVas = 1;
     minStrip = 0;
     maxStrip = 127;
   }
-  else if (atoi(opt->getValue("version")) == 2023) // AMSL0
+  else if (version == 2023) // AMSL0
   {
     NChannels = 1024;
     NVas = 16;
@@ -134,52 +112,17 @@ int main(int argc, char *argv[])
     return 2;
   }
 
-  if (opt->getFlag("help") || opt->getFlag('h'))
-    opt->printUsage();
-
-  if (opt->getFlag("verbose") || opt->getFlag('v'))
-    verb = true;
-
-  if (opt->getValue("calibration"))
-    std::cout << "Calibration file: " << opt->getValue("calibration") << std::endl;
+  if (!calibration.empty())
+    std::cout << "Calibration file: " << calibration << std::endl;
   else
     std::cout << "No calibration file provided" << std::endl;
 
   // Create output ROOTfile
-  TString output_filename;
-  if (opt->getValue("output"))
-  {
-    output_filename = opt->getValue("output");
-  }
-  else
+  if (output_filename.empty())
   {
     std::cout << "Error: no output file" << std::endl;
     return 2;
   }
-
-  if (opt->getFlag("verbose") || opt->getFlag('v'))
-    verb = true;
-
-  if (opt->getValue("minlow"))
-    low_min = atof(opt->getValue("minlow"));
-
-  if (opt->getValue("maxlow"))
-    low_max = atof(opt->getValue("maxlow"));
-
-  if (opt->getValue("minhigh"))
-    high_min = atof(opt->getValue("minhigh"));
-
-  if (opt->getValue("maxhigh"))
-    high_max = atof(opt->getValue("maxhigh"));
-
-  if (opt->getValue("absolute"))
-    absolute = true;
-
-  if (opt->getValue("cn"))
-    commonNoiseType = atoi(opt->getValue("cn"));
-
-  if (opt->getValue("steps"))
-    steps = atoi(opt->getValue("steps"));
 
   //////////////////Histos
   TH1F *hNclus = new TH1F("hclus", "hclus", 10, -0.5, 9.5);
@@ -198,18 +141,18 @@ int main(int argc, char *argv[])
 
   // Join ROOTfiles in a single chain
   TChain *chain = new TChain("raw_events");
-  for (int ii = 0; ii < opt->getArgc(); ii++)
+  for (const auto &f : inputs)
   {
-    std::cout << "Adding file " << opt->getArgv(ii) << " to the chain..." << std::endl;
-    chain->Add(opt->getArgv(ii));
+    std::cout << "Adding file " << f << " to the chain..." << std::endl;
+    chain->Add(f.c_str());
   }
 
   Long64_t entries = chain->GetEntries();
   printf("This run has %lld entries\n", entries);
 
-  if (opt->getValue("nevents"))
+  if (nevents > 0)
   {
-    entries = atoi(opt->getValue("nevents"));
+    entries = nevents;
     printf("Only processing %lld entries\n", entries);
   }
 
@@ -219,11 +162,11 @@ int main(int argc, char *argv[])
   chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
 
   // Create output ROOTfile
-  TFile *foutput = new TFile(output_filename.Data(), "RECREATE");
+  TFile *foutput = new TFile(output_filename.c_str(), "RECREATE");
   foutput->cd();
 
   calib cal;
-  read_calib(opt->getValue("calibration"), &cal, NChannels, 2 * board + side, verb);
+  read_calib(calibration.c_str(), &cal, NChannels, 2 * board + side, verb);
 
   float step_low = (float)((low_max - low_min) + 1) / steps;
   float step_high = (float)((high_max - high_min) + 1) / steps;
@@ -237,7 +180,6 @@ int main(int argc, char *argv[])
   while (high_min <= high_max)
   {
     int binLow = 1;
-    low_min = atof(opt->getValue("minlow"));
 
     while (low_min <= low_max && low_min <= high_min)
     {
@@ -300,7 +242,7 @@ int main(int argc, char *argv[])
 
         try
         {
-          std::vector<cluster> result = clusterize_event(&cal, &signal2, high_min, low_min, 0, 0, absolute);
+          std::vector<cluster> result = clusterize_event(&cal, &signal2, high_min, low_min, 0, 0, absolute, 0, 0, false);
 
           for (int i = 0; i < result.size(); i++)
           {

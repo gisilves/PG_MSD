@@ -26,10 +26,10 @@ raw_clusterize: ./src/raw_clusterize.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_threshold_scan: ./src/raw_threshold_scan.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 raw_cn: ./src/raw_cn.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
 
 calibration: ./src/calibration.cpp
 	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
