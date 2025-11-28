@@ -1,20 +1,29 @@
 # PG_MSD
-Software for MSD data analysis
+Software for Microstrip Silicon Detectors data analysis
 
 ###### Root 6 with C++14 support needed (to compile, *make + executable name* or *make all*):
 
-**miniTRB_convert, FOOT_convert, PAPERO_convert and AMS_convert:** to compress binary raw data into rootfiles
+*Common to all branches*
 
-**PAPERO_info:** to retrieve info from PAPERO event headers
+- **raw_clusterize:** to find clusters from compressed data
 
-**raw_clusterize:** to find clusters from compressed data
+- **raw_cn:** to perform a CN study
 
-**raw_cn:** to perform a CN study
+- **raw_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
 
-**raw_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
+- **raw_viewer:** to open the GUI viewer for raw data
 
-**raw_viewer:** to open the GUI viewer for raw data
+- **calibration:** to compute calibrations from raw data
 
-**calibration:** to compute calibrations from raw data
+*ASTRA branch*
 
-**bias_control:** to control the CAEN Power Supply module remotely via Arduino Uno 
+- **ASTRA_convert:** to compress binary raw data into rootfiles
+
+- **ASTRA_info:** to retrieve info from PAPERO event headers
+
+*PAPERO branch*
+
+- **miniTRB_convert, FOOT_convert, PAPERO_convert and AMS_convert:** to compress binary raw data into rootfiles
+
+- **PAPERO_info:** to retrieve info from PAPERO event headers
+
