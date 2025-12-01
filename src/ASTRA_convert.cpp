@@ -48,12 +48,14 @@ int main(int argc, char *argv[])
     CLI::App app{"ASTRA_convert"};
 
     bool verbose = false;
+    bool internalADC = false;
     int boards = 0;
     int nevents = -1;
     std::string input_file;
     std::string output_file;
 
     app.add_flag("-v,--verbose", verbose, "Verbose output");
+    app.add_flag("--internal", internalADC, "Internal ADC conversion");
     app.add_option("--boards", boards, "Number of DE10 boards connected")->required();
     app.add_option("--nevents", nevents, "Number of events to read");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
@@ -143,7 +145,15 @@ int main(int argc, char *argv[])
 
             padding_offset = 0;
             raw_event_buffer.clear();
-            raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, true));
+
+            if (internalADC)
+            {
+                raw_event_buffer = reorder(read_internalADC_event(file, offset, evt_size, verbose));
+            }
+            else
+            {
+                raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose));
+            }
 
             raw_event_vector.at(board_id).clear();
             raw_event_vector.at(board_id) = raw_event_buffer;

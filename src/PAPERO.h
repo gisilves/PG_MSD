@@ -7,6 +7,18 @@
 #include <unistd.h>
 #include <iostream>
 
+unsigned int gray_to_uint(unsigned int g)
+{
+  // Convert 12-bit Gray code to uint
+  g &= 0x0FFF;
+  g ^= g >> 1;
+  g ^= g >> 2;
+  g ^= g >> 4;
+  g ^= g >> 8;
+
+  return g & 0x0FFF;
+}
+
 // for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
 uint64_t seek_first_evt_header(std::fstream &file, uint64_t offset, bool verbose)
@@ -222,7 +234,7 @@ std::tuple<bool, unsigned long, unsigned long, unsigned long, unsigned long, uns
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, timestamp, ext_timestamp, trigger_id, offset);
 }
 
-std::vector<unsigned int> read_event(std::fstream &file, uint64_t offset, int event_size, bool verbose, bool astra)
+std::vector<unsigned int> read_event(std::fstream &file, uint64_t offset, int event_size, bool verbose)
 {
 
   file.seekg(offset + 36);
@@ -243,22 +255,46 @@ std::vector<unsigned int> read_event(std::fstream &file, uint64_t offset, int ev
   {
     file.read(reinterpret_cast<char *>(&buffer), 4);
 
-    if (!astra)
-    {
-      val1 = buffer[0] | buffer[1] << 8;
-      val2 = buffer[2] | buffer[3] << 8;
+    val1 = buffer[0] | (buffer[1] & 0x0f) << 8;
+    val2 = buffer[2] | (buffer[3] & 0x0f) << 8;
 
-      event.push_back(val1 / 4);
-      event.push_back(val2 / 4);
-    }
-    else
-    {
-      val1 = buffer[0] | (buffer[1] & 0x0f) << 8;
-      val2 = buffer[2] | (buffer[3] & 0x0f) << 8;
+    event.push_back(val1);
+    event.push_back(val2);
+  }
 
-      event.push_back(val1);
-      event.push_back(val2);
-    }
+  return event;
+}
+
+std::vector<unsigned int> read_internalADC_event(std::fstream &file, uint64_t offset, int event_size, bool verbose)
+{
+
+  file.seekg(offset + 36);
+  if (verbose)
+  {
+    std::cout << "\tReading event at position " << offset + 36 << std::endl;
+  }
+
+  event_size = event_size * 2;
+
+  unsigned char buffer[4];
+  unsigned int val1;
+  unsigned int val2;
+
+  std::vector<unsigned int> event;
+
+  for (size_t i = 0; i < event_size; i = i + 2)
+  {
+    file.read(reinterpret_cast<char *>(&buffer), 4);
+
+    val1 = buffer[0] | (buffer[1] & 0x0f) << 8;
+    val2 = buffer[2] | (buffer[3] & 0x0f) << 8;
+
+    val1 = gray_to_uint(val1);
+    val2 = gray_to_uint(val2);
+
+    event.push_back(val1);
+    event.push_back(val2);
+    
   }
 
   return event;
