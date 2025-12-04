@@ -11,7 +11,7 @@
 #include <numeric>
 #include <sstream>
 
-#define MIP_ADC 16 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
+#define MIP_ADC 18 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
 #define maxClusters 100
 
 struct cluster
@@ -60,6 +60,8 @@ float GetClusterSecondADC(cluster clus, calib *cal);
 int GetClusterVA(cluster clus, calib *cal);
 
 float GetCN(std::vector<float> *signal, int va, int type);
+
+float ComputeCN_ty(std::vector<float> *vaContent, int type, bool debug, double threshold);
 
 float GetClusterSN(cluster clus, calib *cal);
 

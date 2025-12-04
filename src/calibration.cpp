@@ -19,7 +19,11 @@
 
 #include "CLI.hpp"
 
-int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1)
+int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, 
+                        float sigmaraw_cut = 3, float sigma_cut = 6, 
+                        int board = 0, int side = 0, bool pdf_only = false, bool fast = true, 
+                        bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1, 
+                        bool shoeCN = false, double cn_threshold = 4.5)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -297,7 +301,22 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, flo
       // Chip-wise CN subtraction before filling the histos
       for (int va = 0; va < NVas; va++) // Loop on VA
       {
-        float cn = GetCN(&signal, va, 0);
+        float cn = -999;
+        if (!shoeCN)
+        {
+          cn = GetCN(&signal, va, 0);
+        }
+        else
+        { 
+          std::vector<float> vaContent;
+          for (int i = 0; i < 64; i++)
+          {
+            vaContent.push_back(signal.at(64 * va + i));
+          }
+
+          cn = ComputeCN_ty(&vaContent, 0, false, cn_threshold); // SHOE CN
+        }
+
         if (cn != -999)
         {
           for (int va_chan = 0; va_chan < 64; va_chan++)
@@ -473,6 +492,8 @@ int main(int argc, char *argv[])
     bool fit_mode = false;
     bool multiple = false;
     int max_ADC = -1;
+    bool shoeCN = false;
+    double cn_threshold = 4.5;
     int cntype = 0;
     std::string output_filename;
     std::vector<std::string> input_files;
@@ -482,6 +503,8 @@ int main(int argc, char *argv[])
     app.add_flag("--fast", fast_mode, "No info prompt");
     app.add_flag("--fit", fit_mode, "Compute calibration parameters with gaussian fits");
     app.add_flag("-m,--multiple", multiple, "Save calibrations in multiple .cal files");
+    app.add_flag("--shoeCN", shoeCN, "Use SHOE CN algorithm");
+    app.add_option("--threshold", cn_threshold, "Threshold for SHOE CN algorithm");
     app.add_option("--cn", cntype, "CN algorithm selection (0,1,2)");
     app.add_option("--max_ADC", max_ADC, "Maximum ADC value for noise plots");
     app.add_option("--output", output_filename, "Output .cal file")->required();
@@ -524,7 +547,7 @@ int main(int argc, char *argv[])
                             /*board*/0, /*side*/0,
                             pdf_only, fast_mode, fit_mode,
                             single_file, true,
-                            max_ADC);
+                            max_ADC, shoeCN, cn_threshold);
     } else {
         std::cout << "\nNEW DAQ FILE" << std::endl;
         TIter list2(tempfile.GetListOfKeys());
@@ -542,7 +565,7 @@ int main(int argc, char *argv[])
                                     detector_num / 2, ladder_side,
                                     pdf_only, fast_mode, fit_mode,
                                     single_file, last,
-                                    max_ADC);
+                                    max_ADC, shoeCN, cn_threshold);
                 detector_num++;
                 ladder_side = 1 - ladder_side;
             }

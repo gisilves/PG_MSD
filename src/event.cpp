@@ -273,6 +273,198 @@ float GetCN(std::vector<float> *signal, int va, int type) // common mode noise c
   }
 }
 
+float ComputeCN_ty(std::vector<float> *vaContent, int type, bool debug, double threshold)
+{
+  float cn = 0., sumSq = 0.;
+  int cnt = 0;
+
+  double cn_final = 0.;
+  double rms_cn_final = 0.;
+
+  int chok = 0;
+  std::vector<double> vaContent_ok;
+  vaContent_ok.clear();
+
+  for (int VaChan = 0; VaChan < vaContent->size(); VaChan++)
+  {
+    if (vaContent->at(VaChan) != -999. && fabs(vaContent->at(VaChan)) < (threshold * MIP_ADC))
+    {
+      chok++;
+      vaContent_ok.push_back(vaContent->at(VaChan));
+    }
+  }
+
+  float mean = TMath::Mean(vaContent_ok.size(), vaContent_ok.data());
+  float rms = TMath::RMS(vaContent_ok.size(), vaContent_ok.data());
+
+  if (debug)
+    std::cout << "CN cal:: mean  " << mean << " rms " << rms << " ; " << chok << " ok values" << std::endl;
+
+  if (type == 0)
+  { // simple common noise wrt VAs mean ADC value
+
+    for (size_t i = 0; i < 64; i++)
+    {
+      if (vaContent->at(i) > mean - 2 * rms && vaContent->at(i) < mean + 2 * rms)
+      {
+        cn += vaContent->at(i);
+        sumSq += vaContent->at(i) * vaContent->at(i);
+        cnt++;
+      }
+    }
+
+    if (cnt != 0)
+    {
+      cn_final = cn / cnt;
+      rms_cn_final = sqrt((sumSq / cnt) - (cn_final * cn_final));
+    }
+    else
+    {
+      cn_final = 0.;
+      rms_cn_final = 0.;
+    }
+
+    return cn_final;
+  }
+  else if (type == 1)
+  { // Common noise with fixed threshold to exclude potential real signal strips
+
+    for (size_t i = 0; i < 64; i++)
+    {
+      if (vaContent->at(i) < MIP_ADC / 2)
+      { // very conservative cut: half the value expected for a Minimum Ionizing Particle
+        cn += vaContent->at(i);
+        sumSq += vaContent->at(i) * vaContent->at(i);
+        cnt++;
+      }
+    }
+    if (cnt != 0)
+    {
+      cn_final = cn / cnt;
+      rms_cn_final = sqrt((sumSq / cnt) - (cn_final * cn_final));
+    }
+    else
+    {
+      cn_final = 0.;
+      rms_cn_final = 0.;
+    }
+
+    return cn_final;
+  }
+  else
+  { // Common Noise with 'self tuning' threshold: we use some of the channels to calculate a baseline level, then we use all the strips in a band around that value to compute the CN
+    float hard_cm = 0;
+    int cnt2 = 0;
+    cn = 0., sumSq = 0., cnt = 0;
+    if (debug)
+      std::cout << " It's self tuning time " << std::endl;
+
+    if (rms < 10)
+    {
+      for (size_t i = 8; i < 24; i++)
+      {
+        //	  if (vaContent[i] < (1.5 * MIP_ADC) && vaContent[i]!=-999.)//looser constraint than algo 2
+        //	  if (vaContent[i] < (10. * MIP_ADC) && vaContent[i]!=-999.)//looser constraint than algo 2
+        if (fabs(vaContent->at(i)) < (threshold * MIP_ADC) && vaContent->at(i) != -999.) // 1.5
+        {                                                                          // looser constraint than algo 2
+
+          hard_cm += vaContent->at(i);
+          cnt2++;
+
+          if (debug)
+          {
+            std::cout << "baseline:: " << i << " ; adc = " << vaContent->at(i) << "; bl = " << hard_cm << "; cnt2 = " << cnt2 << "; rms = " << rms << std::endl;
+          }
+        }
+        else
+        {
+          if (debug)
+            std::cout << "HIGH BASELINE or NO VaContent?? -> " << i << " " << vaContent->at(i) << " " << (threshold * MIP_ADC) << std::endl;
+        }
+      }
+
+      if (cnt2 != 0)
+        hard_cm = hard_cm / cnt2;
+      else
+      {
+        hard_cm = 0.;
+        //	cn_final = 0.;
+        //	rms_cn_final = 0.;
+      }
+
+      if (debug)
+        std::cout << "baseline final:: " << hard_cm << std::endl;
+
+      for (size_t i = 24; i < 56; i++)
+      {
+        if (debug)
+          std::cout << "==> fluctuations around bl 24-56: " << fabs(vaContent->at(i) - hard_cm) / rms << std::endl;
+
+        if (vaContent->at(i) > (hard_cm - 3 * rms) && vaContent->at(i) < (hard_cm + 3 * rms) && vaContent->at(i) != -999.)
+        { // we use only channels with a value around the baseline calculated at the previous step
+          // QUI: ho allentato da 2*rms a 3*rms: se i valori ballano tanto intorno alla baseline dello step prima, qui dentro non entra!
+          cn += vaContent->at(i);
+          sumSq += vaContent->at(i) * vaContent->at(i);
+          cnt++;
+
+          if (debug)
+          {
+            std::cout << "baseline:: " << hard_cm << " ; adc = " << vaContent->at(i) << "; rms = " << rms << "; cn = " << cn << "; cnt = " << cnt << std::endl;
+          }
+        }
+      }
+
+      if (cnt != 0.)
+      {
+        cn_final = cn / cnt;
+        rms_cn_final = sqrt((sumSq / cnt) - (cn_final * cn_final));
+      }
+      else
+      {
+        if (debug)
+        {
+          std::cout << "No cnt! " << std::endl;
+          for (size_t i = 24; i < 56; i++)
+          {
+            std::cout << "Debug::" << i << " " << vaContent->at(i) << " ; " << hard_cm << " +- " << rms << " => " << fabs(vaContent->at(i) - hard_cm) / rms << std::endl;
+          }
+        }
+
+        cn_final = 0.;
+        rms_cn_final = 0.;
+
+        return cn_final;
+      }
+    }
+
+    /*    } else {//else rms not < 10
+    if(debug) cout<<"my rms >=10!"<<endl;
+    //Beware that there are real particles inside vaContent, should not contribute to CN!
+    //	MIP_ADC == 18!
+    double subs[6];
+    for(int iL = 0; iL<8; iL++) {
+    for(int iT = 0; iT<6; iT++) {
+    subs[iT] = vaContent[iL*8+1+iT];//it's [1]-[6]; [9]-[14];[17]-[21]...[56]-[62] subset of 6 strips, jumping 2 strips at a time
+    if (iT == 5){
+    Float_t t_rms  = TMath::RMS(6, subs);
+    if(t_rms<rms) {
+    rms_cn_final = t_rms;
+    cn_final = TMath::Mean(6, subs);
+    }
+    }
+    }
+    }
+
+    }//close else rms > 10
+    */
+
+    if (debug)
+      std::cout << " Here's my CN 0::  " << cn_final << " +- " << rms_cn_final << std::endl;
+
+    return cn_final;
+  }
+}
+
 float GetClusterSN(cluster clus, calib *cal)
 {
   float sn = 0;
