@@ -7,16 +7,13 @@
 #include <unistd.h>
 #include <iostream>
 
-unsigned int gray_to_uint(unsigned int g)
+// Convert n-bit Gray code to binary
+unsigned int gray_to_uint(unsigned int g, unsigned int bits)
 {
-  // Convert 12-bit Gray code to uint
-  g &= 0x0FFF;
-  g ^= g >> 1;
-  g ^= g >> 2;
-  g ^= g >> 4;
-  g ^= g >> 8;
-
-  return g & 0x0FFF;
+    unsigned int result = g;
+    for (unsigned int shift = 1; shift < bits; shift <<= 1)
+        result ^= (result >> shift);
+    return result;
 }
 
 // for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
@@ -265,37 +262,51 @@ std::vector<unsigned int> read_event(std::fstream &file, uint64_t offset, int ev
   return event;
 }
 
+// Read internal ADC event
 std::vector<unsigned int> read_internalADC_event(std::fstream &file, uint64_t offset, int event_size, bool verbose)
 {
+    file.seekg(offset + 36);
+    if (verbose)
+        std::cout << "\tReading event at position " << offset + 36 << std::endl;
 
-  file.seekg(offset + 36);
-  if (verbose)
-  {
-    std::cout << "\tReading event at position " << offset + 36 << std::endl;
-  }
+    event_size *= 2; // two words per loop iteration
 
-  event_size = event_size * 2;
+    unsigned char buffer[4];
+    unsigned int val1, val2;
+    std::vector<unsigned int> event;
 
-  unsigned char buffer[4];
-  unsigned int val1;
-  unsigned int val2;
+    for (size_t i = 0; i < event_size; i += 2)
+    {
+        file.read(reinterpret_cast<char *>(&buffer), 4);
 
-  std::vector<unsigned int> event;
+        if (verbose)
+        {
+            std::cout << "\t\tRead bytes: ";
+            for (int b = 0; b < 4; ++b)
+                std::cout << std::hex << (int)buffer[b] << " ";
+            std::cout << std::dec << std::endl;
+        }
 
-  for (size_t i = 0; i < event_size; i = i + 2)
-  {
-    file.read(reinterpret_cast<char *>(&buffer), 4);
+        // Swap bytes
+        val1 = ((buffer[1] << 8) | buffer[0]);
+        val2 = ((buffer[3] << 8) | buffer[2]); 
 
-    val1 = buffer[0] | (buffer[1] & 0x0f) << 8;
-    val2 = buffer[2] | (buffer[3] & 0x0f) << 8;
+        if (verbose)
+            std::cout << "\t\tGray code: " << std::hex << val1 << " " << val2 << std::dec << std::endl;
 
-    val1 = gray_to_uint(val1);
-    val2 = gray_to_uint(val2);
+        // Convert to uint, masking leading "A"
+        val1 = gray_to_uint(val1 & 0x0fff, 12);
+        val2 = gray_to_uint(val2 & 0x0fff, 12);
 
-    event.push_back(val1);
-    event.push_back(val2);
-    
-  }
+        if (verbose)
+            std::cout << "\t\tUint: " << val1 << " " << val2 << std::dec << std::endl;
 
-  return event;
+        event.push_back(val1);
+        event.push_back(val2);
+
+        if (verbose)
+            std::cin.get();
+    }
+
+    return event;
 }
