@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QLineEdit
 )
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
@@ -37,10 +37,6 @@ class EventViewer(QWidget):
         self.tree_combo.currentTextChanged.connect(self.change_tree)
         self.layout.addWidget(self.tree_combo)
 
-        # Event label
-        self.label = QLabel("Event: 0/0")
-        self.layout.addWidget(self.label)
-
         # Matplotlib figure
         self.fig = Figure()
         self.canvas = FigureCanvas(self.fig)
@@ -62,19 +58,28 @@ class EventViewer(QWidget):
                       212.44, 300.71, 271.46, 241.77])
         
         ax = self.fig.add_subplot(111)
-        ax.plot(x_arr, y_arr, marker='o', color='red', linestyle='None')
+        ax.plot(x_arr, y_arr, marker='', color='red', linestyle='None')
+        for xi, yi in zip(x_arr, y_arr):
+            ax.text(xi, yi, '☢', fontsize=12, ha='right')
        
         # Navigation buttons
         nav_layout = QHBoxLayout()
+        
+        # Event selector
+        self.event_selector_label = QLabel("Event:")
+        self.event_selector_label.setFixedWidth(50)
+        nav_layout.addWidget(self.event_selector_label)
+        self.event_selector = QLineEdit()
+        self.event_selector.setFixedWidth(80)
+        self.event_selector.setPlaceholderText("0")
+        self.event_selector.textChanged.connect(self.change_event)
+        nav_layout.addWidget(self.event_selector)
         self.prev_btn = QPushButton("Previous")
         self.next_btn = QPushButton("Next")
-        self.save_btn = QPushButton("Save Screenshot")
         self.prev_btn.clicked.connect(self.prev_event)
         self.next_btn.clicked.connect(self.next_event)
-        self.save_btn.clicked.connect(self.save_screenshot)
         nav_layout.addWidget(self.prev_btn)
         nav_layout.addWidget(self.next_btn)
-        nav_layout.addWidget(self.save_btn)
         self.layout.addLayout(nav_layout)
 
         # Zoom controls
@@ -100,6 +105,13 @@ class EventViewer(QWidget):
         zoom_layout.addWidget(self.reset_zoom_btn)
         self.layout.addLayout(zoom_layout)
 
+        # Screenshot button
+        screenshot_layout = QHBoxLayout()
+        self.save_btn = QPushButton("Save Screenshot")
+        self.save_btn.clicked.connect(self.save_screenshot)
+        screenshot_layout.addWidget(self.save_btn)
+        self.layout.addLayout(screenshot_layout)
+        
     def update_xticks(self, ax, data):
         n_channels = len(data)
         
@@ -153,6 +165,33 @@ class EventViewer(QWidget):
         self.events = self.trees[self.current_tree]
         self.index = 0
         self.plot_event()
+        
+    def change_event(self, text):
+        if not text.isdigit():
+            return
+
+        idx = int(text) - 1
+
+        max_idx = len(self.events) - 1
+        if max_idx < 0:
+            return
+
+        if idx < 0:
+            idx = 0
+        elif idx > max_idx:
+            idx = max_idx
+
+        if idx == self.index:
+            return
+
+        self.index = idx
+
+        self.event_selector.blockSignals(True)
+        self.event_selector.setText(str(self.index + 1))
+        self.event_selector.blockSignals(False)
+
+        self.plot_event()
+
 
     # ----------------- Plotting -----------------
     def plot_event(self):
@@ -162,7 +201,7 @@ class EventViewer(QWidget):
         ax.plot(data, marker='o')
         ax.set_xlabel("Channel")
         ax.set_ylabel("ADC count")
-        ax.set_title(f"{self.current_tree} - Event {self.index+1}")
+        ax.set_title(f"{self.current_tree} - Event {self.index+1} / {len(self.events)}")
 
         ax.set_xlim(0, len(data) - 1)
         ax.set_ylim(min(data) - 10, max(data) + 10)
@@ -171,8 +210,11 @@ class EventViewer(QWidget):
 
         self.fig.tight_layout()
         self.canvas.draw()
-        self.label.setText(f"Event: {self.index+1}/{len(self.events)}")
-
+        
+        self.event_selector.blockSignals(True)
+        self.event_selector.setText(str(self.index + 1))
+        self.event_selector.blockSignals(False)
+        
     def apply_zoom(self):
         ax = self.fig.axes[0]
         data = self.events[self.index]
