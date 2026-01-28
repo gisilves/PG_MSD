@@ -832,6 +832,8 @@ int main(int argc, char *argv[])
   app.add_option("--nevents", nevents, "Number of events to process");
   app.add_option("--first_event", first_event, "First event to process");
   app.add_option("--input_files", input_files, "Input ROOT files")->required()->expected(-1);
+  app.add_option("--maxADC_h", maxADC_h, "Maximum ADC value for histograms");
+  app.add_option("--minADC_h", minADC_h, "Minimum ADC value for histograms");
 
   CLI11_PARSE(app, argc, argv);
 
@@ -916,6 +918,11 @@ int main(int argc, char *argv[])
   {
     std::cout << "Error: no output file" << std::endl;
     return 2;
+  }
+  else
+  {
+    output_filename = TString(output_file);
+    std::cout << "Output file: " << output_filename << std::endl;
   }
 
   std::vector<std::pair<float, bool>> alignment_params = read_alignment("./config/alignment.dat");
