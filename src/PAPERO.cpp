@@ -145,13 +145,9 @@ int seek_first_evt_header(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, int verbose)
+std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, int verbose)
 {
   uint32_t header;
-  uint32_t tv_sec_part;
-  uint64_t tv_sec;
-  uint32_t tv_nsec_part;
-  uint64_t tv_nsec; 
   unsigned char buffer[4];
   uint32_t val;
   uint32_t lenght_in_bytes;
@@ -159,7 +155,6 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
   uint16_t n_detectors;
   uint16_t status;
   uint16_t type;
-  struct timespec ts;
 
   header = 0xcaf14afa;
 
@@ -181,39 +176,8 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
       std::cout << "Can't find event header"
                 << " at offset " << offset << std::endl;
     }
-    return std::make_tuple(false, ts, -1, -1, -1, -1, -1, -1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1);
   }
-
-  file.read(reinterpret_cast<char *>(&buffer), 4);
-  tv_sec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  tv_sec = ((uint64_t)tv_sec_part);
-  
-  if(verbose == 2)
-  {
-  std::cout << " Timestamp (s, ns) " << std::dec << tv_sec_part;
-  
-  }
-
-  file.read(reinterpret_cast<char *>(&buffer), 4);
-  tv_sec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  tv_sec = 0x0000000000000000 | ((uint64_t)tv_sec_part << 32UL);
-  
-  file.read(reinterpret_cast<char *>(&buffer), 4);
-  tv_nsec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  tv_nsec = ((uint64_t)tv_nsec_part);
-  
-  if(verbose == 2)
-  {
-  std::cout << ", " << tv_nsec_part << std::hex << std::endl;
-  }
-
-  file.read(reinterpret_cast<char *>(&buffer), 4);
-  tv_nsec_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  tv_nsec = 0x0000000000000000 | ((uint64_t)tv_nsec_part << 32UL);
-
-  //create time struct from tv_sec and tv_nsec
-  ts.tv_sec = tv_sec;
-  ts.tv_nsec = tv_nsec;
   
   file.read(reinterpret_cast<char *>(&buffer), 4);
   lenght_in_bytes = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
@@ -231,8 +195,6 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
   if (verbose == 1)
   {
     std::cout << "MAKA header: " << std::endl;
-    std::cout << "\t\ttimestamp sec: " << std::dec << tv_sec << std::endl;
-    std::cout << "\t\ttimestamp nsec: " << std::dec << tv_nsec << std::endl;
     std::cout << "\tlenght_in_bytes: " << std::dec << lenght_in_bytes << std::endl;
     std::cout << "\tevt_number: " << evt_number << std::endl;
     std::cout << "\tn_detectors: " << n_detectors << std::endl;
@@ -240,7 +202,7 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
     std::cout << "\ttype: " << type << std::endl;
   }
 
-  return std::make_tuple(true, ts, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
+  return std::make_tuple(true, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
 }
 
 bool read_old_evt_header(std::fstream &file, uint32_t offset, int verbose)
@@ -406,18 +368,10 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
     std::cout << "\t\t\ttrigger: " << std::dec << trigger << std::endl;
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
-    std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
-    printf("\t\t\ti2c Trigger type: %d - i2c Subsystem: %01x - i2c Serial: %lu\n", (i2cmsg_part&0x0000000f) & 0x1, ((i2cmsg_part&0x0fff0000)>>16), 
-((i2cmsg&0xffffffff00000000)>>32UL));
+
     std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
   }
 
-  if (verbose == 3)
-  {
-    std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
-    printf("\t\t\ti2c Trigger type: %d - i2c Subsystem: %01x - i2c Serial: %lu\n", (i2cmsg_part&0x0000000f) & 0x1, ((i2cmsg_part&0x0fff0000)>>16), 
-((i2cmsg&0xffffffff00000000)>>32UL));
-  }
 
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, i2cmsg, ext_timestamp, trigger_id, offset);
 }
