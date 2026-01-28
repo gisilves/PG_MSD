@@ -8,6 +8,7 @@
 #include "TCanvas.h"
 #include "TLatex.h"
 #include "TPDF.h"
+#include "TMath.h"
 #include <iostream>
 #include <algorithm>
 #include <numeric>
@@ -18,6 +19,20 @@
 #include "event.h"
 
 #include "CLI.hpp"
+
+
+double MAD(const std::vector<float>* v)
+{
+    std::vector<float> tmp = *v;
+    const float med = TMath::Median(tmp.size(), tmp.data());
+
+    std::vector<float> absdev;
+    absdev.reserve(tmp.size());
+    for (float x : tmp)
+        absdev.push_back(std::abs(x - med));
+
+    return TMath::Median(absdev.size(), absdev.data());
+}
 
 int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, 
                         float sigmaraw_cut = 3, float sigma_cut = 6, 
@@ -98,13 +113,19 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
 
   std::vector<float> pedestals[NChannels];
   float mean_pedestal = 0;
+  float median_pedestal = 0;
   float rms_pedestal = 0;
+  float mad_pedestal = 0;
   std::vector<float> rsigma[NChannels];
   float mean_rsigma = 0;
+  float median_rsigma = 0;
   float rms_rsigma = 0;
+  float mad_rsigma = 0;
   std::vector<float> sigma[NChannels];
   float mean_sigma = 0;
+  float median_sigma = 0;
   float rms_sigma = 0;
+  float mad_sigma = 0;
   float max_sigma = 0;
 
   char name[100];
@@ -245,22 +266,21 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     }
   }
 
-  mean_pedestal = std::accumulate(pedestals->begin(), pedestals->end(), 0.0) / pedestals->size();
+  mean_pedestal = TMath::Mean(pedestals->begin(), pedestals->end());
+  rms_pedestal = TMath::RMS(pedestals->begin(), pedestals->end());
+  median_pedestal = TMath::Median(pedestals->size(), pedestals->data());
+  mad_pedestal = MAD(pedestals);
 
   float num_ped = 0;
   for (int i = 0; i < pedestals->size(); i++)
   {
     num_ped += pow(pedestals->at(i) - mean_pedestal, 2);
   }
-  rms_pedestal = std::sqrt(num_ped / pedestals->size());
 
-  mean_rsigma = std::accumulate(rsigma->begin(), rsigma->end(), 0.0) / rsigma->size();
-  float num_rsigma = 0;
-  for (int i = 0; i < rsigma->size(); i++)
-  {
-    num_rsigma += pow(rsigma->at(i) - mean_rsigma, 2);
-  }
-  rms_rsigma = std::sqrt(num_rsigma / rsigma->size());
+  mean_rsigma = TMath::Mean(rsigma->begin(), rsigma->end());
+  rms_rsigma = TMath::RMS(rsigma->begin(), rsigma->end());
+  median_rsigma = TMath::Median(rsigma->size(), rsigma->data());
+  mad_rsigma = MAD(rsigma);
 
   gr->GetXaxis()->SetTitle("channel");
   TAxis *axis = gr->GetXaxis();
@@ -406,8 +426,10 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
       }
     }
   }
-  mean_sigma = std::accumulate(sigma->begin(), sigma->end(), 0.0) / sigma->size();
-  rms_sigma = std::sqrt(std::inner_product(sigma->begin(), sigma->end(), sigma->begin(), 0.0) / sigma->size());
+  mean_sigma = TMath::Mean(sigma->begin(), sigma->end());
+  rms_sigma = TMath::RMS(sigma->begin(), sigma->end());
+  median_sigma = TMath::Median(sigma->size(), sigma->data());
+  mad_sigma = MAD(sigma);
 
   if (!std::isnan(mean_sigma))
   {
@@ -443,9 +465,13 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   TPaveText *pt = new TPaveText(.05, .1, .95, .8);
 
   pt->AddText(Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
+  pt->AddText(Form("Pedestal median value: %f \t Pedestal MAD value: %f", median_pedestal, mad_pedestal));
   pt->AddText(Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
+  pt->AddText(Form("Raw sigma median value: %f \t Raw sigma MAD value: %f", median_rsigma, mad_rsigma));
   pt->AddText(Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
+  pt->AddText(Form("Sigma median value: %f \t Sigma MAD value: %f", median_sigma, mad_sigma));
   pt->AddText("Calibration file " + output_filename);
+  pt->AddText(Form("Detector: %d", 2*board+side));
   pt->AddText(Form("Board: %i \t Side: %i", board, side));
   pt->Draw();
 
@@ -463,11 +489,14 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     c1.Print(output_filename + ".pdf", "pdf");
   }
 
-  std::cout << "\tMean pedestal \t Mean RSigma \t Mean Sigma \t Max Sigma " << std::endl;
-  std::cout << Form("\t%f \t %f \t %f \t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << std::endl;
-  std::cout << "\tRMS pedestal \t RMS RSigma \t RMS Sigma " << std::endl;
-  std::cout << Form("\t%f \t %f \t %f", rms_pedestal, rms_rsigma, rms_sigma) << std::endl;
-
+  std::cout << "\tMean pedestal \t\t Mean RSigma \t\t Mean Sigma \t\t Max Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f \t\t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << std::endl;
+  std::cout << "\tRMS pedestal \t\t RMS RSigma \t\t RMS Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f", rms_pedestal, rms_rsigma, rms_sigma) << std::endl;
+  std::cout << "\tMedian pedestal \t Median RSigma \t\t Median Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f", median_pedestal, median_rsigma, median_sigma) << std::endl;
+  std::cout << "\tMAD pedestal \t\t MAD RSigma \t\t MAD Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f", mad_pedestal, mad_rsigma, mad_sigma) << std::endl;
   if (!pdf_only)
   {
     calfile.close();
