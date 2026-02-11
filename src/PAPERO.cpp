@@ -376,7 +376,7 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, i2cmsg, ext_timestamp, trigger_id, offset);
 }
 
-std::vector<uint32_t> read_event(std::fstream &file, uint32_t offset, int event_size, int verbose, bool astra)
+std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int event_size, int verbose)
 {
 
   file.seekg(offset + 36);
@@ -397,22 +397,15 @@ std::vector<uint32_t> read_event(std::fstream &file, uint32_t offset, int event_
   {
     file.read(reinterpret_cast<char *>(&buffer), 4);
 
-    if (!astra)
-    {
-      val1 = buffer[0] | buffer[1] << 8;
-      val2 = buffer[2] | buffer[3] << 8;
+    val1 = buffer[0] | buffer[1] << 8;
+    val2 = buffer[2] | buffer[3] << 8;
 
-      event.push_back(val1 / 4);
-      event.push_back(val2 / 4);
-    }
-    else
-    {
-      val1 = buffer[0] | (buffer[1] & 0x0f) << 8;
-      val2 = buffer[2] | (buffer[3] & 0x0f) << 8;
+    // Remove padding (2 bits)
+    val1 = val1 & 0xfffffffc;
+    val2 = val2 & 0xfffffffc;
 
-      event.push_back(val1);
-      event.push_back(val2);
-    }
+    event.push_back(val1);
+    event.push_back(val2);  
   }
 
   return event;

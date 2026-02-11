@@ -27,7 +27,7 @@ std::vector<T> reorder(std::vector<T> const &v)
 {
     std::vector<T> reordered_vec(v.size());
     int j = 0;
-    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
+    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12};
     for (int ch = 0; ch < 128; ch++)
     {
         for (int adc : order)
@@ -39,37 +39,17 @@ std::vector<T> reorder(std::vector<T> const &v)
     return reordered_vec;
 }
 
-template <typename T>
-std::vector<T> reorder_DAMPE(std::vector<T> const &v)
-{
-    std::vector<T> reordered_vec(v.size());
-    int j = 0;
-    constexpr int order[] = {1, 0};
-    for (int ch = 0; ch < 192; ch++)
-    {
-        for (int adc : order)
-        {
-            reordered_vec.at(adc * 192 + ch) = v.at(j);
-            j++;
-        }
-    }
-    return reordered_vec;
-}
-
 int main(int argc, char *argv[])
 {
     CLI::App app{"PAPERO_convert"};
 
     bool verbose = false;
-    bool gsi = false;
     int boards = 0;
     int nevents = -1;
     std::string input_file;
     std::string output_file;
 
     app.add_flag("-v,--verbose", verbose, "Verbose output");
-    app.add_flag("--gsi", gsi, "To convert data from GSI hybrids (10 ADC per detector)");
-    app.add_option("--boards", boards, "Number of DE10Nano boards connected (for old data format)");
     app.add_option("--nevents", nevents, "Number of events to be read");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
     app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
@@ -94,7 +74,7 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
-    foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+    //foutput->SetCompressionAlgorithm(ROOT::kZLIB);
 
     // Initialize TTree(s)
     std::vector<uint32_t> raw_event_buffer;
@@ -180,24 +160,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        std::cout << "No file header: assuming old data format" << std::endl;
-        is_new_format = false;
-        offset = 0;
-    }
-
-    if (!is_new_format)
-    {
-        if (boards == 0)
-        {
-            std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
-            return 2;
-        }
-        offset = seek_first_evt_header(file, 0, verbose);
-    }
-
-    if (gsi)
-    {
-        std::cout << "\tFormatting data for GSI hybrids" << std::endl;
+        std::cout << "No file header: assuming old data format, cannot convert" << std::endl;
+        return 2;
     }
 
     if (nevents > 0)
@@ -247,42 +211,18 @@ int main(int argc, char *argv[])
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
                     }
 
-                    if (fw_version == 0x9fd68b40)
-                    {
-                        // std::cout << "\tLADDERONE!!!" << std::endl;
-                        padding_offset = 1024;
-                        board_id = board_id - 300;
-                        // std::cout << "\tFixed Board ID " << board_id << std::endl;
-                        raw_event_buffer.clear();
-                        raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose, false));
-                    }
-                    else
-                    {
-                        padding_offset = 0;
-                        raw_event_buffer.clear();
-                        raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
-                    }
+                    padding_offset = 0;
+                    raw_event_buffer.clear();
+                    raw_event_buffer = reorder(read_eventHEF(file, offset, evt_size, verbose));
 
-                    if (!gsi)
-                    {
-                        raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
-                        raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1).clear();
-                        raw_event_vector.at(2 * detector_ids_map.at(board_id)) = std::vector<uint32_t>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                        raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
-                        raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
-                        raw_events_tree.at(2 * detector_ids_map.at(board_id) + 1)->Fill();
-                    }
-                    else
-                    {
-                        for (int hole = 1; hole <= 10; hole++)
-                        {
-                            raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64, raw_event_buffer.begin() + (hole + 1) * 64);
-                        }
-                        raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
-                        raw_event_vector.at(2 * detector_ids_map.at(board_id)) = raw_event_buffer;
-                        raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
-                    }
-
+                    raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
+                    raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1).clear();
+                    raw_event_vector.at(2 * detector_ids_map.at(board_id)) = std::vector<uint32_t>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                    raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+                    raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
+                    raw_events_tree.at(2 * detector_ids_map.at(board_id) + 1)->Fill();
+                
+                    
                     offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
                 }
             }
