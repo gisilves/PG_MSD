@@ -39,11 +39,13 @@ std::vector<T> reorder(std::vector<T> const &v)
     return reordered_vec;
 }
 
+
 int main(int argc, char *argv[])
 {
     CLI::App app{"PAPERO_convert"};
 
     bool verbose = false;
+    bool gsi = false;
     int boards = 0;
     int nevents = -1;
     std::string input_file;
@@ -74,7 +76,7 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
-    //foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+    foutput->SetCompressionAlgorithm(ROOT::kZLIB);
 
     // Initialize TTree(s)
     std::vector<uint32_t> raw_event_buffer;
@@ -132,7 +134,7 @@ int main(int argc, char *argv[])
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
     std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
+    std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
 
@@ -160,8 +162,19 @@ int main(int argc, char *argv[])
     }
     else
     {
-        std::cout << "No file header: assuming old data format, cannot convert" << std::endl;
-        return 2;
+        std::cout << "No file header: assuming old data format" << std::endl;
+        is_new_format = false;
+        offset = 0;
+    }
+
+    if (!is_new_format)
+    {
+        if (boards == 0)
+        {
+            std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
+            return 2;
+        }
+        offset = seek_first_evt_header(file, 0, verbose);
     }
 
     if (nevents > 0)
@@ -181,8 +194,8 @@ int main(int argc, char *argv[])
         maka_retValues = read_evt_header(file, offset, verbose);
         if (std::get<0>(maka_retValues))
         {
-            offset = std::get<6>(maka_retValues);
-            for (size_t de10 = 0; de10 < std::get<3>(maka_retValues); de10++)
+            offset = std::get<7>(maka_retValues);
+            for (size_t de10 = 0; de10 < std::get<4>(maka_retValues); de10++)
             {
                 de10_retValues = read_de10_header(file, offset, verbose); // read de10 header
                 is_good = std::get<0>(de10_retValues);
@@ -211,9 +224,11 @@ int main(int argc, char *argv[])
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
                     }
 
+
                     padding_offset = 0;
                     raw_event_buffer.clear();
                     raw_event_buffer = reorder(read_eventHEF(file, offset, evt_size, verbose));
+    
 
                     raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
                     raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1).clear();
@@ -221,8 +236,7 @@ int main(int argc, char *argv[])
                     raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
                     raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
                     raw_events_tree.at(2 * detector_ids_map.at(board_id) + 1)->Fill();
-                
-                    
+
                     offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
                 }
             }

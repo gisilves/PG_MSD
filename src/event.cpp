@@ -576,6 +576,14 @@ bool GoodCluster(cluster clus, calib *cal) // cluster is good if all the strips 
   return good;
 }
 
+bool isClusterinVA(cluster clus) // check if cluster is fully contained in a VA
+{
+  int firstVA = clus.address / 64;
+  int lastVA = (clus.address + clus.width - 1) / 64;
+
+  return (firstVA == lastVA);
+}
+
 bool read_calib(const char *calib_file, calib *cal, int NChannels, int detector, bool verb) // read ASCII calib file: based on DaMPE calibration files (multiple detectors in one file)
 {
   std::ifstream in;

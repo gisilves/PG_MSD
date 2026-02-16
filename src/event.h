@@ -77,6 +77,8 @@ float GetSeedMIPCharge(cluster clus, calib *cal);
 
 bool GoodCluster(cluster clus, calib *cal);
 
+bool isClusterinVA(cluster clus);
+
 bool read_calib(const char *calib_file, calib *cal, int NChannels, int detector, bool verb);
 
 std::vector<calib> read_calib_all(const char *calib_file, bool verb);
