@@ -15,7 +15,7 @@
 
 #include "TTreeReader.h"
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 #include "event.h"
 
 calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
@@ -62,7 +62,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "")
+                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
@@ -159,6 +159,12 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
   hADCvsPos->GetXaxis()->SetTitle("cog");
   hADCvsPos->GetYaxis()->SetTitle("ADC");
+
+  TH2F *hSeedADCvsPos = new TH2F((TString) "hSeedADCvsPos_board_" + board + "_side_" + side, (TString) "hSeedADCvsPos_board_" + board + "_side_" + side, (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, // cluster ADC vs cog
+                             1000, minADC_h, maxADC_h);
+
+  hSeedADCvsPos->GetXaxis()->SetTitle("cog");
+  hSeedADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F *hADCvsEta = // ignore
       new TH2F((TString) "hADCvsEta_board_" + board + "_side_" + side, (TString) "hADCvsEta_board_" + board + "_side_" + side, 200, 0, 1, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
@@ -508,6 +514,12 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
       result = clusterize_event(&cal, &signal, highthreshold, lowthreshold, // clustering function
                                 symmetric, symmetricwidth, absolute, board, side, verb);
 
+      if (inVA)
+      {
+        // remove clusters that are not fully contained in a VA
+        result.erase(std::remove_if(result.begin(), result.end(), [](cluster c) { return !isClusterinVA(c); }), result.end());
+      }
+
       // save result cluster in TTree
       t_clusters->Fill();
 
@@ -584,6 +596,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
           hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
+          hSeedADCvsPos->Fill(GetClusterSeed(result.at(i), &cal), GetClusterSeedADC(result.at(i), &cal));
           hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
           hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
           hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
@@ -696,6 +709,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   hEta2->Write();
   hADCvsWidth->Write();
   hADCvsPos->Write();
+  hSeedADCvsPos->Write();
   hADCvsSeed->Write();
   hADCvsEta->Write();
   hADCvsSN->Write();
@@ -722,6 +736,7 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   delete hEta2;
   delete hADCvsWidth;
   delete hADCvsPos;
+  delete hSeedADCvsPos;
   delete hADCvsSeed;
   delete hADCvsEta;
   delete hADCvsSN;
@@ -777,6 +792,7 @@ int main(int argc, char *argv[])
   bool verb = false;
   bool invert = false;
   bool dynped = false;
+  bool inVA = false;
 
   float highthreshold = 3.5;
   float lowthreshold = 1.0;
@@ -812,6 +828,7 @@ int main(int argc, char *argv[])
   app.add_flag("--invert", invert, "Invert signal");
   app.add_flag("--dynped", dynped, "Enable dynamic pedestals");
   app.add_flag("--newDAQ", newDAQ, "Use new DAQ format");
+  app.add_flag("--inVA", inVA, "Select only clusters that are fully contained in a VA");
 
   // Options
   app.add_option("--highthreshold", highthreshold, "High threshold for clustering");
@@ -984,7 +1001,8 @@ int main(int argc, char *argv[])
                         version == 2023,
                         input_files,
                         nevents,
-                        calibration_file);
+                        calibration_file,
+                        inVA);
   }
   else
   {
@@ -1001,7 +1019,8 @@ int main(int argc, char *argv[])
                           version == 2023,
                           input_files,
                           nevents,
-                          calibration_file);
+                          calibration_file,
+                          inVA);
 
       doutput = foutput->mkdir((TString) "board_" + i + "_side_1");
       doutput->cd();
@@ -1013,7 +1032,8 @@ int main(int argc, char *argv[])
                           version == 2023,
                           input_files,
                           nevents,
-                          calibration_file);
+                          calibration_file,
+                          inVA);
 
       // Fill 2D Beam Profile Histos
       TTreeReader j5Reader((TString)"board_" + i + "_side_0/t_clusters_board_" + i + "_side_0", foutput);
