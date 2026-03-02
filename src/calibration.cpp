@@ -17,7 +17,7 @@
 #include "TPaveText.h"
 #include "event.h"
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 
 int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, 
                         float sigmaraw_cut = 3, float sigma_cut = 6, 

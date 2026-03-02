@@ -9,8 +9,7 @@
 #include <tuple>
 
 #include "PAPERO.h"
-
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 
 int main(int argc, char *argv[])
 {
