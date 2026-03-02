@@ -18,7 +18,7 @@
 #include "TPaveText.h"
 #include "event.h"
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 
 
 double MAD(const std::vector<float>* v)

@@ -446,10 +446,6 @@ std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int eve
     val1 = buffer[0] | buffer[1] << 8;
     val2 = buffer[2] | buffer[3] << 8;
 
-    // Remove padding (2 bits)
-    val1 = val1 & 0xfffffffc;
-    val2 = val2 & 0xfffffffc;
-
     event.push_back(val1);
     event.push_back(val2);  
   }

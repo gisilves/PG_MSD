@@ -10,7 +10,7 @@
 #include <string>
 #include <filesystem>
 
-#include "CLI.hpp" // modern CLI
+#include <CLI/CLI.hpp>
 #include "event.h"
 
 int main(int argc, char *argv[])
