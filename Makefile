@@ -1,48 +1,70 @@
-CXX := `root-config --cxx`
-ROOTCLING=rootcling
-MARCH := `root-config --arch`
-LD:=$(CXX)
-SRC=./src/
+CXX      := $(shell root-config --cxx)
+ROOTCLING := rootcling
+MARCH    := $(shell root-config --arch)
+LD       := $(CXX)
+UNAME    := $(shell uname)
 
-UNAME := $(shell uname)
-CLI11_DIR ?= third_party/CLI11/include/CLI
+SRC      := ./src
+OBJ      := ./obj
 
-CFLAGS += $(shell root-config --cflags --glibs) -g -fPIC -pthread -I$(ROOTSYS)/include -I$(CLI11_DIR)
-OPTFLAGS += -O3
+CLI11_DIR ?= third_party/CLI11/include
 
+CFLAGS   := $(shell root-config --cflags) -g -fPIC -pthread \
+            -I$(ROOTSYS)/include -I$(CLI11_DIR)
+LDFLAGS  := $(shell root-config --glibs)
+OPTFLAGS := -O3
+
+# Precompiled header
+PCH_SRC := $(CLI11_DIR)/CLI/CLI.hpp
+PCH_OUT := $(OBJ)/CLI.hpp.gch
+
+# Targets
+TARGETS :=  ASTRA_convert ASTRA_info raw_clusterize raw_cn \
+			raw_threshold_scan calibration readOM
+			
+.PHONY: all clean raw_viewer
 default: all
+all: $(TARGETS)
 
-all: ASTRA_convert ASTRA_info raw_clusterize raw_threshold_scan raw_cn calibration raw_viewer
+$(OBJ):
+	mkdir -p $(OBJ)
 
-.PHONY: raw_viewer
+# PCH build
+$(PCH_OUT): $(PCH_SRC) | $(OBJ)
+	$(CXX) $(CFLAGS) $(OPTFLAGS) -x c++-header $< -o $@
 
-ASTRA_convert: ./src/ASTRA_convert.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+# Object file compilation
+$(OBJ)/%.o: $(SRC)/%.cpp $(PCH_OUT) | $(OBJ)
+	$(CXX) $(CFLAGS) $(OPTFLAGS) -c $< -o $@
 
-ASTRA_info: ./src/ASTRA_info.cpp
-	$(CXX) -o$@ $< $(CFLAGS) $(OPTFLAGS)
+# Link rules
+ASTRA_convert: $(OBJ)/ASTRA_convert.o $(OBJ)/PAPERO.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-raw_clusterize: ./src/raw_clusterize.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
+ASTRA_info: $(OBJ)/ASTRA_info.o $(OBJ)/PAPERO.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-raw_threshold_scan: ./src/raw_threshold_scan.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
+raw_clusterize: $(OBJ)/raw_clusterize.o $(OBJ)/event.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-raw_cn: ./src/raw_cn.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
+raw_cn: $(OBJ)/raw_cn.o $(OBJ)/event.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-calibration: ./src/calibration.cpp
-	$(CXX) ./src/event.cpp -o$@ $< $(CFLAGS) $(OPTFLAGS)
+raw_threshold_scan: $(OBJ)/raw_threshold_scan.o $(OBJ)/event.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-raw_viewer: 
-	$(ROOTCLING) -f guiDict.cpp ./src/viewerGUI.h ./src/guiLinkDef.h
-	$(CXX) ./src/viewerGUI.cpp ./src/event.cpp guiDict.cpp  -o$@ $< $(CFLAGS) $(OPTFLAGS)
+calibration: $(OBJ)/calibration.o $(OBJ)/event.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+
+raw_viewer:
+	$(ROOTCLING) -f guiDict.cpp $(SRC)/viewerGUI.h $(SRC)/udpSocket.cpp $(SRC)/guiLinkDef.h
+	$(CXX) $(CFLAGS) $(OPTFLAGS) $(SRC)/viewerGUI.cpp $(SRC)/event.cpp guiDict.cpp -o $@ $(LDFLAGS)
 
 clean:
-	rm -f ./ASTRA_convert
-	rm -f ./ASTRA_info
-	rm -f ./raw_clusterize
-	rm -f ./raw_cn
-	rm -f ./raw_threshold_scan
-	rm -f ./raw_viewer
-	rm -f ./calibration
+	rm -f $(TARGETS) raw_viewer
+	rm -f guiDict.cpp guiDict_rdict.pcm
+
+clean_all:
+	rm -f $(TARGETS) raw_viewer
+	rm -rf $(OBJ)
+	rm -f guiDict.cpp guiDict_rdict.pcm

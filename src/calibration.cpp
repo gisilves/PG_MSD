@@ -17,7 +17,7 @@
 #include "TPaveText.h"
 #include "event.h"
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 
 int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, float sigmaraw_cut = 3, float sigma_cut = 6, int board = 0, int side = 0, bool pdf_only = false, bool fast = true, bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1)
 {

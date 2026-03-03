@@ -6,9 +6,8 @@
 #include <iostream>
 #include <iomanip>
 
-#include "anyoption.h"
 #include "event.h"
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 
 
 #define verbose false

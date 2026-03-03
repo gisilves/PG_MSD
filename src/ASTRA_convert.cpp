@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <ctime>
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 #include "TFile.h"
 #include "TTree.h"
 #include "TString.h"

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <ctime>
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 #include "TFile.h"
 #include "TTree.h"
 #include "TString.h"
@@ -166,8 +166,8 @@ int main(int argc, char *argv[])
 
             padding_offset = 0;
             raw_event_buffer.clear();
-            raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, true));
-
+            raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose));
+            
             if (evtnum == 0)
             {
                 first_timestamp = static_cast<int64_t>(timestamp);
