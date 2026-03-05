@@ -2,16 +2,14 @@
 
 import sys
 import numpy as np
-import ROOT
 import pandas as pd
 import socket
 import threading
-import time
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel,
-    QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QLineEdit, QCheckBox, QGroupBox
+    QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QCheckBox, QGroupBox, QSpinBox
 )
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -71,7 +69,14 @@ class EventViewer(QWidget):
 
         self.udp_line0 = None
         self.udp_line1 = None
-
+        self.udp_accum0 = None
+        self.udp_accum1 = None
+        self.last_accum_board = None
+        self.last_accum_selection = None
+        
+        self._accum_update_interval = 1000
+        self._accum_event_count = 0
+        
         self.COLUMNS = [
             "channel",
             "va_id",
@@ -144,6 +149,20 @@ class EventViewer(QWidget):
         self.udp_select = QComboBox()
         self.udp_select.addItems(["J5", "J7"])
         udp_layout.addWidget(self.udp_select)
+        
+        self.accumulate_checkbox = QCheckBox("Accumulate")
+        self.accumulate_checkbox.setChecked(False)
+        self.accumulate_checkbox.setStyleSheet("QCheckBox { margin-left: auto; }")
+        udp_layout.addWidget(self.accumulate_checkbox)
+        
+        # Spinbox for accumulate number of events
+        self.accumulate_spinbox = QSpinBox()
+        self.accumulate_spinbox.setRange(1, 1000)
+        self.accumulate_spinbox.setValue(100)
+        self.accumulate_spinbox.setSingleStep(10)
+        self.accumulate_spinbox.setStyleSheet("QSpinBox { margin-left: auto; }")
+        self.accumulate_spinbox.valueChanged.connect(self.update_accum_interval)
+        udp_layout.addWidget(self.accumulate_spinbox)
 
         udp_box = QGroupBox("UDP Stream")
         udp_box.setLayout(udp_layout)
@@ -152,7 +171,7 @@ class EventViewer(QWidget):
         # ---------- Redraw Timer ----------
         self.redraw_timer = QTimer(self)
         self.redraw_timer.setInterval(40)
-        self.redraw_timer.timeout.connect(self._redraw_if_pending)
+        self.redraw_timer.timeout.connect(self.redraw_if_pending)
         self.redraw_timer.start()
 
         # ---------- Global Styles ----------
@@ -328,8 +347,108 @@ class EventViewer(QWidget):
                     board_words.append(w)
 
         sock.close()
+        
+    def update_accum_interval(self, text):
+        self._accum_update_interval = int(text)
+        self._accum_event_count = 0
+        
+    def redraw_if_pending(self):
+        if not self.udp_pending:
+            return
 
-    def _redraw_if_pending(self):
+        ax = self.fig.axes[0]
+        selection = self.udp_select.currentText()
+        board = self.udp_select_board.currentText()
+        accumulate = self.accumulate_checkbox.isChecked()
+
+        # Reset accumulation if board or connector changed
+        if board != self.last_accum_board or selection != self.last_accum_selection:
+            self.udp_accum0 = None
+            self.udp_accum1 = None
+            self.udp_line0 = None
+            self.udp_line1 = None
+            self.last_accum_board = board
+            self.last_accum_selection = selection
+            self._accum_event_count = 0
+            ax.cla()
+
+        ch0 = self.udp_ch0.copy()
+        ch1 = self.udp_ch1.copy()
+
+        # Apply pedestal subtraction if enabled
+        if self.calib_df is not None and self.subtract_pedestal.isChecked():
+            if selection == "J7":
+                ped = self.calib_df[self.calib_df["name"] == 2 * int(board)]["pedestal"].to_numpy()
+                if len(ped) == len(ch0):
+                    ch0 = ch0 - ped
+            else:
+                ped = self.calib_df[self.calib_df["name"] == 2 * int(board) + 1]["pedestal"].to_numpy()
+                if len(ped) == len(ch1):
+                    ch1 = ch1 - ped
+
+        x = np.arange(640)
+
+        if accumulate:
+            if selection == "J7":
+                self.udp_accum0 = ch0 if self.udp_accum0 is None else self.udp_accum0 + ch0
+                data = self.udp_accum0
+            else:
+                self.udp_accum1 = ch1 if self.udp_accum1 is None else self.udp_accum1 + ch1
+                data = self.udp_accum1
+
+            self._accum_event_count += 1
+
+            if self._accum_event_count % self._accum_update_interval == 0:
+                ax.cla()
+                ax.bar(x, data, width=1.0, align="center", color="steelblue", linewidth=0)
+                ax.set_xlabel("Channel")
+                ax.set_ylabel("Accumulated ADC sum")
+                ax.set_title(f"UDP Accumulated {self.udp_event_id} events ({selection}, Board {board})")
+                ax.set_xticks(np.arange(0, 640, 64))
+                ax.grid(True, alpha=0.2)
+                self.udp_line0 = None
+                self.udp_line1 = None
+
+            else:
+                self.udp_pending = False
+                return
+
+        else:
+            # Single-event line plot
+            if self.udp_line0 is None or self.udp_line1 is None:
+                self.udp_line0, = ax.plot(x, np.zeros(640), label=f"Board {board} J7")
+                self.udp_line1, = ax.plot(x, np.zeros(640), label=f"Board {board} J5")
+                ax.set_xlabel("Channel")
+                ax.set_ylabel("ADC count")
+                ax.set_xticks(np.arange(0, 640, 64))
+                ax.grid(True, alpha=0.2)
+
+            if selection == "J7":
+                self.udp_line0.set_data(x, ch0)
+                self.udp_line1.set_data(x, np.zeros(640))
+                self.udp_line0.set_visible(True)
+                self.udp_line1.set_visible(False)
+                ax.set_title(f"UDP Event {self.udp_event_id} (J7)")
+            else:
+                self.udp_line0.set_data(x, np.zeros(640))
+                self.udp_line1.set_data(x, ch1)
+                self.udp_line0.set_visible(False)
+                self.udp_line1.set_visible(True)
+                ax.set_title(f"UDP Event {self.udp_event_id} (J5)")
+
+        # Axis limits
+        xmin = self.xmin_input.text()
+        xmax = self.xmax_input.text()
+        ymin = self.ymin_input.text()
+        ymax = self.ymax_input.text()
+
+        ax.set_xlim(float(xmin) if xmin else 0, float(xmax) if xmax else 639)
+        ax.set_ylim(float(ymin) if ymin else -200, float(ymax) if ymax else 500)
+
+        self.canvas.draw_idle()
+        self.udp_pending = False
+
+    def redraw_if_pending(self):
         if not self.udp_pending:
             return
 
