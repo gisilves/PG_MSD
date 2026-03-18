@@ -23,26 +23,35 @@ Requirements:
 
 ## Scripts overview
 
-Settings are read from a JSON (e.g., `json/ev-settings.json`) with `inputDirectory` and `outputDirectory`.
+### Individual run analysis
 
-On lxplus (recommended), all dependencies are available when sourcing the environment via `scripts/init.sh`, which is invoked by the other scripts; you usually don't need to run it manually.
+- **runAna.sh**
+	- Main script: convert, calibrate (if needed), and analyze run(s).
+	- Calibration policy: use the most recent previous CAL run's `.cal`; if none, search forward; if current run is CAL, use its own `.cal`.
+	- Handles BEAM and CAL run types automatically.
+	- Usage: `./scripts/runAna.sh -f <run_number> -j json/ev-settings.json [-s <sigma_threshold>]`
 
-- analyze.sh
-	- Batch convert, calibrate (if needed), and analyze run(s).
-	- Calibration policy: use the most recent previous CAL run’s `.cal`; if none, use the nearest later CAL; if the current run is CAL, use its own `.cal`.
-  - Thin wrapper delegating to `analyzeRun.sh`.
+- **bmRawToRootConverter.sh**
+	- Convert `.dat` to ROOT only (raw data).
 
-- analyzeRun.sh
-	- Full implementation used by `analyze.sh`.
-
-- bmRawToRootConverter.sh
-	- Convert `.dat` to ROOT only.
-
-- evtDisplay.sh
+- **evtDisplay.sh**
 	- Build and launch the interactive ROOT event display.
 
-- hitsVsSigma.sh
-	- Generate a Hits vs Sigma plot for a run. Similar flags to `analyzeRun.sh`.
+- **hitsVsSigma.sh**
+	- Generate a Hits vs Sigma plot for a run.
+
+- **runCalibration.sh**
+	- Extract calibration from CAL runs (produces `.cal` file).
+	- Usage: `./scripts/runCalibration.sh -f <first_run> [-l <last_run>] -j json/ev-settings.json`
+
+### Beam run aggregation
+
+- **beamReports.sh**
+	- Aggregates BEAM runs by energy condition into grouped ROOT files.
+	- Calls `groupBeam` to read all `*_clusters.root` files and group by timestamp and beam energy from `parameters/beam_settings.dat`.
+	- Outputs `*GeV.root` files (one per unique energy condition).
+	- Generates SPS-mode reports for each grouped beam file.
+	- Usage: `./scripts/beamReports.sh -j json/ev-settings.json`
 
 ## Apps
 
@@ -56,7 +65,7 @@ On lxplus (recommended), all dependencies are available when sourcing the enviro
 
 Analyze a single run by number:
 ```bash
-./scripts/analyze.sh -f 275 -j json/ev-settings.json
+./scripts/runAna.sh -f 275 -j json/ev-settings.json
 ```
 
 Convert a run by number:
@@ -73,6 +82,19 @@ Hits vs Sigma (sweep 1..15):
 ```bash
 ./scripts/hitsVsSigma.sh -r 275 -j json/ev-settings.json --smin 1 --smax 15 --sstep 1
 ```
+
+### Beam run aggregation workflow
+
+Once individual BEAM runs have been analyzed with `runAna.sh`, aggregate them by beam energy:
+
+```bash
+./scripts/beamReports.sh -j json/ev-settings.json
+```
+
+This:
+1. Groups all `*_BEAM_*_clusters.root` files by energy condition (from `parameters/beam_settings.dat`).
+2. Outputs one ROOT file per energy (e.g., `+1.0GeV.root`, `+3.0GeV.root`).
+3. Generates SPS-mode reports for each grouped beam file.
 
 ## Notes
 
@@ -100,6 +122,73 @@ What’s new (Sept 2025):
 Additional notes:
 - Scatter‑only reconstructed‑center pages for exactly‑3 and 2‑or‑3 clusters remain available; empty graphs are safely skipped.
 - Geometry plane offsets come from `parameters/geometry.json` and can be tuned as needed.
+
+## Data processing pipeline
+
+### Run types
+
+Runs are classified by filename:
+
+- **BEAM runs** (contain `_BEAM_` in filename): Physics data with beam passing through detector. Analysis:
+  - Convert raw `.dat` to ROOT (calibration applied from previous CAL run).
+  - Cluster hits above threshold.
+  - Generate per-run PDF reports.
+  - Output: `*_converted.root`, `*_formatted.root`, `*_clusters.root`, `*_report.pdf`.
+
+- **CAL runs** (contain `CAL` in filename): Calibration runs. Analysis:
+  - Convert raw `.dat` to ROOT via `PAPERO_convert`.
+  - Extract per-channel baseline and noise (sigma) via `calibration` app.
+  - Output: `*.cal` file (used for subsequent BEAM runs).
+  - Can be done manually via `runCalibration.sh` or automatically by `runAna.sh` when processing CAL runs.
+
+### Processing steps for BEAM runs
+
+When running `./scripts/runAna.sh -f <run_number> -j settings.json`:
+
+1. **Conversion**: `flat_convert` converts raw `.dat` to ROOT with channels reorganized into detector planes.
+   - Input: raw `.dat` file
+   - Calibration: uses `.cal` file from preceding CAL run
+   - Output: `*_converted.root`
+
+2. **Formatting**: `formatting` applies calibration offsets and reformats for clustering.
+   - Input: `*_converted.root`, `.cal` file
+   - Output: `*_formatted.root`
+
+3. **Clustering**: `clustering` groups adjacent hits above threshold (sigma).
+   - Input: `*_formatted.root`, sigma threshold (default 5σ, configurable)
+   - Output: `*_clusters.root` (cluster metadata + waveform data)
+
+4. **Report**: `runReport` generates PDF summary with histograms, heatmaps, tracking plots.
+   - Input: `*_clusters.root`
+   - Output: `*_report.pdf`
+
+### Beam aggregation (SPS mode)
+
+Once individual BEAM runs are analyzed, `./scripts/beamReports.sh` aggregates them:
+
+1. **Grouping** (`groupBeam`):
+   - Reads all `*_BEAM_*_clusters.root` files.
+   - Matches events by timestamp to `parameters/beam_settings.dat`.
+   - Groups events into buckets by beam energy (e.g., all +1.0 GeV runs together).
+   - Filters out problematic runs (hardcoded blacklist in code).
+   - Validates cluster data (rejects oversized or NaN values).
+   - Output: `+1.0GeV.root`, `+3.0GeV.root`, etc. (one file per energy condition).
+
+2. **SPS Reports** (`runReport --sps-run`):
+   - Runs per grouped file to produce aggregated energy-specific PDFs.
+   - Output: `*GeV_report.pdf`
+
+### Beam settings configuration
+
+`parameters/beam_settings.dat` maps time windows to beam energies. Format (pipe-delimited):
+
+```
+Date       | Time  | Energy | Target   | Cherenkov | Collimator | Details
+2025-08-11 | 16:24 | +1.0   | -        | -         | -          | -
+```
+
+The `groupBeam` app uses this to classify events by energy even if filename doesn't distinguish.
+
 
 ## Configuration
 

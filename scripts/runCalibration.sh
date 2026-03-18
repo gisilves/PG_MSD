@@ -102,20 +102,33 @@ do
     fileName=$(basename "$filePath")
     fileName=${fileName%.*}
     calFile="${outputDirectory}/${fileName}.cal"
+    rootFile="${outputDirectory}/${fileName}.root"
 
     if [ -f "$calFile" ]; then
         echo "Calibration file $calFile already exists. Skipping."
         continue
     fi
 
-    # Run PAPERO_convert
-    papero_command="./PAPERO_convert ${filePath} ${calFile} --dune"
+    # Run PAPERO_convert to convert .dat to ROOT
+    papero_command="./PAPERO_convert ${filePath} ${rootFile} --dune"
     echo "Executing command: $papero_command"
     $papero_command
     if [ $? -ne 0 ]; then
         echo "Error: PAPERO_convert failed for run ${runit}."
         continue
     fi
+
+    # Extract calibration from ROOT file
+    extract_calibration="./calibration ${rootFile} --output ${outputDirectory}/${fileName} --dune --fast"
+    echo "Executing command: $extract_calibration"
+    $extract_calibration
+    if [ $? -ne 0 ]; then
+        echo "Error: calibration failed for run ${runit}."
+        continue
+    fi
+
+    # Clean up intermediate ROOT file
+    rm -f "$rootFile"
 
     echo "Calibration extracted for run $runit"
 done
