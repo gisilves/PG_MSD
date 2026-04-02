@@ -62,9 +62,5 @@ raw_viewer:
 
 clean:
 	rm -f $(TARGETS) raw_viewer
-	rm -f guiDict.cpp guiDict_rdict.pcm
-
-clean_all:
-	rm -f $(TARGETS) raw_viewer
 	rm -rf $(OBJ)
 	rm -f guiDict.cpp guiDict_rdict.pcm
