@@ -12,50 +12,6 @@
 
 #define max_detectors 16
 
-template <typename T>
-void print(std::vector<T> const &v)
-{
-    for (auto i : v)
-    {
-        std::cout << std::hex << i << ' ' << std::endl;
-    }
-    std::cout << '\n';
-}
-
-template <typename T>
-std::vector<T> reorder(std::vector<T> const &v)
-{
-    std::vector<T> reordered_vec(v.size());
-    int j = 0;
-    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8};
-    for (int ch = 0; ch < 128; ch++)
-    {
-        for (int adc : order)
-        {
-            reordered_vec.at(adc * 128 + ch) = v.at(j);
-            j++;
-        }
-    }
-    return reordered_vec;
-}
-
-template <typename T>
-std::vector<T> reorder_DAMPE(std::vector<T> const &v)
-{
-    std::vector<T> reordered_vec(v.size());
-    int j = 0;
-    constexpr int order[] = {1, 0};
-    for (int ch = 0; ch < 192; ch++)
-    {
-        for (int adc : order)
-        {
-            reordered_vec.at(adc * 192 + ch) = v.at(j);
-            j++;
-        }
-    }
-    return reordered_vec;
-}
-
 int main(int argc, char *argv[])
 {
     CLI::App app{"PAPERO_convert"};

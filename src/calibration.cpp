@@ -8,6 +8,7 @@
 #include "TCanvas.h"
 #include "TLatex.h"
 #include "TPDF.h"
+#include "TMath.h"
 #include <iostream>
 #include <algorithm>
 #include <numeric>
@@ -16,13 +17,31 @@
 #include "TKey.h"
 #include "TPaveText.h"
 #include "event.h"
+#include "PAPERO.h"
 
 #include <CLI/CLI.hpp>
 
-int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1, 
-                        float sigmaraw_cut = 3, float sigma_cut = 6, 
-                        int board = 0, int side = 0, bool pdf_only = false, bool fast = true, 
-                        bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1, 
+#include <cstdio>
+#include <unistd.h>
+#include <map>
+
+double MAD(const std::vector<float> *v)
+{
+  std::vector<float> tmp = *v;
+  const float med = TMath::Median(tmp.size(), tmp.data());
+
+  std::vector<float> absdev;
+  absdev.reserve(tmp.size());
+  for (float x : tmp)
+    absdev.push_back(std::abs(x - med));
+
+  return TMath::Median(absdev.size(), absdev.data());
+}
+
+int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
+                        float sigmaraw_cut = 3, float sigma_cut = 6,
+                        int board = 0, int side = 0, bool pdf_only = false, bool fast = true,
+                        bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1,
                         bool shoeCN = false, double cn_threshold = 4.5)
 {
   TFile *foutput;
@@ -98,13 +117,19 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
 
   std::vector<float> pedestals[NChannels];
   float mean_pedestal = 0;
+  float median_pedestal = 0;
   float rms_pedestal = 0;
+  float mad_pedestal = 0;
   std::vector<float> rsigma[NChannels];
   float mean_rsigma = 0;
+  float median_rsigma = 0;
   float rms_rsigma = 0;
+  float mad_rsigma = 0;
   std::vector<float> sigma[NChannels];
   float mean_sigma = 0;
+  float median_sigma = 0;
   float rms_sigma = 0;
+  float mad_sigma = 0;
   float max_sigma = 0;
 
   char name[100];
@@ -245,22 +270,21 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     }
   }
 
-  mean_pedestal = std::accumulate(pedestals->begin(), pedestals->end(), 0.0) / pedestals->size();
+  mean_pedestal = TMath::Mean(pedestals->begin(), pedestals->end());
+  rms_pedestal = TMath::RMS(pedestals->begin(), pedestals->end());
+  median_pedestal = TMath::Median(pedestals->size(), pedestals->data());
+  mad_pedestal = MAD(pedestals);
 
   float num_ped = 0;
   for (int i = 0; i < pedestals->size(); i++)
   {
     num_ped += pow(pedestals->at(i) - mean_pedestal, 2);
   }
-  rms_pedestal = std::sqrt(num_ped / pedestals->size());
 
-  mean_rsigma = std::accumulate(rsigma->begin(), rsigma->end(), 0.0) / rsigma->size();
-  float num_rsigma = 0;
-  for (int i = 0; i < rsigma->size(); i++)
-  {
-    num_rsigma += pow(rsigma->at(i) - mean_rsigma, 2);
-  }
-  rms_rsigma = std::sqrt(num_rsigma / rsigma->size());
+  mean_rsigma = TMath::Mean(rsigma->begin(), rsigma->end());
+  rms_rsigma = TMath::RMS(rsigma->begin(), rsigma->end());
+  median_rsigma = TMath::Median(rsigma->size(), rsigma->data());
+  mad_rsigma = MAD(rsigma);
 
   gr->GetXaxis()->SetTitle("channel");
   TAxis *axis = gr->GetXaxis();
@@ -275,7 +299,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   TAxis *axis2 = gr2->GetXaxis();
   axis2->SetLimits(0, NChannels);
   axis2->SetNdivisions(NVas, false);
-  if(max_ADC != -1)
+  if (max_ADC != -1)
   {
     TAxis *axis2y = gr2->GetYaxis();
     axis2y->SetRangeUser(0, max_ADC);
@@ -307,7 +331,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
           cn = GetCN(&signal, va, 0);
         }
         else
-        { 
+        {
           std::vector<float> vaContent;
           for (int i = 0; i < 64; i++)
           {
@@ -406,8 +430,10 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
       }
     }
   }
-  mean_sigma = std::accumulate(sigma->begin(), sigma->end(), 0.0) / sigma->size();
-  rms_sigma = std::sqrt(std::inner_product(sigma->begin(), sigma->end(), sigma->begin(), 0.0) / sigma->size());
+  mean_sigma = TMath::Mean(sigma->begin(), sigma->end());
+  rms_sigma = TMath::RMS(sigma->begin(), sigma->end());
+  median_sigma = TMath::Median(sigma->size(), sigma->data());
+  mad_sigma = MAD(sigma);
 
   if (!std::isnan(mean_sigma))
   {
@@ -428,7 +454,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   TAxis *axis3 = gr3->GetXaxis();
   axis3->SetLimits(0, NChannels);
   axis3->SetNdivisions(NVas, false);
-  if(max_ADC != -1)
+  if (max_ADC != -1)
   {
     TAxis *axis3y = gr3->GetYaxis();
     axis3y->SetRangeUser(0, max_ADC);
@@ -443,9 +469,13 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   TPaveText *pt = new TPaveText(.05, .1, .95, .8);
 
   pt->AddText(Form("Pedestal mean value: %f \t Pedestal RMS value: %f", mean_pedestal, rms_pedestal));
+  pt->AddText(Form("Pedestal median value: %f \t Pedestal MAD value: %f", median_pedestal, mad_pedestal));
   pt->AddText(Form("Raw sigma mean value: %f \t Raw sigma RMS value: %f", mean_rsigma, rms_rsigma));
+  pt->AddText(Form("Raw sigma median value: %f \t Raw sigma MAD value: %f", median_rsigma, mad_rsigma));
   pt->AddText(Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
+  pt->AddText(Form("Sigma median value: %f \t Sigma MAD value: %f", median_sigma, mad_sigma));
   pt->AddText("Calibration file " + output_filename);
+  pt->AddText(Form("Detector: %d", 2 * board + side));
   pt->AddText(Form("Board: %i \t Side: %i", board, side));
   pt->Draw();
 
@@ -463,11 +493,14 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     c1.Print(output_filename + ".pdf", "pdf");
   }
 
-  std::cout << "\tMean pedestal \t Mean RSigma \t Mean Sigma \t Max Sigma " << std::endl;
-  std::cout << Form("\t%f \t %f \t %f \t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << std::endl;
-  std::cout << "\tRMS pedestal \t RMS RSigma \t RMS Sigma " << std::endl;
-  std::cout << Form("\t%f \t %f \t %f", rms_pedestal, rms_rsigma, rms_sigma) << std::endl;
-
+  std::cout << "\tMean pedestal \t\t Mean RSigma \t\t Mean Sigma \t\t Max Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f \t\t %f", mean_pedestal, mean_rsigma, mean_sigma, max_sigma) << std::endl;
+  std::cout << "\tRMS pedestal \t\t RMS RSigma \t\t RMS Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f", rms_pedestal, rms_rsigma, rms_sigma) << std::endl;
+  std::cout << "\tMedian pedestal \t Median RSigma \t\t Median Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f", median_pedestal, median_rsigma, median_sigma) << std::endl;
+  std::cout << "\tMAD pedestal \t\t MAD RSigma \t\t MAD Sigma " << std::endl;
+  std::cout << Form("\t%f \t\t %f \t\t %f", mad_pedestal, mad_rsigma, mad_sigma) << std::endl;
   if (!pdf_only)
   {
     calfile.close();
@@ -480,98 +513,317 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   return 0;
 }
 
+std::string convert_raw_to_temp_root(const std::string &input_file, int boards, bool gsi, bool verbose)
+{
+  char tmp_template[] = "/tmp/papero_tmp_XXXXXX";
+  int tmp_fd = mkstemp(tmp_template);
+  if (tmp_fd == -1)
+  {
+    std::cerr << "ERROR: could not create temp file" << std::endl;
+    return "";
+  }
+  ::close(tmp_fd);
+  ::unlink(tmp_template); // unlink the temp file so that it can be overwritten by ROOT
+  std::string tmp_root = std::string(tmp_template) + ".root";
+
+  std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
+  if (file.fail())
+  {
+    std::cerr << "ERROR: can't open raw input file: " << input_file << std::endl;
+    return "";
+  }
+
+  constexpr int max_detectors = 16;
+  std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
+
+  TFile *foutput = new TFile(tmp_root.c_str(), "RECREATE", "PAPERO tmp");
+  foutput->cd();
+  foutput->SetCompressionLevel(3);
+
+  std::vector<TTree *> raw_events_tree(max_detectors);
+  std::vector<std::vector<uint32_t>> raw_event_vector(max_detectors);
+  TString ttree_name;
+
+  for (int detector = 0; detector < max_detectors; detector++)
+  {
+    if (detector == 0)
+    {
+      raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
+      raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
+    }
+    else
+    {
+      ttree_name = (TString) "raw_events_" + alphabet.at(detector);
+      raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+      if (detector % 2)
+        raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
+      else
+        raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
+    }
+    raw_events_tree.at(detector)->SetAutoSave(0);
+  }
+
+  uint32_t offset = 0;
+  std::map<uint16_t, int> detector_ids_map;
+  std::vector<uint16_t> detector_ids;
+  bool is_new_format = false;
+
+  bool new_format = seek_file_header(file, offset, verbose);
+  if (new_format)
+  {
+    is_new_format = true;
+    auto file_ret = read_file_header(file, offset, verbose);
+    boards = std::get<5>(file_ret);
+    detector_ids = std::get<6>(file_ret);
+    for (size_t i = 0; i < detector_ids.size(); i++)
+      detector_ids_map[detector_ids.at(i)] = i;
+    uint32_t old_offset = std::get<7>(file_ret);
+    offset = seek_first_evt_header(file, old_offset, verbose);
+  }
+  else
+  {
+    if (boards == 0)
+    {
+      std::cerr << "ERROR: raw file has no header — pass --boards N" << std::endl;
+      foutput->Close();
+      std::remove(tmp_root.c_str());
+      return "";
+    }
+    offset = seek_first_evt_header(file, 0, verbose);
+  }
+
+  int evtnum = 0;
+  int boards_read = 0;
+  int padding_offset = 0;
+  std::vector<uint32_t> raw_event_buffer;
+
+  while (!file.eof())
+  {
+    auto maka_ret = read_evt_header(file, offset, verbose);
+    if (!std::get<0>(maka_ret))
+      break;
+
+    offset = std::get<7>(maka_ret);
+    for (size_t de10 = 0; de10 < std::get<4>(maka_ret); de10++)
+    {
+      auto de10_ret = read_de10_header(file, offset, verbose);
+      if (!std::get<0>(de10_ret))
+        break;
+
+      boards_read++;
+      int evt_size = std::get<1>(de10_ret);
+      uint32_t fw_version = std::get<2>(de10_ret);
+      int board_id = std::get<4>(de10_ret);
+      offset = std::get<8>(de10_ret);
+
+      std::cout << "\r\t[raw convert] event " << evtnum << std::flush;
+
+      if (fw_version == 0x9fd68b40)
+      {
+        padding_offset = 1024;
+        board_id -= 300;
+        raw_event_buffer = reorder_DAMPE(read_event(file, offset, evt_size, verbose, false));
+      }
+      else
+      {
+        padding_offset = 0;
+        raw_event_buffer = reorder(read_event(file, offset, evt_size, verbose, false));
+      }
+
+      int det_idx = is_new_format ? detector_ids_map.at(board_id) : board_id;
+
+      if (!gsi)
+      {
+        raw_event_vector.at(2 * det_idx).assign(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+        raw_event_vector.at(2 * det_idx + 1).assign(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
+        raw_events_tree.at(2 * det_idx)->Fill();
+        raw_events_tree.at(2 * det_idx + 1)->Fill();
+      }
+      else
+      {
+        for (int hole = 1; hole <= 10; hole++)
+          raw_event_buffer.erase(raw_event_buffer.begin() + hole * 64,
+                                 raw_event_buffer.begin() + (hole + 1) * 64);
+        raw_event_vector.at(2 * det_idx).assign(raw_event_buffer.begin(), raw_event_buffer.end());
+        raw_events_tree.at(2 * det_idx)->Fill();
+      }
+
+      offset += evt_size * 4 + 8 + 36;
+    }
+    boards_read = 0;
+    evtnum++;
+  }
+
+  std::cout << "\n\t[raw convert] " << evtnum << " events converted" << std::endl;
+
+  int filled = 0;
+  for (int detector = 0; detector < max_detectors; detector++)
+  {
+    if (raw_events_tree.at(detector)->GetEntries())
+    {
+      if (filled == 0)
+      {
+        raw_events_tree.at(detector)->SetName("raw_events");
+        raw_events_tree.at(detector)->SetTitle("raw_events");
+      }
+      else
+      {
+        std::string name = "raw_events_" + alphabet.substr(filled, 1);
+        raw_events_tree.at(detector)->SetName(name.c_str());
+        raw_events_tree.at(detector)->SetTitle(name.c_str());
+      }
+      raw_events_tree.at(detector)->Write();
+      filled++;
+    }
+  }
+
+  foutput->Close();
+  file.close();
+  return tmp_root;
+}
+
 int main(int argc, char *argv[])
 {
-    gErrorIgnoreLevel = kWarning;
+  gErrorIgnoreLevel = kWarning;
 
-    CLI::App app{"calibration"};
+  CLI::App app{"calibration"};
 
-    bool verb = false;
-    bool pdf_only = false;
-    bool fast_mode = false;
-    bool fit_mode = false;
-    bool multiple = false;
-    int max_ADC = -1;
-    bool shoeCN = false;
-    double cn_threshold = 4.5;
-    int cntype = 0;
-    std::string output_filename;
-    std::vector<std::string> input_files;
+  bool verb = false;
+  bool pdf_only = false;
+  bool fast_mode = false;
+  bool fit_mode = false;
+  bool multiple = false;
+  bool raw_input = false;
+  bool gsi = false;
+  int boards = 0;
+  int max_ADC = -1;
+  bool shoeCN = false;
+  double cn_threshold = 4.5;
+  int cntype = 0;
+  std::string output_filename;
+  std::vector<std::string> input_files;
 
-    app.add_flag("-v,--verbose", verb, "Verbose output");
-    app.add_flag("--pdf", pdf_only, "PDF only, no .cal file");
-    app.add_flag("--fast", fast_mode, "No info prompt");
-    app.add_flag("--fit", fit_mode, "Compute calibration parameters with gaussian fits");
-    app.add_flag("-m,--multiple", multiple, "Save calibrations in multiple .cal files");
-    app.add_flag("--shoeCN", shoeCN, "Use SHOE CN algorithm");
-    app.add_option("--threshold", cn_threshold, "Threshold for SHOE CN algorithm");
-    app.add_option("--cn", cntype, "CN algorithm selection (0,1,2)");
-    app.add_option("--max_ADC", max_ADC, "Maximum ADC value for noise plots");
-    app.add_option("--output", output_filename, "Output .cal file")->required();
-    app.add_option("input_files", input_files, "Input ROOT files")->required()->expected(-1);
+  app.add_flag("-v,--verbose", verb, "Verbose output");
+  app.add_flag("--pdf", pdf_only, "PDF only, no .cal file");
+  app.add_flag("--fast", fast_mode, "No info prompt");
+  app.add_flag("--fit", fit_mode, "Compute calibration parameters with gaussian fits");
+  app.add_flag("-m,--multiple", multiple, "Save calibrations in multiple .cal files");
+  app.add_flag("--shoeCN", shoeCN, "Use SHOE CN algorithm");
 
-    CLI11_PARSE(app, argc, argv);
+  auto group = app.add_option_group("Raw input options");
+  group->add_flag("--raw", raw_input, "Input files are PAPERO raw binary files (converted on-the-fly)");
+  group->add_flag("--gsi", gsi, "Raw input: GSI hybrid format (10 ADC per detector)");
+  group->add_option("--boards", boards, "Raw input: number of DE10Nano boards (required for old format)");
 
-    bool single_file = !multiple;
+  app.add_option("--threshold", cn_threshold, "Threshold for SHOE CN algorithm");
+  app.add_option("--cn", cntype, "CN algorithm selection (0,1,2)");
+  app.add_option("--max_ADC", max_ADC, "Maximum ADC value for noise plots");
+  app.add_option("--output", output_filename, "Output .cal file")->required();
+  app.add_option("input_files", input_files, "Input ROOT files (or raw files with --raw)")->required()->expected(-1);
 
-    TChain *chain = new TChain("raw_events");
-    for (auto const &f : input_files) {
-        std::cout << "\nAdding file " << f << " to the chain..." << std::endl;
-        chain->Add(f.c_str());
+  CLI11_PARSE(app, argc, argv);
+
+  std::vector<std::string> tmp_files_to_delete;
+  if (raw_input)
+  {
+    std::vector<std::string> converted;
+    for (auto const &f : input_files)
+    {
+      std::cout << "\nConverting raw file: " << f << std::endl;
+      std::string tmp = convert_raw_to_temp_root(f, boards, gsi, verb);
+      if (tmp.empty())
+      {
+        std::cerr << "ERROR: conversion failed for " << f << std::endl;
+        // Clean up already converted temp files before exit
+        for (auto const &t : tmp_files_to_delete)
+          std::remove(t.c_str());
+        return 2;
+      }
+      converted.push_back(tmp);
+      tmp_files_to_delete.push_back(tmp);
     }
+    input_files = converted;
+  }
 
-    if (single_file && std::ifstream(output_filename + ".cal")) {
-        remove((output_filename + ".cal").c_str());
+  bool single_file = !multiple;
+
+  TChain *chain = new TChain("raw_events");
+  for (auto const &f : input_files)
+  {
+    std::cout << "\nAdding file " << f << " to the chain..." << std::endl;
+    chain->Add(f.c_str());
+  }
+
+  if (single_file && std::ifstream(output_filename + ".cal"))
+  {
+    remove((output_filename + ".cal").c_str());
+  }
+
+  TCanvas *c1 = new TCanvas("calibration", "Canvas", 1920, 1080);
+  c1->Divide(2, 2);
+
+  TFile tempfile(input_files[0].c_str());
+  TIter list(tempfile.GetListOfKeys());
+  TKey *key;
+  int detectors = 0;
+  while ((key = (TKey *)list()))
+  {
+    if (!strcmp(key->GetClassName(), "TTree"))
+    {
+      detectors++;
     }
+  }
+  std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
-    TCanvas *c1 = new TCanvas("calibration", "Canvas", 1920, 1080);
-    c1->Divide(2, 2);
+  bool newDAQ = true;
+  if (detectors == 1)
+    newDAQ = false;
 
-    TFile tempfile(input_files[0].c_str());
-    TIter list(tempfile.GetListOfKeys());
-    TKey *key;
-    int detectors = 0;
-    while ((key = (TKey *)list())) {
-        if (!strcmp(key->GetClassName(), "TTree")) {
-            detectors++;
+  if (!newDAQ)
+  {
+    compute_calibration(*chain, output_filename, *c1,
+                        /*sigmaraw_cut*/ 15, /*sigma_cut*/ 10,
+                        /*board*/ 0, /*side*/ 0,
+                        pdf_only, fast_mode, fit_mode,
+                        single_file, true,
+                        max_ADC, shoeCN, cn_threshold);
+  }
+  else
+  {
+    std::cout << "\nNEW DAQ FILE" << std::endl;
+    TIter list2(tempfile.GetListOfKeys());
+    int detector_num = 0;
+    int ladder_side = 0;
+    while ((key = (TKey *)list2()))
+    {
+      if (!strcmp(key->GetClassName(), "TTree"))
+      {
+        TChain *chain2 = new TChain(key->GetName());
+        for (auto const &f : input_files)
+        {
+          chain2->Add(f.c_str());
         }
-    }
-    std::cout << "File with " << detectors << " detector(s)" << std::endl;
-
-    bool newDAQ = true;
-    if (detectors == 1) newDAQ = false;
-
-    if (!newDAQ) {
-        compute_calibration(*chain, output_filename, *c1,
-                            /*sigmaraw_cut*/15, /*sigma_cut*/10,
-                            /*board*/0, /*side*/0,
+        bool last = (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1);
+        compute_calibration(*chain2, output_filename, *c1,
+                            /*sigmaraw_cut*/ 15, /*sigma_cut*/ 10,
+                            detector_num / 2, ladder_side,
                             pdf_only, fast_mode, fit_mode,
-                            single_file, true,
+                            single_file, last,
                             max_ADC, shoeCN, cn_threshold);
-    } else {
-        std::cout << "\nNEW DAQ FILE" << std::endl;
-        TIter list2(tempfile.GetListOfKeys());
-        int detector_num = 0;
-        int ladder_side = 0;
-        while ((key = (TKey *)list2())) {
-            if (!strcmp(key->GetClassName(), "TTree")) {
-                TChain *chain2 = new TChain(key->GetName());
-                for (auto const &f : input_files) {
-                    chain2->Add(f.c_str());
-                }
-                bool last = (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1);
-                compute_calibration(*chain2, output_filename, *c1,
-                                    /*sigmaraw_cut*/15, /*sigma_cut*/10,
-                                    detector_num / 2, ladder_side,
-                                    pdf_only, fast_mode, fit_mode,
-                                    single_file, last,
-                                    max_ADC, shoeCN, cn_threshold);
-                detector_num++;
-                ladder_side = 1 - ladder_side;
-            }
-        }
-        tempfile.Close();
+        detector_num++;
+        ladder_side = 1 - ladder_side;
+      }
     }
+    tempfile.Close();
+  }
 
-    return 0;
+  // Delete temp ROOT files produced from raw conversion
+  for (auto const &t : tmp_files_to_delete)
+  {
+    std::remove(t.c_str());
+    if (verb)
+      std::cout << "Deleted temp file: " << t << std::endl;
+  }
+
+  return 0;
 }

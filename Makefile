@@ -56,7 +56,7 @@ raw_cn: $(OBJ)/raw_cn.o $(OBJ)/event.o
 raw_threshold_scan: $(OBJ)/raw_threshold_scan.o $(OBJ)/event.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-calibration: $(OBJ)/calibration.o $(OBJ)/event.o
+calibration: $(OBJ)/calibration.o $(OBJ)/event.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 readOM: $(OBJ)/readOM.o $(OBJ)/udpSocket.o
