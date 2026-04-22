@@ -21,6 +21,13 @@ Software for Microstrip Silicon Detectors data analysis
 
 - **ASTRA_info:** to retrieve info from PAPERO event headers
 
+*HERD_HEF branch*
+
+- **HEF_convert:** to compress binary raw data into rootfiles
+
+- **HEF_info:** to retrieve info from PAPERO event headers
+
+
 *Common to main and PAPERO branch*
 
 - **PAPERO_convert:** to compress binary raw data into rootfiles
