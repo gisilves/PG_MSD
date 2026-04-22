@@ -10,7 +10,7 @@ OBJ      := ./obj
 CLI11_DIR ?= third_party/CLI11/include
 
 CFLAGS   := $(shell root-config --cflags) -g -fPIC -pthread \
-            -I$(ROOTSYS)/include -I$(CLI11_DIR)
+            -I$(ROOTSYS)/include -I$(CLI11_DIR) -Wvla
 LDFLAGS  := $(shell root-config --glibs)
 OPTFLAGS := -O3
 
@@ -73,7 +73,6 @@ bias_control:
 bias_controlPI:
 	$(ROOTCLING) -f guiDict.cpp $(SRC)/biascontrolPI.h $(SRC)/guiLinkDef.h
 	$(CXX) $(CFLAGS) $(OPTFLAGS) $(SRC)/biascontrolPI.cpp guiDict.cpp -o $@ $(LDFLAGS)
-
 
 clean:
 	rm -f $(TARGETS) raw_viewer
