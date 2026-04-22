@@ -10,7 +10,7 @@ OBJ      := ./obj
 CLI11_DIR ?= third_party/CLI11/include
 
 CFLAGS   := $(shell root-config --cflags) -g -fPIC -pthread \
-            -I$(ROOTSYS)/include -I$(CLI11_DIR)
+            -I$(ROOTSYS)/include -I$(CLI11_DIR) -Wvla
 LDFLAGS  := $(shell root-config --glibs)
 OPTFLAGS := -O3
 
