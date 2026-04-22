@@ -539,6 +539,7 @@ std::string convert_raw_to_temp_root(const std::string &input_file, int boards, 
   TFile *foutput = new TFile(tmp_root.c_str(), "RECREATE", "PAPERO tmp");
   foutput->cd();
   foutput->SetCompressionLevel(3);
+  foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EDefaults::kUseGeneralPurpose);
 
   std::vector<TTree *> raw_events_tree(max_detectors);
   std::vector<std::vector<uint32_t>> raw_event_vector(max_detectors);
