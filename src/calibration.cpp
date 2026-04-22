@@ -544,23 +544,13 @@ std::string convert_raw_to_temp_root(const std::string &input_file, int boards, 
   std::vector<std::vector<uint32_t>> raw_event_vector(max_detectors);
   TString ttree_name;
 
-  for (int detector = 0; detector < max_detectors; detector++)
+  for (size_t detector = 0; detector < max_detectors; detector++)
   {
-    if (detector == 0)
-    {
-      raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
-      raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-    }
-    else
-    {
-      ttree_name = (TString) "raw_events_" + alphabet.at(detector);
-      raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-      if (detector % 2)
-        raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
-      else
-        raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-    }
-    raw_events_tree.at(detector)->SetAutoSave(0);
+        TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
+        raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+        std::string branch_name = (detector % 2) ? "RAW Event J7" : "RAW Event J5";
+        raw_events_tree.at(detector)->Branch(branch_name.c_str(), &raw_event_vector.at(detector));
+        raw_events_tree.at(detector)->SetAutoSave(0);
   }
 
   uint32_t offset = 0;
