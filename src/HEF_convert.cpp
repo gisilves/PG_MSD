@@ -119,19 +119,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        std::cout << "No file header: assuming old data format" << std::endl;
-        is_new_format = false;
-        offset = 0;
-    }
-
-    if (!is_new_format)
-    {
-        if (boards == 0)
-        {
-            std::cout << "ERROR: you need to provide the number of boards connected" << std::endl;
-            return 2;
-        }
-        offset = seek_first_evt_header(file, 0, verbose);
+        std::cerr << "ERROR: HEF data can only be of new format type, check file" << std::endl;
+        return 2;
     }
 
     if (nevents > 0)
