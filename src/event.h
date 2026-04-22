@@ -55,6 +55,8 @@ int GetClusterVA(cluster clus, calib *cal);
 
 float GetCN(std::vector<float> *signal, int va, int type);
 
+float ComputeCN_ty(std::vector<float> *vaContent, int type, bool debug, double threshold);
+
 float GetClusterSN(cluster clus, calib *cal);
 
 float GetSeedSN(cluster clus, calib *cal);
