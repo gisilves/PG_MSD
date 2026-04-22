@@ -14,7 +14,7 @@
 
 int main(int argc, char *argv[])
 {
-    CLI::App app{"PAPERO_convert"};
+    CLI::App app{"HEF_convert"};
 
     bool verbose = false;
     bool gsi = false;
