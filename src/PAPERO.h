@@ -10,6 +10,33 @@
 #include <unistd.h>
 #include <iostream>
 
+template <typename T>
+void print(std::vector<T> const &v)
+{
+    for (auto i : v)
+        std::cout << std::hex << i << ' ' << std::endl;
+    std::cout << '\n';
+}
+
+template <typename T>
+std::vector<T> reorder(std::vector<T> const &v)
+{
+    int nCH = 32;
+    std::vector<T> reordered_vec(v.size());
+    int j = 0;
+    std::vector<int> order = {1, 0};
+    for (int ch = 0; ch < nCH; ch++)
+        for (int adc = 0; adc < order.size(); adc++)
+            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j++);
+
+    std::vector<bool> mirror = {false, true};
+    for (int adc = 0; adc < order.size(); adc++)
+        if (mirror.at(adc))
+            std::reverse(reordered_vec.begin() + (adc * nCH), reordered_vec.begin() + ((adc + 1) * nCH));
+
+    return reordered_vec;
+}
+
 unsigned int gray_to_uint(unsigned int g, unsigned int bits);
 
 uint64_t seek_first_evt_header(std::fstream &file, uint64_t offset, bool verbose);

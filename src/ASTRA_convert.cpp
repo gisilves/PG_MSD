@@ -16,33 +16,6 @@
 
 #define max_detectors 16
 
-template <typename T>
-void print(std::vector<T> const &v)
-{
-    for (auto i : v)
-        std::cout << std::hex << i << ' ' << std::endl;
-    std::cout << '\n';
-}
-
-template <typename T>
-std::vector<T> reorder(std::vector<T> const &v)
-{
-    int nCH = 32;
-    std::vector<T> reordered_vec(v.size());
-    int j = 0;
-    std::vector<int> order = {1, 0};
-    for (int ch = 0; ch < nCH; ch++)
-        for (int adc = 0; adc < order.size(); adc++)
-            reordered_vec.at(order.at(adc) * nCH + ch) = v.at(j++);
-
-    std::vector<bool> mirror = {false, true};
-    for (int adc = 0; adc < order.size(); adc++)
-        if (mirror.at(adc))
-            std::reverse(reordered_vec.begin() + (adc * nCH), reordered_vec.begin() + ((adc + 1) * nCH));
-
-    return reordered_vec;
-}
-
 int main(int argc, char *argv[])
 {
     CLI::App app{"ASTRA_convert"};
