@@ -513,7 +513,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   return 0;
 }
 
-std::string convert_raw_to_temp_root(const std::string &input_file, int boards, bool gsi, bool verbose)
+std::string convert_raw_to_temp_root(const std::string &input_file, int boards, bool gsi, bool verbose, int nevents)
 {
   char tmp_template[] = "/tmp/papero_tmp_XXXXXX";
   int tmp_fd = mkstemp(tmp_template);
@@ -558,6 +558,11 @@ std::string convert_raw_to_temp_root(const std::string &input_file, int boards, 
   std::map<uint16_t, int> detector_ids_map;
   std::vector<uint16_t> detector_ids;
   bool is_new_format = false;
+
+  if (nevents > 0)
+  {
+    std::cout << "\t[raw convert] converting " << nevents << " events" << std::endl;
+  }
 
   bool new_format = seek_file_header(file, offset, verbose);
   if (new_format)
@@ -643,6 +648,9 @@ std::string convert_raw_to_temp_root(const std::string &input_file, int boards, 
     }
     boards_read = 0;
     evtnum++;
+
+    if (evtnum == nevents)
+      break;
   }
 
   std::cout << "\n\t[raw convert] " << evtnum << " events converted" << std::endl;
@@ -687,6 +695,7 @@ int main(int argc, char *argv[])
   bool raw_input = false;
   bool gsi = false;
   int boards = 0;
+  int nevents = -1;
   int max_ADC = -1;
   bool shoeCN = false;
   double cn_threshold = 4.5;
@@ -705,6 +714,7 @@ int main(int argc, char *argv[])
   group->add_flag("--raw", raw_input, "Input files are PAPERO raw binary files (converted on-the-fly)");
   group->add_flag("--gsi", gsi, "Raw input: GSI hybrid format (10 ADC per detector)");
   group->add_option("--boards", boards, "Raw input: number of DE10Nano boards (required for old format)");
+  group->add_option("--nevents", nevents, "Number of events to be read");
 
   app.add_option("--threshold", cn_threshold, "Threshold for SHOE CN algorithm");
   app.add_option("--cn", cntype, "CN algorithm selection (0,1,2)");
@@ -721,7 +731,7 @@ int main(int argc, char *argv[])
     for (auto const &f : input_files)
     {
       std::cout << "\nConverting raw file: " << f << std::endl;
-      std::string tmp = convert_raw_to_temp_root(f, boards, gsi, verb);
+      std::string tmp = convert_raw_to_temp_root(f, boards, gsi, verb, nevents);
       if (tmp.empty())
       {
         std::cerr << "ERROR: conversion failed for " << f << std::endl;
