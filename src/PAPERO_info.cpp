@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 
     std::string input_file;
     std::string output_file;
-    bool verbose = false;
+    int verbose = 0;
     int boards = 0;
     int nevents = -1;
 

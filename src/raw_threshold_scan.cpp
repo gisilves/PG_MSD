@@ -147,12 +147,12 @@ int main(int argc, char *argv[])
   }
 
   Long64_t entries = chain->GetEntries();
-  printf("This run has %lld entries\n", entries);
+  std::cout << "This run has " << entries << " entries" << std::endl;
 
   if (nevents > 0)
   {
     entries = nevents;
-    printf("Only processing %lld entries\n", entries);
+    std::cout << "Only processing " << entries << " entries" << std::endl;
   }
 
   // Read raw event from input chain TTree

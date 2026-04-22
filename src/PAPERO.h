@@ -13,6 +13,33 @@
 
 // for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
+template <typename T>
+void print(std::vector<T> const &v)
+{
+    for (auto i : v)
+    {
+        std::cout << std::hex << i << ' ' << std::endl;
+    }
+    std::cout << '\n';
+}
+
+template <typename T>
+std::vector<T> reorder(std::vector<T> const &v)
+{
+    std::vector<T> reordered_vec(v.size());
+    int j = 0;
+    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12};
+    for (int ch = 0; ch < 128; ch++)
+    {
+        for (int adc : order)
+        {
+            reordered_vec.at(adc * 128 + ch) = v.at(j);
+            j++;
+        }
+    }
+    return reordered_vec;
+}
+
 bool seek_file_header(std::fstream &file, uint32_t offset, int verbose);
 
 std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> read_file_header(std::fstream &file, uint32_t offset, int verbose);

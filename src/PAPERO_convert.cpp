@@ -12,34 +12,6 @@
 
 #define max_detectors 16
 
-template <typename T>
-void print(std::vector<T> const &v)
-{
-    for (auto i : v)
-    {
-        std::cout << std::hex << i << ' ' << std::endl;
-    }
-    std::cout << '\n';
-}
-
-template <typename T>
-std::vector<T> reorder(std::vector<T> const &v)
-{
-    std::vector<T> reordered_vec(v.size());
-    int j = 0;
-    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12};
-    for (int ch = 0; ch < 128; ch++)
-    {
-        for (int adc : order)
-        {
-            reordered_vec.at(adc * 128 + ch) = v.at(j);
-            j++;
-        }
-    }
-    return reordered_vec;
-}
-
-
 int main(int argc, char *argv[])
 {
     CLI::App app{"PAPERO_convert"};
@@ -76,7 +48,7 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
     foutput->SetCompressionLevel(3);
-    foutput->SetCompressionAlgorithm(ROOT::kZLIB);
+    foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EDefaults::kUseGeneralPurpose);
 
     // Initialize TTree(s)
     std::vector<uint32_t> raw_event_buffer;
@@ -88,26 +60,11 @@ int main(int argc, char *argv[])
 
     for (size_t detector = 0; detector < max_detectors; detector++)
     {
-        if (detector == 0)
-        {
-            raw_events_tree.at(detector) = new TTree("raw_events", "raw_events");
-            raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
-        else
-        {
-            ttree_name = (TString) "raw_events_" + alphabet.at(detector);
-            raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-            if (detector % 2)
-            {
-                raw_events_tree.at(detector)->Branch("RAW Event J7", &raw_event_vector.at(detector));
-            }
-            else
-            {
-                raw_events_tree.at(detector)->Branch("RAW Event J5", &raw_event_vector.at(detector));
-            }
-            raw_events_tree.at(detector)->SetAutoSave(0);
-        }
+        TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
+        raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
+        std::string branch_name = (detector % 2) ? "RAW Event J7" : "RAW Event J5";
+        raw_events_tree.at(detector)->Branch(branch_name.c_str(), &raw_event_vector.at(detector));
+        raw_events_tree.at(detector)->SetAutoSave(0);
     }
 
     // Find if there is an offset before file header
