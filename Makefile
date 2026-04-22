@@ -19,7 +19,7 @@ PCH_SRC := $(CLI11_DIR)/CLI/CLI.hpp
 PCH_OUT := $(OBJ)/CLI.hpp.gch
 
 # Targets
-TARGETS :=   PAPERO_convert PAPERO_info PAPERO_i2c raw_clusterize raw_cn \
+TARGETS :=   HEF_convert PAPERO_info PAPERO_i2c raw_clusterize raw_cn \
 			raw_threshold_scan calibration readOM bias_control bias_controlPI
 			
 .PHONY: all clean raw_viewer
@@ -38,7 +38,7 @@ $(OBJ)/%.o: $(SRC)/%.cpp $(PCH_OUT) | $(OBJ)
 	$(CXX) $(CFLAGS) $(OPTFLAGS) -c $< -o $@
 
 # Link rules
-PAPERO_convert: $(OBJ)/PAPERO_convert.o $(OBJ)/PAPERO.o
+HEF_convert: $(OBJ)/HEF_convert.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 PAPERO_info: $(OBJ)/PAPERO_info.o $(OBJ)/PAPERO.o
@@ -56,7 +56,7 @@ raw_cn: $(OBJ)/raw_cn.o $(OBJ)/event.o
 raw_threshold_scan: $(OBJ)/raw_threshold_scan.o $(OBJ)/event.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
-calibration: $(OBJ)/calibration.o $(OBJ)/event.o
+calibration: $(OBJ)/calibration.o $(OBJ)/event.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 readOM: $(OBJ)/readOM.o $(OBJ)/udpSocket.o
