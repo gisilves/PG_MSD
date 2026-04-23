@@ -3,6 +3,12 @@ Software for Microstrip Silicon Detectors data analysis
 
 ###### Root 6 with C++14 support needed (to compile, *make + executable name* or *make all*):
 
+### After the first clone
+
+```
+git submodule update --init --recursive
+```
+
 *Common to all branches*
 
 - **raw_clusterize:** to find clusters from compressed data
@@ -11,7 +17,7 @@ Software for Microstrip Silicon Detectors data analysis
 
 - **raw_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
 
-- **raw_viewer:** to open the GUI viewer for raw data
+- **raw_viewer:** to open the GUI viewer for raw data (presently not working)
 
 - **calibration:** to compute calibrations from raw data
 
