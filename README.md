@@ -17,7 +17,7 @@ git submodule update --init --recursive
 
 - **raw_threshold_scan:** to perform a scan on threshold values for cluster reconstruction
 
-- **raw_viewer:** to open the GUI viewer for raw data (presently not working)
+~~- **raw_viewer:** to open the GUI viewer for raw data~~ (presently not working)
 
 - **calibration:** to compute calibrations from raw data
 
