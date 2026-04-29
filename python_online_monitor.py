@@ -70,6 +70,10 @@ class EventViewer(QWidget):
         self.udp_line0 = None
         self.udp_line1 = None
 
+        self.udp_bar0 = None
+        self.udp_bar1 = None
+        self.udp_bins = 100
+
         # Accumulation state
         self.udp_accum_sum0 = None
         self.udp_accum_sum1 = None
@@ -259,6 +263,11 @@ class EventViewer(QWidget):
         self.udp_accum_sum0 = None
         self.udp_accum_sum1 = None
         self.udp_accum_count = 0
+        for attr in ('udp_bar0', 'udp_bar1'):
+            bar = getattr(self, attr, None)
+            if bar is not None:
+                bar.remove()
+                setattr(self, attr, None)
 
     # ----------------- UDP -----------------
     # NOTE: Only UDP stream containing 1 board is supported at the moment
@@ -392,7 +401,22 @@ class EventViewer(QWidget):
                     self.udp_accum_sum0 = np.zeros(640, dtype=np.float64)
                 self.udp_accum_sum0 += ch0
                 self.udp_accum_count += 1
-                plot_data = self.udp_accum_sum0 / self.udp_accum_count
+
+                # Bin the accumulated sum
+                n = self.udp_n_bins
+                bin_size = 640 // n
+                indices = np.arange(0, bin_size * n, bin_size)
+                binned = np.add.reduceat(self.udp_accum_sum0, indices)
+                bin_centers = indices + bin_size / 2
+
+                # Remove old bar container
+                if self.udp_bar0 is not None:
+                    self.udp_bar0.remove()
+                self.udp_bar0 = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:blue', alpha=0.7)
+
+                self.udp_line0.set_visible(False)
+                self.udp_line1.set_visible(False)
+                plot_data = self.udp_accum_sum0  # for y-scale
                 title = f"UDP Accumulated {self.udp_accum_count} events (J7)"
             else:
                 plot_data = ch0
@@ -417,7 +441,20 @@ class EventViewer(QWidget):
                     self.udp_accum_sum1 = np.zeros(640, dtype=np.float64)
                 self.udp_accum_sum1 += ch1
                 self.udp_accum_count += 1
-                plot_data = self.udp_accum_sum1 / self.udp_accum_count
+
+                n = self.udp_n_bins
+                bin_size = 640 // n
+                indices = np.arange(0, bin_size * n, bin_size)
+                binned = np.add.reduceat(self.udp_accum_sum1, indices)
+                bin_centers = indices + bin_size / 2
+
+                if self.udp_bar1 is not None:
+                    self.udp_bar1.remove()
+                self.udp_bar1 = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:orange', alpha=0.7)
+
+                self.udp_line0.set_visible(False)
+                self.udp_line1.set_visible(False)
+                plot_data = self.udp_accum_sum1
                 title = f"UDP Accumulated {self.udp_accum_count} events (J5)"
             else:
                 plot_data = ch1
