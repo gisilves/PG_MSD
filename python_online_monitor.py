@@ -257,8 +257,8 @@ class EventViewer(QWidget):
     # ----------------- Axis limit changing handling -----------------
     def _on_axis_limit_changed(self):
         ax = self.fig.axes[0]
-        ax.set_xlim(self.x_axis_min.value(), self.x_axis_max.value())
-        ax.set_ylim(self.y_axis_min.value(), self.y_axis_max.value())
+        ax.set_xlim(int(self.x_axis_min.text()), int(self.x_axis_max.text()))
+        ax.set_ylim(int(self.y_axis_min.text()), int(self.y_axis_max.text()))
         self.canvas.draw()
 
     # ----------------- Accumulation -----------------
