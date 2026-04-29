@@ -122,6 +122,9 @@ class EventViewer(QWidget):
 
         # ---------- Figure axis limits ----------
         axis_layout = QHBoxLayout()
+        self.x_axis_min_label = QLabel("X min: ")
+        self.x_axis_min_label.setFixedWidth(50)
+        axis_layout.addWidget(self.x_axis_min_label)
         self.x_axis_min = QSpinBox()
         self.x_axis_min.setRange(0, 640)
         self.x_axis_min.setValue(0)
@@ -129,18 +132,27 @@ class EventViewer(QWidget):
         self.x_axis_min.valueChanged.connect(self._on_axis_limit_changed)
 
         self.x_axis_max = QSpinBox()
+        self.x_axis_max_label = QLabel("X max: ")
+        self.x_axis_max_label.setFixedWidth(50)
+        axis_layout.addWidget(self.x_axis_max_label)
         self.x_axis_max.setRange(0, 640)
         self.x_axis_max.setValue(640)
         self.x_axis_max.setSingleStep(1)
         self.x_axis_max.valueChanged.connect(self._on_axis_limit_changed)
 
         self.y_axis_min = QSpinBox()
+        self.y_axis_min_label = QLabel("Y min: ")
+        self.y_axis_min_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_min_label)
         self.y_axis_min.setRange(-4095, 4095)
         self.y_axis_min.setValue(0)
         self.y_axis_min.setSingleStep(1)
         self.y_axis_min.valueChanged.connect(self._on_axis_limit_changed)
 
         self.y_axis_max = QSpinBox()
+        self.y_axis_max_label = QLabel("Y max: ")
+        self.y_axis_max_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_max_label)
         self.y_axis_max.setRange(-4095, 4095)
         self.y_axis_max.setValue(100)
         self.y_axis_max.setSingleStep(1)
