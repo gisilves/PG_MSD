@@ -166,6 +166,11 @@ class EventViewer(QWidget):
         self.y_axis_max.valueChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.y_axis_max)
 
+        self.auto_axis = QCheckBox("Auto")
+        self.auto_axis.setChecked(True)
+        self.auto_axis.stateChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.auto_axis)
+
         self.layout.addLayout(axis_layout)
 
         # ---------- UDP Controls ----------
@@ -467,12 +472,13 @@ class EventViewer(QWidget):
             ax.set_title(title)
             display_data = plot_data
 
-        # Auto-scale Y axis with a small margin
-        ax.set_xlim(0, 639)
-        ymin = float(np.min(display_data))
-        ymax = float(np.max(display_data))
-        margin = max((ymax - ymin) * 0.05, 10)
-        ax.set_ylim(ymin - margin, ymax + margin)
+        if self.auto_axis.isChecked():
+            # Auto-scale Y axis with a small margin
+            ax.set_xlim(0, 639)
+            ymin = float(np.min(display_data))
+            ymax = float(np.max(display_data))
+            margin = max((ymax - ymin) * 0.05, 10)
+            ax.set_ylim(ymin - margin, ymax + margin)
 
         self.canvas.draw_idle()
         self.udp_pending = False
