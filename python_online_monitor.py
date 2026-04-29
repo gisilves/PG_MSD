@@ -130,6 +130,7 @@ class EventViewer(QWidget):
         self.x_axis_min.setValue(0)
         self.x_axis_min.setSingleStep(1)
         self.x_axis_min.valueChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.x_axis_min)
 
         self.x_axis_max = QSpinBox()
         self.x_axis_max_label = QLabel("X max: ")
@@ -139,6 +140,7 @@ class EventViewer(QWidget):
         self.x_axis_max.setValue(640)
         self.x_axis_max.setSingleStep(1)
         self.x_axis_max.valueChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.x_axis_max)
 
         self.y_axis_min = QSpinBox()
         self.y_axis_min_label = QLabel("Y min: ")
@@ -148,6 +150,7 @@ class EventViewer(QWidget):
         self.y_axis_min.setValue(0)
         self.y_axis_min.setSingleStep(1)
         self.y_axis_min.valueChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.y_axis_min)
 
         self.y_axis_max = QSpinBox()
         self.y_axis_max_label = QLabel("Y max: ")
@@ -157,11 +160,8 @@ class EventViewer(QWidget):
         self.y_axis_max.setValue(100)
         self.y_axis_max.setSingleStep(1)
         self.y_axis_max.valueChanged.connect(self._on_axis_limit_changed)
-
-        axis_layout.addWidget(self.x_axis_min)
-        axis_layout.addWidget(self.x_axis_max)
-        axis_layout.addWidget(self.y_axis_min)
         axis_layout.addWidget(self.y_axis_max)
+
         self.layout.addLayout(axis_layout)
 
         # ---------- UDP Controls ----------
