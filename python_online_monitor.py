@@ -120,13 +120,37 @@ class EventViewer(QWidget):
         ax.grid(True, alpha=0.2)
         self.canvas.draw()
 
-        # ---------- Screenshot ----------
-        screenshot_layout = QHBoxLayout()
-        self.save_btn = QPushButton("Save Screenshot")
-        self.save_btn.setEnabled(False)
-        self.save_btn.clicked.connect(self.save_screenshot)
-        screenshot_layout.addWidget(self.save_btn)
-        self.layout.addLayout(screenshot_layout)
+        # ---------- Figure axis limits ----------
+        axis_layout = QHBoxLayout()
+        self.x_axis_min = QSpinBox()
+        self.x_axis_min.setRange(0, 640)
+        self.x_axis_min.setValue(0)
+        self.x_axis_min.setSingleStep(1)
+        self.x_axis_min.valueChanged.connect(self._on_axis_limit_changed)
+
+        self.x_axis_max = QSpinBox()
+        self.x_axis_max.setRange(0, 640)
+        self.x_axis_max.setValue(640)
+        self.x_axis_max.setSingleStep(1)
+        self.x_axis_max.valueChanged.connect(self._on_axis_limit_changed)
+
+        self.y_axis_min = QSpinBox()
+        self.y_axis_min.setRange(-4095, 4095)
+        self.y_axis_min.setValue(0)
+        self.y_axis_min.setSingleStep(1)
+        self.y_axis_min.valueChanged.connect(self._on_axis_limit_changed)
+
+        self.y_axis_max = QSpinBox()
+        self.y_axis_max.setRange(-4095, 4095)
+        self.y_axis_max.setValue(100)
+        self.y_axis_max.setSingleStep(1)
+        self.y_axis_max.valueChanged.connect(self._on_axis_limit_changed)
+
+        axis_layout.addWidget(self.x_axis_min)
+        axis_layout.addWidget(self.x_axis_max)
+        axis_layout.addWidget(self.y_axis_min)
+        axis_layout.addWidget(self.y_axis_max)
+        self.layout.addLayout(axis_layout)
 
         # ---------- UDP Controls ----------
         udp_layout = QHBoxLayout()
@@ -205,6 +229,13 @@ class EventViewer(QWidget):
     def _on_board_change(self):
         self._reset_accumulation()
         self.udp_pending = True # trigger immediate redraw
+
+    # ----------------- Axis limit changing handling -----------------
+    def _on_axis_limit_changed(self):
+        ax = self.fig.axes[0]
+        ax.set_xlim(self.x_axis_min.value(), self.x_axis_max.value())
+        ax.set_ylim(self.y_axis_min.value(), self.y_axis_max.value())
+        self.canvas.draw()
 
     # ----------------- Accumulation -----------------
     def _on_accumulate_toggled(self, state):
@@ -438,11 +469,6 @@ class EventViewer(QWidget):
         df = pd.DataFrame(records, columns=["name"] + self.COLUMNS)
         df[self.COLUMNS] = df[self.COLUMNS].apply(pd.to_numeric, errors="coerce")
         return df
-
-    # ----------------- Screenshot -----------------
-    def save_screenshot(self):
-        filename = "screenshot_" + self.current_file.split("/")[-1].split(".")[0] + "_" + self.current_tree + "_" + str(self.index+1) + ".png"
-        self.fig.savefig(filename)
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
