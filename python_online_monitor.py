@@ -6,11 +6,13 @@ import pandas as pd
 import socket
 import threading
 
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel,
-    QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QCheckBox, QGroupBox, QSpinBox
+    QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QCheckBox, QGroupBox, QSpinBox, QLineEdit
 )
+from PyQt6.QtGui import QIntValidator
+
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -72,7 +74,7 @@ class EventViewer(QWidget):
 
         self.udp_bar0 = None
         self.udp_bar1 = None
-        self.udp_bins = 100
+        self.udp_n_bins = 100
 
         # Accumulation state
         self.udp_accum_sum0 = None
@@ -129,42 +131,43 @@ class EventViewer(QWidget):
         self.x_axis_min_label = QLabel("X min: ")
         self.x_axis_min_label.setFixedWidth(50)
         axis_layout.addWidget(self.x_axis_min_label)
-        self.x_axis_min = QSpinBox()
-        self.x_axis_min.setRange(0, 640)
-        self.x_axis_min.setValue(0)
-        self.x_axis_min.setSingleStep(1)
-        self.x_axis_min.valueChanged.connect(self._on_axis_limit_changed)
+        self.x_axis_min = QLineEdit()
+        self.x_axis_min.setValidator(QIntValidator(0, 639))
+        self.x_axis_min.setText("0")
+        self.x_axis_min.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.x_axis_min)
 
-        self.x_axis_max = QSpinBox()
         self.x_axis_max_label = QLabel("X max: ")
         self.x_axis_max_label.setFixedWidth(50)
         axis_layout.addWidget(self.x_axis_max_label)
-        self.x_axis_max.setRange(0, 640)
-        self.x_axis_max.setValue(640)
-        self.x_axis_max.setSingleStep(1)
-        self.x_axis_max.valueChanged.connect(self._on_axis_limit_changed)
+        self.x_axis_max = QLineEdit()
+        self.x_axis_max.setValidator(QIntValidator(0, 639))
+        self.x_axis_max.setText("639")
+        self.x_axis_max.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.x_axis_max)
+
+        self.y_axis_min_label = QLabel("Y min: ")
+        self.y_axis_min_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_min_label)
+        self.y_axis_min = QLineEdit()
+        self.y_axis_min.setValidator(QIntValidator(-4095, 4095))
+        self.y_axis_min.setText("-20")
+        self.y_axis_min.textChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.y_axis_min)
+
+        self.y_axis_max_label = QLabel("Y max: ")
+        self.y_axis_max_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_max_label)
+        self.y_axis_max = QLineEdit()
+        self.y_axis_max.setValidator(QIntValidator(-4095, 4095))
+        self.y_axis_max.setText("80")
+        self.y_axis_max.textChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.y_axis_max)
 
         self.y_axis_min = QSpinBox()
         self.y_axis_min_label = QLabel("Y min: ")
         self.y_axis_min_label.setFixedWidth(50)
         axis_layout.addWidget(self.y_axis_min_label)
-        self.y_axis_min.setRange(-4095, 4095)
-        self.y_axis_min.setValue(0)
-        self.y_axis_min.setSingleStep(1)
-        self.y_axis_min.valueChanged.connect(self._on_axis_limit_changed)
-        axis_layout.addWidget(self.y_axis_min)
-
-        self.y_axis_max = QSpinBox()
-        self.y_axis_max_label = QLabel("Y max: ")
-        self.y_axis_max_label.setFixedWidth(50)
-        axis_layout.addWidget(self.y_axis_max_label)
-        self.y_axis_max.setRange(-4095, 4095)
-        self.y_axis_max.setValue(100)
-        self.y_axis_max.setSingleStep(1)
-        self.y_axis_max.valueChanged.connect(self._on_axis_limit_changed)
-        axis_layout.addWidget(self.y_axis_max)
 
         self.auto_axis = QCheckBox("Auto")
         self.auto_axis.setChecked(True)
