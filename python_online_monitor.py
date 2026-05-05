@@ -6,11 +6,13 @@ import pandas as pd
 import socket
 import threading
 
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QPushButton, QLabel,
-    QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QCheckBox, QGroupBox, QSpinBox
+    QHBoxLayout, QComboBox, QSizePolicy, QFileDialog, QCheckBox, QGroupBox, QSpinBox, QLineEdit
 )
+from PyQt6.QtGui import QIntValidator
+
 
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
@@ -69,14 +71,16 @@ class EventViewer(QWidget):
 
         self.udp_line0 = None
         self.udp_line1 = None
-        self.udp_accum0 = None
-        self.udp_accum1 = None
-        self.last_accum_board = None
-        self.last_accum_selection = None
-        
-        self._accum_update_interval = 1000
-        self._accum_event_count = 0
-        
+
+        self.udp_bar0 = None
+        self.udp_bar1 = None
+        self.udp_n_bins = 100
+
+        # Accumulation state
+        self.udp_accum_sum0 = None
+        self.udp_accum_sum1 = None
+        self.udp_accum_count = 0
+
         self.COLUMNS = [
             "channel",
             "va_id",
@@ -122,13 +126,55 @@ class EventViewer(QWidget):
         ax.grid(True, alpha=0.2)
         self.canvas.draw()
 
-        # ---------- Screenshot ----------
-        screenshot_layout = QHBoxLayout()
-        self.save_btn = QPushButton("Save Screenshot")
-        self.save_btn.setEnabled(False)
-        self.save_btn.clicked.connect(self.save_screenshot)
-        screenshot_layout.addWidget(self.save_btn)
-        self.layout.addLayout(screenshot_layout)
+        # ---------- Figure axis limits ----------
+        axis_layout = QHBoxLayout()
+        self.x_axis_min_label = QLabel("X min: ")
+        self.x_axis_min_label.setFixedWidth(50)
+        axis_layout.addWidget(self.x_axis_min_label)
+        self.x_axis_min = QLineEdit()
+        self.x_axis_min.setValidator(QIntValidator(0, 639))
+        self.x_axis_min.setText("0")
+        self.x_axis_min.textChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.x_axis_min)
+
+        self.x_axis_max_label = QLabel("X max: ")
+        self.x_axis_max_label.setFixedWidth(50)
+        axis_layout.addWidget(self.x_axis_max_label)
+        self.x_axis_max = QLineEdit()
+        self.x_axis_max.setValidator(QIntValidator(0, 639))
+        self.x_axis_max.setText("639")
+        self.x_axis_max.textChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.x_axis_max)
+
+        self.y_axis_min_label = QLabel("Y min: ")
+        self.y_axis_min_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_min_label)
+        self.y_axis_min = QLineEdit()
+        self.y_axis_min.setValidator(QIntValidator(-4095, 4095))
+        self.y_axis_min.setText("-20")
+        self.y_axis_min.textChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.y_axis_min)
+
+        self.y_axis_max_label = QLabel("Y max: ")
+        self.y_axis_max_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_max_label)
+        self.y_axis_max = QLineEdit()
+        self.y_axis_max.setValidator(QIntValidator(-4095, 4095))
+        self.y_axis_max.setText("80")
+        self.y_axis_max.textChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.y_axis_max)
+
+        self.y_axis_min = QSpinBox()
+        self.y_axis_min_label = QLabel("Y min: ")
+        self.y_axis_min_label.setFixedWidth(50)
+        axis_layout.addWidget(self.y_axis_min_label)
+
+        self.auto_axis = QCheckBox("Auto")
+        self.auto_axis.setChecked(True)
+        self.auto_axis.stateChanged.connect(self._on_axis_limit_changed)
+        axis_layout.addWidget(self.auto_axis)
+
+        self.layout.addLayout(axis_layout)
 
         # ---------- UDP Controls ----------
         udp_layout = QHBoxLayout()
@@ -144,7 +190,9 @@ class EventViewer(QWidget):
         for i in range(12):
             self.udp_select_board.addItem(f"{i}")
         self.udp_select_board.setCurrentIndex(0)
+        self.udp_select_board.currentIndexChanged.connect(self._on_board_change)
         udp_layout.addWidget(self.udp_select_board)
+
         
         self.udp_select = QComboBox()
         self.udp_select.addItems(["J5", "J7"])
@@ -153,16 +201,8 @@ class EventViewer(QWidget):
         self.accumulate_checkbox = QCheckBox("Accumulate")
         self.accumulate_checkbox.setChecked(False)
         self.accumulate_checkbox.setStyleSheet("QCheckBox { margin-left: auto; }")
+        self.accumulate_checkbox.stateChanged.connect(self._on_accumulate_toggled)
         udp_layout.addWidget(self.accumulate_checkbox)
-        
-        # Spinbox for accumulate number of events
-        self.accumulate_spinbox = QSpinBox()
-        self.accumulate_spinbox.setRange(1, 1000)
-        self.accumulate_spinbox.setValue(100)
-        self.accumulate_spinbox.setSingleStep(10)
-        self.accumulate_spinbox.setStyleSheet("QSpinBox { margin-left: auto; }")
-        self.accumulate_spinbox.valueChanged.connect(self.update_accum_interval)
-        udp_layout.addWidget(self.accumulate_spinbox)
 
         udp_box = QGroupBox("UDP Stream")
         udp_box.setLayout(udp_layout)
@@ -208,6 +248,34 @@ class EventViewer(QWidget):
             padding: 2px 6px;
         }
         """)
+        
+    # ----------------- Board change handling -----------------
+    def _on_board_change(self):
+        self._reset_accumulation()
+        self.udp_pending = True # trigger immediate redraw
+
+    # ----------------- Axis limit changing handling -----------------
+    def _on_axis_limit_changed(self):
+        ax = self.fig.axes[0]
+        ax.set_xlim(int(self.x_axis_min.text()), int(self.x_axis_max.text()))
+        ax.set_ylim(int(self.y_axis_min.text()), int(self.y_axis_max.text()))
+        self.canvas.draw()
+
+    # ----------------- Accumulation -----------------
+    def _on_accumulate_toggled(self, state):
+        if state == 0:  # unchecked
+            self._reset_accumulation()
+            self.udp_pending = True  # trigger immediate redraw with last single event
+
+    def _reset_accumulation(self):
+        self.udp_accum_sum0 = None
+        self.udp_accum_sum1 = None
+        self.udp_accum_count = 0
+        for attr in ('udp_bar0', 'udp_bar1'):
+            bar = getattr(self, attr, None)
+            if bar is not None:
+                bar.remove()
+                setattr(self, attr, None)
 
     # ----------------- UDP -----------------
     # NOTE: Only UDP stream containing 1 board is supported at the moment
@@ -222,27 +290,7 @@ class EventViewer(QWidget):
     def start_udp(self):
         if self.udp_running:
             return
-        
-        # Disable offline part of the viewer
-        
-        # Disable open file buttons
-        self.open_btn.setEnabled(False)
-
-        # Disable tree and event navigation
-        self.tree_combo.setEnabled(False)
-        self.event_selector.setEnabled(False)
-        self.prev_btn.setEnabled(False)
-        self.next_btn.setEnabled(False)
-        self.event_selector_label.setEnabled(False)
-        
-        # Disable zoom controls
-        self.xmin_input.setEnabled(False)
-        self.xmax_input.setEnabled(False)
-        self.ymin_input.setEnabled(False)
-        self.ymax_input.setEnabled(False)
-        self.zoom_btn.setEnabled(False)
-        self.reset_zoom_btn.setEnabled(False)
-        
+                
         self.udp_running = True
         self.udp_stop_event.clear()
         self.udp_thread = threading.Thread(target=self.udp_loop, daemon=True)
@@ -251,26 +299,6 @@ class EventViewer(QWidget):
     def stop_udp(self):
         if not self.udp_running:
             return
-        
-        # Re-enable offline part of the viewer
-
-        # Enable open file buttons
-        self.open_btn.setEnabled(True)
-
-        # Enable tree and event navigation
-        self.tree_combo.setEnabled(True)
-        self.event_selector.setEnabled(True)
-        self.prev_btn.setEnabled(True)
-        self.next_btn.setEnabled(True)
-        self.event_selector_label.setEnabled(True)
-
-        # Enable zoom controls
-        self.xmin_input.setEnabled(True)
-        self.xmax_input.setEnabled(True)
-        self.ymin_input.setEnabled(True)
-        self.ymax_input.setEnabled(True)
-        self.zoom_btn.setEnabled(True)        
-        self.reset_zoom_btn.setEnabled(True)
         
         self.udp_stop_event.set()
         self.udp_running = False
@@ -330,8 +358,8 @@ class EventViewer(QWidget):
 
                 if w == BOARD_END and in_board and board_read == int(selected_board) + 1:
                     channels = reorder(decode_board(board_words[8:]))
-                    ch0 = np.array(channels[:640], dtype=np.int16)
-                    ch1 = np.array(channels[640:1280], dtype=np.int16)
+                    ch0 = np.array(channels[:640], dtype=np.int32)
+                    ch1 = np.array(channels[640:1280], dtype=np.int32)
 
                     self.udp_event_id += 1
                     self.udp_ch0 = ch0
@@ -347,106 +375,6 @@ class EventViewer(QWidget):
                     board_words.append(w)
 
         sock.close()
-        
-    def update_accum_interval(self, text):
-        self._accum_update_interval = int(text)
-        self._accum_event_count = 0
-        
-    def redraw_if_pending(self):
-        if not self.udp_pending:
-            return
-
-        ax = self.fig.axes[0]
-        selection = self.udp_select.currentText()
-        board = self.udp_select_board.currentText()
-        accumulate = self.accumulate_checkbox.isChecked()
-
-        # Reset accumulation if board or connector changed
-        if board != self.last_accum_board or selection != self.last_accum_selection:
-            self.udp_accum0 = None
-            self.udp_accum1 = None
-            self.udp_line0 = None
-            self.udp_line1 = None
-            self.last_accum_board = board
-            self.last_accum_selection = selection
-            self._accum_event_count = 0
-            ax.cla()
-
-        ch0 = self.udp_ch0.copy()
-        ch1 = self.udp_ch1.copy()
-
-        # Apply pedestal subtraction if enabled
-        if self.calib_df is not None and self.subtract_pedestal.isChecked():
-            if selection == "J7":
-                ped = self.calib_df[self.calib_df["name"] == 2 * int(board)]["pedestal"].to_numpy()
-                if len(ped) == len(ch0):
-                    ch0 = ch0 - ped
-            else:
-                ped = self.calib_df[self.calib_df["name"] == 2 * int(board) + 1]["pedestal"].to_numpy()
-                if len(ped) == len(ch1):
-                    ch1 = ch1 - ped
-
-        x = np.arange(640)
-
-        if accumulate:
-            if selection == "J7":
-                self.udp_accum0 = ch0 if self.udp_accum0 is None else self.udp_accum0 + ch0
-                data = self.udp_accum0
-            else:
-                self.udp_accum1 = ch1 if self.udp_accum1 is None else self.udp_accum1 + ch1
-                data = self.udp_accum1
-
-            self._accum_event_count += 1
-
-            if self._accum_event_count % self._accum_update_interval == 0:
-                ax.cla()
-                ax.bar(x, data, width=1.0, align="center", color="steelblue", linewidth=0)
-                ax.set_xlabel("Channel")
-                ax.set_ylabel("Accumulated ADC sum")
-                ax.set_title(f"UDP Accumulated {self.udp_event_id} events ({selection}, Board {board})")
-                ax.set_xticks(np.arange(0, 640, 64))
-                ax.grid(True, alpha=0.2)
-                self.udp_line0 = None
-                self.udp_line1 = None
-
-            else:
-                self.udp_pending = False
-                return
-
-        else:
-            # Single-event line plot
-            if self.udp_line0 is None or self.udp_line1 is None:
-                self.udp_line0, = ax.plot(x, np.zeros(640), label=f"Board {board} J7")
-                self.udp_line1, = ax.plot(x, np.zeros(640), label=f"Board {board} J5")
-                ax.set_xlabel("Channel")
-                ax.set_ylabel("ADC count")
-                ax.set_xticks(np.arange(0, 640, 64))
-                ax.grid(True, alpha=0.2)
-
-            if selection == "J7":
-                self.udp_line0.set_data(x, ch0)
-                self.udp_line1.set_data(x, np.zeros(640))
-                self.udp_line0.set_visible(True)
-                self.udp_line1.set_visible(False)
-                ax.set_title(f"UDP Event {self.udp_event_id} (J7)")
-            else:
-                self.udp_line0.set_data(x, np.zeros(640))
-                self.udp_line1.set_data(x, ch1)
-                self.udp_line0.set_visible(False)
-                self.udp_line1.set_visible(True)
-                ax.set_title(f"UDP Event {self.udp_event_id} (J5)")
-
-        # Axis limits
-        xmin = self.xmin_input.text()
-        xmax = self.xmax_input.text()
-        ymin = self.ymin_input.text()
-        ymax = self.ymax_input.text()
-
-        ax.set_xlim(float(xmin) if xmin else 0, float(xmax) if xmax else 639)
-        ax.set_ylim(float(ymin) if ymin else -200, float(ymax) if ymax else 500)
-
-        self.canvas.draw_idle()
-        self.udp_pending = False
 
     def redraw_if_pending(self):
         if not self.udp_pending:
@@ -462,49 +390,98 @@ class EventViewer(QWidget):
             self.udp_line1, = ax.plot(x, np.zeros_like(x), label="Board" + board + " J5")
             ax.set_xlabel("Channel")
             ax.set_ylabel("ADC count")
-                        
             ax.set_xticks(np.arange(0, 640, 64))
             ax.set_xticklabels(np.arange(0, 640, 64))
-            
             ax.grid(True, alpha=0.2)
-            
+
         x = np.arange(640)
+        accumulating = self.accumulate_checkbox.isChecked()
 
         if selection == "J7":
+            ch0 = self.udp_ch0.copy()
             if self.calib_df is not None and self.subtract_pedestal.isChecked():
-                pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board) ]["pedestal"].to_numpy()
-                if len(pedestal_values) == len(self.udp_ch0):
-                    self.udp_ch0 = self.udp_ch0 - pedestal_values
+                pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board)]["pedestal"].to_numpy()
+                if len(pedestal_values) == len(ch0):
+                    ch0 = ch0 - pedestal_values
 
-            self.udp_line0.set_data(x, self.udp_ch0)
+            if accumulating:
+                if self.udp_accum_sum0 is None:
+                    self.udp_accum_sum0 = np.zeros(640, dtype=np.float64)
+                self.udp_accum_sum0 += ch0
+                self.udp_accum_count += 1
+
+                # Bin the accumulated sum
+                n = self.udp_n_bins
+                bin_size = 640 // n
+                indices = np.arange(0, bin_size * n, bin_size)
+                binned = np.add.reduceat(self.udp_accum_sum0, indices)
+                bin_centers = indices + bin_size / 2
+
+                # Remove old bar container
+                if self.udp_bar0 is not None:
+                    self.udp_bar0.remove()
+                self.udp_bar0 = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:blue', alpha=0.7)
+
+                self.udp_line0.set_visible(False)
+                self.udp_line1.set_visible(False)
+                plot_data = self.udp_accum_sum0  # for y-scale
+                title = f"UDP Accumulated {self.udp_accum_count} events (J7)"
+            else:
+                plot_data = ch0
+                title = f"UDP Event {self.udp_event_id} (J7)"
+
+            self.udp_line0.set_data(x, plot_data)
             self.udp_line1.set_data(x, np.zeros_like(x))
             self.udp_line0.set_visible(True)
             self.udp_line1.set_visible(False)
-            ax.set_title(f"UDP Event {self.udp_event_id} (J7)")
+            ax.set_title(title)
+            display_data = plot_data
 
-        else:  # J5 only
+        else:  # J5
+            ch1 = self.udp_ch1.copy()
             if self.calib_df is not None and self.subtract_pedestal.isChecked():
                 pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board) + 1]["pedestal"].to_numpy()
-                if len(pedestal_values) == len(self.udp_ch1):
-                    self.udp_ch1 = self.udp_ch1 - pedestal_values
+                if len(pedestal_values) == len(ch1):
+                    ch1 = ch1 - pedestal_values
+
+            if accumulating:
+                if self.udp_accum_sum1 is None:
+                    self.udp_accum_sum1 = np.zeros(640, dtype=np.float64)
+                self.udp_accum_sum1 += ch1
+                self.udp_accum_count += 1
+
+                n = self.udp_n_bins
+                bin_size = 640 // n
+                indices = np.arange(0, bin_size * n, bin_size)
+                binned = np.add.reduceat(self.udp_accum_sum1, indices)
+                bin_centers = indices + bin_size / 2
+
+                if self.udp_bar1 is not None:
+                    self.udp_bar1.remove()
+                self.udp_bar1 = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:orange', alpha=0.7)
+
+                self.udp_line0.set_visible(False)
+                self.udp_line1.set_visible(False)
+                plot_data = self.udp_accum_sum1
+                title = f"UDP Accumulated {self.udp_accum_count} events (J5)"
+            else:
+                plot_data = ch1
+                title = f"UDP Event {self.udp_event_id} (J5)"
 
             self.udp_line0.set_data(x, np.zeros_like(x))
-            self.udp_line1.set_data(x, self.udp_ch1)
+            self.udp_line1.set_data(x, plot_data)
             self.udp_line0.set_visible(False)
             self.udp_line1.set_visible(True)
-            ax.set_title(f"UDP Event {self.udp_event_id} (J5)")
+            ax.set_title(title)
+            display_data = plot_data
 
-
-        # Set axes limits
-        if self.xmin_input.text() == "" or self.xmax_input.text() == "":
+        if self.auto_axis.isChecked():
+            # Auto-scale Y axis with a small margin
             ax.set_xlim(0, 639)
-        else:
-            ax.set_xlim(float(self.xmin_input.text()), float(self.xmax_input.text()))
-
-        if self.ymin_input.text() == "" or self.ymax_input.text() == "":
-            ax.set_ylim(-200, 500)
-        else:
-            ax.set_ylim(float(self.ymin_input.text()), float(self.ymax_input.text()))
+            ymin = float(np.min(display_data))
+            ymax = float(np.max(display_data))
+            margin = max((ymax - ymin) * 0.05, 10)
+            ax.set_ylim(ymin - margin, ymax + margin)
 
         self.canvas.draw_idle()
         self.udp_pending = False
@@ -550,11 +527,6 @@ class EventViewer(QWidget):
         df = pd.DataFrame(records, columns=["name"] + self.COLUMNS)
         df[self.COLUMNS] = df[self.COLUMNS].apply(pd.to_numeric, errors="coerce")
         return df
-
-    # ----------------- Screenshot -----------------
-    def save_screenshot(self):
-        filename = "screenshot_" + self.current_file.split("/")[-1].split(".")[0] + "_" + self.current_tree + "_" + str(self.index+1) + ".png"
-        self.fig.savefig(filename)
         
 if __name__ == "__main__":
     app = QApplication(sys.argv)
