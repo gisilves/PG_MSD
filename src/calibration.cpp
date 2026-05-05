@@ -601,10 +601,10 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
 
       int det_idx = detector_ids_map.at(board_id);
 
-      raw_event_vector.at(2 * det_idx).assign(
+      raw_event_vector.at(2 * det_idx + 1).assign(
           raw_event_buffer.begin(),
           raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-      raw_event_vector.at(2 * det_idx + 1).assign(
+      raw_event_vector.at(2 * det_idx).assign(
           raw_event_buffer.begin() + raw_event_buffer.size() / 2,
           raw_event_buffer.end());
       raw_events_tree.at(2 * det_idx)->Fill();

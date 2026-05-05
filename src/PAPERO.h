@@ -28,7 +28,7 @@ std::vector<T> reorder(std::vector<T> const &v)
 {
     std::vector<T> reordered_vec(v.size());
     int j = 0;
-    constexpr int order[] = {1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12};
+    constexpr int order[] = {12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1};
     for (int ch = 0; ch < 128; ch++)
     {
         for (int adc : order)

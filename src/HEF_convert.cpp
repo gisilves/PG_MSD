@@ -172,16 +172,19 @@ int main(int argc, char *argv[])
 
 
                     padding_offset = 0;
-                    raw_event_buffer.clear();
+                    // HEF always uses read_eventHEF; no DAMPE / GSI variants
                     raw_event_buffer = reorder(read_eventHEF(file, offset, evt_size, verbose));
-    
 
-                    raw_event_vector.at(2 * detector_ids_map.at(board_id)).clear();
-                    raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1).clear();
-                    raw_event_vector.at(2 * detector_ids_map.at(board_id)) = std::vector<uint32_t>(raw_event_buffer.begin(), raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                    raw_event_vector.at(2 * detector_ids_map.at(board_id) + 1) = std::vector<uint32_t>(raw_event_buffer.begin() + raw_event_buffer.size() / 2, raw_event_buffer.end());
-                    raw_events_tree.at(2 * detector_ids_map.at(board_id))->Fill();
-                    raw_events_tree.at(2 * detector_ids_map.at(board_id) + 1)->Fill();
+                    int det_idx = detector_ids_map.at(board_id);
+
+                    raw_event_vector.at(2 * det_idx + 1).assign(
+                        raw_event_buffer.begin(),
+                        raw_event_buffer.begin() + raw_event_buffer.size() / 2);
+                    raw_event_vector.at(2 * det_idx).assign(
+                        raw_event_buffer.begin() + raw_event_buffer.size() / 2,
+                        raw_event_buffer.end());
+                    raw_events_tree.at(2 * det_idx)->Fill();
+                    raw_events_tree.at(2 * det_idx + 1)->Fill();
 
                     offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
                 }
