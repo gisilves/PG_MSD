@@ -77,6 +77,7 @@ bias_controlPI:
 
 clean:
 	rm -f $(TARGETS) raw_viewer
+	find $(OBJ) -type f -not -name 'CLI.hpp.gch' -delete
 	rm -f guiDict.cpp guiDict_rdict.pcm
 
 clean_all:
