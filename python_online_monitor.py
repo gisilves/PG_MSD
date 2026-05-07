@@ -30,7 +30,7 @@ def reorder(v):
     """Reorder ADC channels from multiplexer in the correct sequence."""
     reordered = [0] * len(v)
     j = 0
-    order = [1, 0, 3, 2, 5, 4, 7, 6, 9, 8]
+    order = [12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1]
 
     for ch in range(128):
         for adc in order:
@@ -43,8 +43,8 @@ def decode_board(words):
     """Decode the raw data from the board."""
     channels = []
     for w in words:
-        ch_low  = (w & 0xFFFF) // 4 
-        ch_high = ((w >> 16) & 0xFFFF) // 4
+        ch_low  = (w & 0xFFFF)
+        ch_high = ((w >> 16) & 0xFFFF)
         channels.append(ch_low)
         channels.append(ch_high)
     return channels
@@ -195,7 +195,7 @@ class EventViewer(QWidget):
 
         
         self.udp_select = QComboBox()
-        self.udp_select.addItems(["J5", "J7"])
+        self.udp_select.addItems(["GPIO1", "GPIO0"])
         udp_layout.addWidget(self.udp_select)
         
         self.accumulate_checkbox = QCheckBox("Accumulate")
@@ -386,8 +386,8 @@ class EventViewer(QWidget):
 
         if self.udp_line0 is None or self.udp_line1 is None:
             x = np.arange(640)
-            self.udp_line0, = ax.plot(x, np.zeros_like(x), label="Board" + board + " J7")
-            self.udp_line1, = ax.plot(x, np.zeros_like(x), label="Board" + board + " J5")
+            self.udp_line0, = ax.plot(x, np.zeros_like(x), label="Board" + board + " GPIO0")
+            self.udp_line1, = ax.plot(x, np.zeros_like(x), label="Board" + board + " GPIO1")
             ax.set_xlabel("Channel")
             ax.set_ylabel("ADC count")
             ax.set_xticks(np.arange(0, 640, 64))
@@ -397,7 +397,7 @@ class EventViewer(QWidget):
         x = np.arange(640)
         accumulating = self.accumulate_checkbox.isChecked()
 
-        if selection == "J7":
+        if selection == "GPIO0":
             ch0 = self.udp_ch0.copy()
             if self.calib_df is not None and self.subtract_pedestal.isChecked():
                 pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board)]["pedestal"].to_numpy()
@@ -425,10 +425,10 @@ class EventViewer(QWidget):
                 self.udp_line0.set_visible(False)
                 self.udp_line1.set_visible(False)
                 plot_data = self.udp_accum_sum0  # for y-scale
-                title = f"UDP Accumulated {self.udp_accum_count} events (J7)"
+                title = f"UDP Accumulated {self.udp_accum_count} events (GPIO0)"
             else:
                 plot_data = ch0
-                title = f"UDP Event {self.udp_event_id} (J7)"
+                title = f"UDP Event {self.udp_event_id} (GPIO0)"
 
             self.udp_line0.set_data(x, plot_data)
             self.udp_line1.set_data(x, np.zeros_like(x))
@@ -437,7 +437,7 @@ class EventViewer(QWidget):
             ax.set_title(title)
             display_data = plot_data
 
-        else:  # J5
+        else:  # GPIO1
             ch1 = self.udp_ch1.copy()
             if self.calib_df is not None and self.subtract_pedestal.isChecked():
                 pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board) + 1]["pedestal"].to_numpy()
@@ -463,10 +463,10 @@ class EventViewer(QWidget):
                 self.udp_line0.set_visible(False)
                 self.udp_line1.set_visible(False)
                 plot_data = self.udp_accum_sum1
-                title = f"UDP Accumulated {self.udp_accum_count} events (J5)"
+                title = f"UDP Accumulated {self.udp_accum_count} events (GPIO1)"
             else:
                 plot_data = ch1
-                title = f"UDP Event {self.udp_event_id} (J5)"
+                title = f"UDP Event {self.udp_event_id} (GPIO1)"
 
             self.udp_line0.set_data(x, np.zeros_like(x))
             self.udp_line1.set_data(x, plot_data)
