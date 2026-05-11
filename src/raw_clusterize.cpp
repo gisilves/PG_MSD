@@ -211,9 +211,18 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
   std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-  if (board == 0) // TTree name depends on DAQ board
+  if (board == 0) // TTree name depends on DAQ board and side
   {
-    chain->SetName("raw_events"); // simply called raw_events for retrocompatibility with old files from the prototype
+    std::cout << "\nWe are on the first detector" << std::endl;
+    if (side == 0)
+    {
+      chain->SetName("raw_events"); // simply called raw_events for retrocompatibility with old files from the prototype
+    }
+    else
+    {
+      chain->SetName("raw_events_B");
+    }
+    
     for (int ii = 0; ii < input_files.size(); ii++)
     {
       std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
@@ -231,13 +240,15 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
   }
   else
   {
-    chain->SetName((TString) "raw_events_" + alphabet.at(2 * board));
+    std::cout << "\nWe are on the second detector" << std::endl;
+    std::cout << "\tName is " << (TString) "raw_events_" + alphabet.at(2 * board) << std::endl;
+    chain->SetName((TString) "raw_events_" + alphabet.at(2 * board + side));
     for (int ii = 0; ii < input_files.size(); ii++)
     {
       std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
       chain->Add(input_files[ii].c_str());
     }
-    chain2->SetName((TString) "raw_events_" + alphabet.at(2 * board + 1));
+    chain2->SetName((TString) "raw_events_" + alphabet.at(2 * board + 1 + side));
     for (int ii = 0; ii < input_files.size(); ii++)
     {
       chain2->Add(input_files[ii].c_str());
@@ -274,10 +285,12 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
   if(side == 0)
   {
+    std::cout << "\nProcessing J5 side" << std::endl;
     chain->SetBranchAddress("RAW Event J5", &raw_event, &RAW);
   }
   else
   {
+    std::cout << "\nProcessing J7 side" << std::endl;
     chain->SetBranchAddress("RAW Event J7", &raw_event, &RAW);
   }
 
@@ -922,6 +935,15 @@ int main(int argc, char *argv[])
     maxStrip = 63;
     sensor_pitch = 0.150;
     maxADC_h = 200;
+  }
+  else if (version == 2026) // HEF
+  {
+    NChannels = 896;
+    NVas = 14;
+    minStrip = 0;
+    maxStrip = 895;
+    sensor_pitch = 0.108;
+    maxADC_h = 10000;
   }
   else
   {
