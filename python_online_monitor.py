@@ -132,7 +132,7 @@ class EventViewer(QWidget):
         self.x_axis_min_label.setFixedWidth(50)
         axis_layout.addWidget(self.x_axis_min_label)
         self.x_axis_min = QLineEdit()
-        self.x_axis_min.setValidator(QIntValidator(0, 639))
+        self.x_axis_min.setValidator(QIntValidator(0, 895))
         self.x_axis_min.setText("0")
         self.x_axis_min.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.x_axis_min)
@@ -141,8 +141,8 @@ class EventViewer(QWidget):
         self.x_axis_max_label.setFixedWidth(50)
         axis_layout.addWidget(self.x_axis_max_label)
         self.x_axis_max = QLineEdit()
-        self.x_axis_max.setValidator(QIntValidator(0, 639))
-        self.x_axis_max.setText("639")
+        self.x_axis_max.setValidator(QIntValidator(0, 895))
+        self.x_axis_max.setText("895")
         self.x_axis_max.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.x_axis_max)
 
@@ -150,7 +150,7 @@ class EventViewer(QWidget):
         self.y_axis_min_label.setFixedWidth(50)
         axis_layout.addWidget(self.y_axis_min_label)
         self.y_axis_min = QLineEdit()
-        self.y_axis_min.setValidator(QIntValidator(-4095, 4095))
+        self.y_axis_min.setValidator(QIntValidator(-16383, 16383))
         self.y_axis_min.setText("-20")
         self.y_axis_min.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.y_axis_min)
@@ -159,7 +159,7 @@ class EventViewer(QWidget):
         self.y_axis_max_label.setFixedWidth(50)
         axis_layout.addWidget(self.y_axis_max_label)
         self.y_axis_max = QLineEdit()
-        self.y_axis_max.setValidator(QIntValidator(-4095, 4095))
+        self.y_axis_max.setValidator(QIntValidator(-16383, 16383))
         self.y_axis_max.setText("80")
         self.y_axis_max.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.y_axis_max)
@@ -195,7 +195,7 @@ class EventViewer(QWidget):
 
         
         self.udp_select = QComboBox()
-        self.udp_select.addItems(["GPIO1", "GPIO0"])
+        self.udp_select.addItems(["GPIO0", "GPIO1"])
         udp_layout.addWidget(self.udp_select)
         
         self.accumulate_checkbox = QCheckBox("Accumulate")
@@ -358,8 +358,8 @@ class EventViewer(QWidget):
 
                 if w == BOARD_END and in_board and board_read == int(selected_board) + 1:
                     channels = reorder(decode_board(board_words[8:]))
-                    ch0 = np.array(channels[:640], dtype=np.int32)
-                    ch1 = np.array(channels[640:1280], dtype=np.int32)
+                    ch0 = np.array(channels[:896], dtype=np.int32)
+                    ch1 = np.array(channels[896:1792], dtype=np.int32)
 
                     self.udp_event_id += 1
                     self.udp_ch0 = ch0
@@ -385,34 +385,34 @@ class EventViewer(QWidget):
         board = self.udp_select_board.currentText()
 
         if self.udp_line0 is None or self.udp_line1 is None:
-            x = np.arange(640)
+            x = np.arange(896)
             self.udp_line0, = ax.plot(x, np.zeros_like(x), label="Board" + board + " GPIO0")
             self.udp_line1, = ax.plot(x, np.zeros_like(x), label="Board" + board + " GPIO1")
             ax.set_xlabel("Channel")
             ax.set_ylabel("ADC count")
-            ax.set_xticks(np.arange(0, 640, 64))
-            ax.set_xticklabels(np.arange(0, 640, 64))
+            ax.set_xticks(np.arange(0, 896, 64))
+            ax.set_xticklabels(np.arange(0, 896, 64))
             ax.grid(True, alpha=0.2)
 
-        x = np.arange(640)
+        x = np.arange(896)
         accumulating = self.accumulate_checkbox.isChecked()
 
         if selection == "GPIO0":
-            ch0 = self.udp_ch0.copy()
+            ch1 = self.udp_ch1.copy()
             if self.calib_df is not None and self.subtract_pedestal.isChecked():
                 pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board)]["pedestal"].to_numpy()
-                if len(pedestal_values) == len(ch0):
-                    ch0 = ch0 - pedestal_values
+                if len(pedestal_values) == len(ch1):
+                    ch1 = ch1 - pedestal_values
 
             if accumulating:
                 if self.udp_accum_sum0 is None:
-                    self.udp_accum_sum0 = np.zeros(640, dtype=np.float64)
-                self.udp_accum_sum0 += ch0
+                    self.udp_accum_sum0 = np.zeros(896, dtype=np.float64)
+                self.udp_accum_sum0 += ch1
                 self.udp_accum_count += 1
 
                 # Bin the accumulated sum
                 n = self.udp_n_bins
-                bin_size = 640 // n
+                bin_size = 896 // n
                 indices = np.arange(0, bin_size * n, bin_size)
                 binned = np.add.reduceat(self.udp_accum_sum0, indices)
                 bin_centers = indices + bin_size / 2
@@ -427,7 +427,7 @@ class EventViewer(QWidget):
                 plot_data = self.udp_accum_sum0  # for y-scale
                 title = f"UDP Accumulated {self.udp_accum_count} events (GPIO0)"
             else:
-                plot_data = ch0
+                plot_data = ch1
                 title = f"UDP Event {self.udp_event_id} (GPIO0)"
 
             self.udp_line0.set_data(x, plot_data)
@@ -438,20 +438,20 @@ class EventViewer(QWidget):
             display_data = plot_data
 
         else:  # GPIO1
-            ch1 = self.udp_ch1.copy()
+            ch0 = self.udp_ch0.copy()
             if self.calib_df is not None and self.subtract_pedestal.isChecked():
                 pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board) + 1]["pedestal"].to_numpy()
-                if len(pedestal_values) == len(ch1):
-                    ch1 = ch1 - pedestal_values
+                if len(pedestal_values) == len(ch0):
+                    ch0 = ch0 - pedestal_values
 
             if accumulating:
                 if self.udp_accum_sum1 is None:
-                    self.udp_accum_sum1 = np.zeros(640, dtype=np.float64)
-                self.udp_accum_sum1 += ch1
+                    self.udp_accum_sum1 = np.zeros(896, dtype=np.float64)
+                self.udp_accum_sum1 += ch0
                 self.udp_accum_count += 1
 
                 n = self.udp_n_bins
-                bin_size = 640 // n
+                bin_size = 896 // n
                 indices = np.arange(0, bin_size * n, bin_size)
                 binned = np.add.reduceat(self.udp_accum_sum1, indices)
                 bin_centers = indices + bin_size / 2
@@ -465,7 +465,7 @@ class EventViewer(QWidget):
                 plot_data = self.udp_accum_sum1
                 title = f"UDP Accumulated {self.udp_accum_count} events (GPIO1)"
             else:
-                plot_data = ch1
+                plot_data = ch0
                 title = f"UDP Event {self.udp_event_id} (GPIO1)"
 
             self.udp_line0.set_data(x, np.zeros_like(x))
@@ -477,7 +477,7 @@ class EventViewer(QWidget):
 
         if self.auto_axis.isChecked():
             # Auto-scale Y axis with a small margin
-            ax.set_xlim(0, 639)
+            ax.set_xlim(0, 895)
             ymin = float(np.min(display_data))
             ymax = float(np.max(display_data))
             margin = max((ymax - ymin) * 0.05, 10)
