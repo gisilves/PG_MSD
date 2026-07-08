@@ -81,6 +81,8 @@ int main(int argc, char *argv[])
     uint32_t i2cmsg = 0;
     uint32_t ext_timestamp = 0;
     uint32_t old_offset = 0;
+    uint32_t bias_voltage = 0;
+    uint32_t leakage_current = 0;
     int padding_offset = 0;
     char dummy[100];
     float mean_rate = 0;
@@ -90,7 +92,7 @@ int main(int argc, char *argv[])
 
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
@@ -156,7 +158,9 @@ int main(int argc, char *argv[])
                     i2cmsg = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
-                    offset = std::get<8>(de10_retValues);
+                    bias_voltage = std::get<8>(de10_retValues);
+                    leakage_current = std::get<9>(de10_retValues);
+                    offset = std::get<10>(de10_retValues);
 
 
                     std::cout << "\r\tReading event " << evtnum << std::flush;
@@ -168,6 +172,8 @@ int main(int argc, char *argv[])
                         std::cout << "\tTrigger ID " << trigger_id << std::endl;
                         std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
+                        std::cout << "\tBias voltage: " << bias_voltage << std::endl;
+                        std::cout << "\tLeakage current: " << leakage_current << std::endl;
                     }
 
 
