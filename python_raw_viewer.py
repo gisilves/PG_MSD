@@ -213,10 +213,7 @@ class EventViewer(QWidget):
         self.trees = {}
         for key in tree_keys:
             tree = root_file.Get(key.GetName())
-            if tree.GetBranch("RAW Event J7"):
-                self.trees[key.GetName()] = [np.array(event.__getattr__("RAW Event J7"), dtype=np.uint32) for event in tree]
-            else:
-                self.trees[key.GetName()] = [np.array(event.__getattr__("RAW Event J5"), dtype=np.uint32) for event in tree]
+            self.trees[key.GetName()] = [np.array(event.__getattr__("RAW Event"), dtype=np.uint32) for event in tree]
 
         self.tree_combo.blockSignals(True)
         self.tree_combo.clear()

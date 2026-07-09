@@ -1,4 +1,4 @@
-"""Microstrip Raw Data Viewer with UDP Streaming Support"""
+"""FTA SCD Microstrip Raw Data Viewer with UDP Streaming Support"""
 
 import sys
 import numpy as np
@@ -23,8 +23,8 @@ UDP_PORT = 8890
 BUF_SIZE = 65535
 
 EVENT_START = 0xfa4af1ca
-BOARD_START = 0xbaba1a9a
-BOARD_END   = 0x0bedface
+QUADDER_START = 0xbaba1a9a
+QUADDER_END   = 0x0bedface
 
 def reorder(v):
     """Reorder ADC channels from multiplexer in the correct sequence."""
@@ -39,8 +39,8 @@ def reorder(v):
 
     return reordered
 
-def decode_board(words):
-    """Decode the raw data from the board."""
+def decode_quadder(words):
+    """Decode the raw data from the quadder."""
     channels = []
     for w in words:
         ch_low  = (w & 0xFFFF)
@@ -66,19 +66,15 @@ class EventViewer(QWidget):
         self.udp_event_id = 0
 
         self.udp_pending = False
-        self.udp_ch0 = None
-        self.udp_ch1 = None
+        self.udp_ch = None
 
-        self.udp_line0 = None
-        self.udp_line1 = None
+        self.udp_line = None
 
-        self.udp_bar0 = None
-        self.udp_bar1 = None
+        self.udp_bar = None
         self.udp_n_bins = 100
 
         # Accumulation state
-        self.udp_accum_sum0 = None
-        self.udp_accum_sum1 = None
+        self.udp_accum_sum = None
         self.udp_accum_count = 0
 
         self.COLUMNS = [
@@ -92,7 +88,7 @@ class EventViewer(QWidget):
             "extra",
         ]
 
-        self.setWindowTitle("Microstrip Online Event Viewer")
+        self.setWindowTitle("HERD SCD FTA Online Event Viewer")
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(10, 10, 10, 10)
         self.layout.setSpacing(8)
@@ -132,7 +128,7 @@ class EventViewer(QWidget):
         self.x_axis_min_label.setFixedWidth(50)
         axis_layout.addWidget(self.x_axis_min_label)
         self.x_axis_min = QLineEdit()
-        self.x_axis_min.setValidator(QIntValidator(0, 895))
+        self.x_axis_min.setValidator(QIntValidator(0, 1791))
         self.x_axis_min.setText("0")
         self.x_axis_min.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.x_axis_min)
@@ -141,8 +137,8 @@ class EventViewer(QWidget):
         self.x_axis_max_label.setFixedWidth(50)
         axis_layout.addWidget(self.x_axis_max_label)
         self.x_axis_max = QLineEdit()
-        self.x_axis_max.setValidator(QIntValidator(0, 895))
-        self.x_axis_max.setText("895")
+        self.x_axis_max.setValidator(QIntValidator(0, 1791))
+        self.x_axis_max.setText("1791")
         self.x_axis_max.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.x_axis_max)
 
@@ -182,22 +178,17 @@ class EventViewer(QWidget):
         self.udp_btn.clicked.connect(self.toggle_udp)
         udp_layout.addWidget(self.udp_btn)
         
-        self.udp_select_board = QComboBox()
-        self.udp_select_board_label = QLabel("Board:")
-        self.udp_select_board_label.setFixedWidth(50)
-        udp_layout.addWidget(self.udp_select_board_label)
+        self.udp_select_quadder = QComboBox()
+        self.udp_select_quadder_label = QLabel("Quadder:")
+        self.udp_select_quadder_label.setFixedWidth(60)
+        udp_layout.addWidget(self.udp_select_quadder_label)
         
-        for i in range(12):
-            self.udp_select_board.addItem(f"{i}")
-        self.udp_select_board.setCurrentIndex(0)
-        self.udp_select_board.currentIndexChanged.connect(self._on_board_change)
-        udp_layout.addWidget(self.udp_select_board)
+        for i in range(8):
+            self.udp_select_quadder.addItem(f"{i}")
+        self.udp_select_quadder.setCurrentIndex(0)
+        self.udp_select_quadder.currentIndexChanged.connect(self._on_quadder_change)
+        udp_layout.addWidget(self.udp_select_quadder)
 
-        
-        self.udp_select = QComboBox()
-        self.udp_select.addItems(["GPIO0", "GPIO1"])
-        udp_layout.addWidget(self.udp_select)
-        
         self.accumulate_checkbox = QCheckBox("Accumulate")
         self.accumulate_checkbox.setChecked(False)
         self.accumulate_checkbox.setStyleSheet("QCheckBox { margin-left: auto; }")
@@ -249,8 +240,8 @@ class EventViewer(QWidget):
         }
         """)
         
-    # ----------------- Board change handling -----------------
-    def _on_board_change(self):
+    # ----------------- quadder change handling -----------------
+    def _on_quadder_change(self):
         self._reset_accumulation()
         self.udp_pending = True # trigger immediate redraw
 
@@ -268,17 +259,14 @@ class EventViewer(QWidget):
             self.udp_pending = True  # trigger immediate redraw with last single event
 
     def _reset_accumulation(self):
-        self.udp_accum_sum0 = None
-        self.udp_accum_sum1 = None
+        self.udp_accum_sum = None
         self.udp_accum_count = 0
-        for attr in ('udp_bar0', 'udp_bar1'):
-            bar = getattr(self, attr, None)
-            if bar is not None:
-                bar.remove()
-                setattr(self, attr, None)
+        if self.udp_bar is not None:
+            self.udp_bar.remove()
+            self.udp_bar = None
 
     # ----------------- UDP -----------------
-    # NOTE: Only UDP stream containing 1 board is supported at the moment
+    # NOTE: Only UDP stream containing 1 quadder is supported at the moment
     def toggle_udp(self):
         if self.udp_running:
             self.stop_udp()
@@ -313,11 +301,11 @@ class EventViewer(QWidget):
         sock.settimeout(0.2)
 
         in_event = False
-        in_board = False
+        in_quadder = False
         words_read = 0
-        num_boards = 0
-        board_read = 0
-        board_words = []
+        num_quadders = 0
+        quadder_read = 0
+        quadder_words = []
 
         # Read UDP packets
         while not self.udp_stop_event.is_set():
@@ -334,45 +322,43 @@ class EventViewer(QWidget):
                 # Search for event start
                 if w == EVENT_START:
                     in_event = True
-                    in_board = False
-                    board_read = 0 # Reset board read counter
-                    board_words.clear() # Clear board words buffer
+                    in_quadder = False
+                    quadder_read = 0 # Reset quadder read counter
+                    quadder_words.clear() # Clear quadder words buffer
                     continue
 
                 if not in_event:
                     continue
                 
-                # Read number of boards in the event
+                # Read number of quadders in the event
                 if in_event and words_read == 4:
-                    num_boards = w & 0xFFF
+                    num_quadders = w & 0xFFF
                 
-                if w == BOARD_START:
-                    board_read += 1
+                if w == QUADDER_START:
+                    quadder_read += 1
                     
-                    # Check if we are at the correct board number based on the dropdown selection
-                    selected_board = self.udp_select_board.currentText()
-                    if board_read == int(selected_board) + 1:
-                        in_board = True
-                        board_words.clear()
+                    # Check if we are at the correct quadder number based on the dropdown selection
+                    selected_quadder = self.udp_select_quadder.currentText()
+                    if quadder_read == int(selected_quadder) + 1:
+                        in_quadder = True
+                        quadder_words.clear()
                         continue
 
-                if w == BOARD_END and in_board and board_read == int(selected_board) + 1:
-                    channels = reorder(decode_board(board_words[8:]))
-                    ch0 = np.array(channels[:896], dtype=np.int32)
-                    ch1 = np.array(channels[896:1792], dtype=np.int32)
+                if w == QUADDER_END and in_quadder and quadder_read == int(selected_quadder) + 1:
+                    channels = reorder(decode_quadder(quadder_words[8:]))
+                    ch = np.array(channels[:896], dtype=np.int32)
 
                     self.udp_event_id += 1
-                    self.udp_ch0 = ch0
-                    self.udp_ch1 = ch1
+                    self.udp_ch = ch
                     self.udp_pending = True
 
                     in_event = False
-                    in_board = False
-                    board_words.clear()
+                    in_quadder = False
+                    quadder_words.clear()
                     continue
 
-                if in_board and board_read == int(selected_board) + 1:
-                    board_words.append(w)
+                if in_quadder and quadder_read == int(selected_quadder) + 1:
+                    quadder_words.append(w)
 
         sock.close()
 
@@ -381,13 +367,11 @@ class EventViewer(QWidget):
             return
 
         ax = self.fig.axes[0]
-        selection = self.udp_select.currentText()
-        board = self.udp_select_board.currentText()
+        quadder = self.udp_select_quadder.currentText()
 
-        if self.udp_line0 is None or self.udp_line1 is None:
+        if self.udp_line is None:
             x = np.arange(896)
-            self.udp_line0, = ax.plot(x, np.zeros_like(x), label="Board" + board + " GPIO0")
-            self.udp_line1, = ax.plot(x, np.zeros_like(x), label="Board" + board + " GPIO1")
+            self.udp_line, = ax.plot(x, np.zeros_like(x), label="quadder" + quadder)
             ax.set_xlabel("Channel")
             ax.set_ylabel("ADC count")
             ax.set_xticks(np.arange(0, 896, 64))
@@ -397,87 +381,45 @@ class EventViewer(QWidget):
         x = np.arange(896)
         accumulating = self.accumulate_checkbox.isChecked()
 
-        if selection == "GPIO0":
-            ch1 = self.udp_ch1.copy()
-            if self.calib_df is not None and self.subtract_pedestal.isChecked():
-                pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board)]["pedestal"].to_numpy()
-                if len(pedestal_values) == len(ch1):
-                    ch1 = ch1 - pedestal_values
+        ch = self.udp_ch.copy()
+        if self.calib_df is not None and self.subtract_pedestal.isChecked():
+            pedestal_values = self.calib_df[self.calib_df["name"] == int(quadder)]["pedestal"].to_numpy()
+            if len(pedestal_values) == len(ch):
+                ch = ch - pedestal_values
 
-            if accumulating:
-                if self.udp_accum_sum0 is None:
-                    self.udp_accum_sum0 = np.zeros(896, dtype=np.float64)
-                self.udp_accum_sum0 += ch1
-                self.udp_accum_count += 1
+        if accumulating:
+            if self.udp_accum_sum is None:
+                self.udp_accum_sum = np.zeros(896, dtype=np.float64)
+            self.udp_accum_sum += ch
+            self.udp_accum_count += 1
 
-                # Bin the accumulated sum
-                n = self.udp_n_bins
-                bin_size = 896 // n
-                indices = np.arange(0, bin_size * n, bin_size)
-                binned = np.add.reduceat(self.udp_accum_sum0, indices)
-                bin_centers = indices + bin_size / 2
+            # Bin the accumulated sum
+            n = self.udp_n_bins
+            bin_size = 896 // n
+            indices = np.arange(0, bin_size * n, bin_size)
+            binned = np.add.reduceat(self.udp_accum_sum, indices)
+            bin_centers = indices + bin_size / 2
 
-                # Remove old bar container
-                if self.udp_bar0 is not None:
-                    self.udp_bar0.remove()
-                self.udp_bar0 = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:blue', alpha=0.7)
+            # Remove old bar container
+            if self.udp_bar is not None:
+                self.udp_bar.remove()
+            self.udp_bar = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:blue', alpha=0.7)
 
-                self.udp_line0.set_visible(False)
-                self.udp_line1.set_visible(False)
-                plot_data = self.udp_accum_sum0  # for y-scale
-                title = f"UDP Accumulated {self.udp_accum_count} events (GPIO0)"
-            else:
-                plot_data = ch1
-                title = f"UDP Event {self.udp_event_id} (GPIO0)"
+            self.udp_line.set_visible(False)
+            plot_data = self.udp_accum_sum  # for y-scale
+            title = f"UDP Accumulated {self.udp_accum_count} events"
+        else:
+            plot_data = ch
+            title = f"UDP Event {self.udp_event_id}"
 
-            self.udp_line0.set_data(x, plot_data)
-            self.udp_line1.set_data(x, np.zeros_like(x))
-            self.udp_line0.set_visible(True)
-            self.udp_line1.set_visible(False)
-            ax.set_title(title)
-            display_data = plot_data
-
-        else:  # GPIO1
-            ch0 = self.udp_ch0.copy()
-            if self.calib_df is not None and self.subtract_pedestal.isChecked():
-                pedestal_values = self.calib_df[self.calib_df["name"] == 2 * int(board) + 1]["pedestal"].to_numpy()
-                if len(pedestal_values) == len(ch0):
-                    ch0 = ch0 - pedestal_values
-
-            if accumulating:
-                if self.udp_accum_sum1 is None:
-                    self.udp_accum_sum1 = np.zeros(896, dtype=np.float64)
-                self.udp_accum_sum1 += ch0
-                self.udp_accum_count += 1
-
-                n = self.udp_n_bins
-                bin_size = 896 // n
-                indices = np.arange(0, bin_size * n, bin_size)
-                binned = np.add.reduceat(self.udp_accum_sum1, indices)
-                bin_centers = indices + bin_size / 2
-
-                if self.udp_bar1 is not None:
-                    self.udp_bar1.remove()
-                self.udp_bar1 = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:orange', alpha=0.7)
-
-                self.udp_line0.set_visible(False)
-                self.udp_line1.set_visible(False)
-                plot_data = self.udp_accum_sum1
-                title = f"UDP Accumulated {self.udp_accum_count} events (GPIO1)"
-            else:
-                plot_data = ch0
-                title = f"UDP Event {self.udp_event_id} (GPIO1)"
-
-            self.udp_line0.set_data(x, np.zeros_like(x))
-            self.udp_line1.set_data(x, plot_data)
-            self.udp_line0.set_visible(False)
-            self.udp_line1.set_visible(True)
-            ax.set_title(title)
-            display_data = plot_data
+        self.udp_line.set_data(x, plot_data)
+        self.udp_line.set_visible(not accumulating)
+        ax.set_title(title)
+        display_data = plot_data
 
         if self.auto_axis.isChecked():
             # Auto-scale Y axis with a small margin
-            ax.set_xlim(0, 895)
+            ax.set_xlim(0, 1791)
             ymin = float(np.min(display_data))
             ymax = float(np.max(display_data))
             margin = max((ymax - ymin) * 0.05, 10)
