@@ -438,10 +438,10 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
 std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int event_size, int verbose)
 {
 
-  file.seekg(offset + 36);
+  file.seekg(offset + 44);
   if (verbose == 1)
   {
-    std::cout << "\tReading event at position " << offset + 36 << std::endl;
+    std::cout << "\tReading event at position " << offset + 44 << std::endl;
   }
 
   event_size = event_size * 2;

@@ -10,7 +10,7 @@
 
 #include "PAPERO.h"
 
-#define max_detectors 16
+#define max_detectors 8
 
 int main(int argc, char *argv[])
 {
@@ -62,8 +62,7 @@ int main(int argc, char *argv[])
     {
         TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
         raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-        std::string branch_name = (detector % 2) ? "RAW Event J7" : "RAW Event J5";
-        raw_events_tree.at(detector)->Branch(branch_name.c_str(), &raw_event_vector.at(detector));
+        raw_events_tree.at(detector)->Branch("RAW Event", &raw_event_vector.at(detector));
         raw_events_tree.at(detector)->SetAutoSave(0);
     }
 
@@ -152,6 +151,7 @@ int main(int argc, char *argv[])
                 {
                     boards_read++;
                     evt_size = std::get<1>(de10_retValues);
+                    evt_size = evt_size - 2; //TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
@@ -183,16 +183,11 @@ int main(int argc, char *argv[])
 
                     int det_idx = detector_ids_map.at(board_id);
 
-                    raw_event_vector.at(2 * det_idx + 1).assign(
-                        raw_event_buffer.begin(),
-                        raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-                    raw_event_vector.at(2 * det_idx).assign(
-                        raw_event_buffer.begin() + raw_event_buffer.size() / 2,
-                        raw_event_buffer.end());
-                    raw_events_tree.at(2 * det_idx)->Fill();
-                    raw_events_tree.at(2 * det_idx + 1)->Fill();
+                    raw_event_vector.at(det_idx) = raw_event_buffer;
 
-                    offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
+                    raw_events_tree.at(det_idx)->Fill();
+
+                    offset += evt_size * 4 + 8 + 44; // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
                 }
             }
             boards_read = 0;

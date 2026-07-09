@@ -40,7 +40,7 @@ double MAD(const std::vector<float> *v)
 
 int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
                         float sigmaraw_cut = 3, float sigma_cut = 6,
-                        int board = 0, int side = 0, bool pdf_only = false, bool fast = true,
+                        int board = 0, bool pdf_only = false, bool fast = true,
                         bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1,
                         bool shoeCN = false, double cn_threshold = 4.5)
 {
@@ -50,7 +50,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     TString root_filename;
     if (!single_file)
     {
-      root_filename = output_filename + "_board-" + board + "_side-" + side + ".root";
+      root_filename = output_filename + "_board-" + board + ".root";
     }
     else
     {
@@ -65,19 +65,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   std::vector<unsigned int> *raw_event = 0;
   TBranch *RAW = 0;
 
-  if (side == 0)
-  {
-    chain.SetBranchAddress("RAW Event J5", &raw_event, &RAW);
-  }
-  else if (side == 1)
-  {
-    chain.SetBranchAddress("RAW Event J7", &raw_event, &RAW);
-  }
-  else
-  {
-    std::cout << "Side must be 0 or 1" << std::endl;
-    return 1;
-  }
+  chain.SetBranchAddress("RAW Event", &raw_event, &RAW);
 
   chain.GetEntry(0);
   int NChannels = raw_event->size();
@@ -89,28 +77,28 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   TH1D *hCN[NChannels];
   for (int ch = 0; ch < NChannels; ch++)
   {
-    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d_side_%d", ch, board, side), Form("Pedestal %d", ch), 1000, 0, -1);
+    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d", ch, board), Form("Pedestal %d", ch), 1000, 0, -1);
     hADC[ch]->GetXaxis()->SetTitle("ADC");
-    hSignal[ch] = new TH1D(Form("signal_channel_%d_board_%d_side_%d", ch, board, side), Form("Signal %d", ch), 1000, -50, 50);
+    hSignal[ch] = new TH1D(Form("signal_channel_%d_board_%d", ch, board), Form("Signal %d", ch), 1000, -50, 50);
     hSignal[ch]->GetXaxis()->SetTitle("ADC");
-    hCN[ch] = new TH1D(Form("cn_channel_%d_board_%d_side_%d", ch, board, side), Form("CN %d", ch), 1000, -50, 50);
+    hCN[ch] = new TH1D(Form("cn_channel_%d_board_%d", ch, board), Form("CN %d", ch), 1000, -50, 50);
     hCN[ch]->GetXaxis()->SetTitle("ADC");
   }
 
   TF1 *fittedgaus;
 
   TGraph *gr = new TGraph(NChannels);
-  gr->SetName((TString) "Pedestals" + "_board-" + board + "_side-" + side);
+  gr->SetName((TString) "Pedestals" + "_board-" + board);
   gr->SetTitle("Pedestals");
 
   TGraph *gr2 = new TGraph(NChannels);
-  gr2->SetName((TString) "RawSigma" + "_board-" + board + "_side-" + side);
+  gr2->SetName((TString) "RawSigma" + "_board-" + board);
   gr2->SetTitle("Raw Sigmas");
   gr2->GetXaxis()->SetTitle("channel");
   gr2->GetXaxis()->SetLimits(0, NChannels);
 
   TGraph *gr3 = new TGraph(NChannels);
-  gr3->SetName((TString) "Sigma" + "_board-" + board + "_side-" + side);
+  gr3->SetName((TString) "Sigma" + "_board-" + board);
   gr3->SetTitle("Sigmas");
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
@@ -145,7 +133,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   {
     if (!fast)
     {
-      std::cout << "\n CALIBRATION FILE FOR SIDE " << side << "\n";
+      std::cout << "\n CALIBRATION FILE FOR BOARD " << board << "\n";
       std::cout << "\n Sensor Name: ";
       std::cin >> name;
       std::cout << "\n Location: ";
@@ -164,7 +152,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     }
     else
     {
-      strcpy(name, (TString) "Board_" + board + (TString) "_Side_" + side);
+      strcpy(name, (TString) "Board_" + board);
       strcpy(location, "nd ");
       strcpy(bias, "nd ");
       strcpy(leak, "nd ");
@@ -177,7 +165,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
 
     if (!single_file)
     {
-      calfile.open(output_filename + "_board-" + Form("%d", board) + "_side-" + Form("%d", side) + ".cal");
+      calfile.open(output_filename + "_board-" + Form("%d", board) + ".cal");
     }
     else
     {
@@ -204,7 +192,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     calfile << "#occupancy_k= NC\n";
   }
 
-  std::cout << "\nProcessing data for detector on board " << board << " on side " << side << std::endl;
+  std::cout << "\nProcessing data for detector on board " << board << std::endl;
   int entries = chain.GetEntries();
   std::cout << "\tThis run has " << entries << " entries" << std::endl;
 
@@ -465,8 +453,8 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   pt->AddText(Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
   pt->AddText(Form("Sigma median value: %f \t Sigma MAD value: %f", median_sigma, mad_sigma));
   pt->AddText("Calibration file " + output_filename);
-  pt->AddText(Form("Detector: %d", 2 * board + side));
-  pt->AddText(Form("Board: %i \t Side: %i", board, side));
+  pt->AddText(Form("Detector: %d", board));
+  pt->AddText(Form("Board: %i", board));
   pt->Draw();
 
   if (board == 0 && !last_board)
@@ -524,7 +512,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
     return "";
   }
 
-  constexpr int max_detectors = 16;
+  constexpr int max_detectors = 8;
   std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
 
   TFile *foutput = new TFile(tmp_root.c_str(), "RECREATE", "PAPERO HEF tmp");
@@ -539,8 +527,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
   {
     TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
     raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-    std::string branch_name = (detector % 2) ? "RAW Event J7" : "RAW Event J5";
-    raw_events_tree.at(detector)->Branch(branch_name.c_str(), &raw_event_vector.at(detector));
+    raw_events_tree.at(detector)->Branch("RAW Event", &raw_event_vector.at(detector));
     raw_events_tree.at(detector)->SetAutoSave(0);
   }
 
@@ -591,6 +578,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
 
       boards_read++;
       int evt_size  = std::get<1>(de10_ret);
+      evt_size = evt_size - 2; //TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
       int board_id  = std::get<4>(de10_ret);
       offset        = std::get<10>(de10_ret);
 
@@ -601,16 +589,11 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
 
       int det_idx = detector_ids_map.at(board_id);
 
-      raw_event_vector.at(2 * det_idx + 1).assign(
-          raw_event_buffer.begin(),
-          raw_event_buffer.begin() + raw_event_buffer.size() / 2);
-      raw_event_vector.at(2 * det_idx).assign(
-          raw_event_buffer.begin() + raw_event_buffer.size() / 2,
-          raw_event_buffer.end());
-      raw_events_tree.at(2 * det_idx)->Fill();
-      raw_events_tree.at(2 * det_idx + 1)->Fill();
+      raw_event_vector.at(det_idx) = raw_event_buffer;
 
-      offset += evt_size * 4 + 8 + 36;
+      raw_events_tree.at(det_idx)->Fill();
+
+      offset += evt_size * 4 + 8 + 44;
     }
     boards_read = 0;
     evtnum++;
@@ -740,7 +723,7 @@ int main(int argc, char *argv[])
   {
     compute_calibration(*chain, output_filename, *c1,
                         /*sigmaraw_cut*/ 15, /*sigma_cut*/ 10,
-                        /*board*/ 0, /*side*/ 0,
+                        /*board*/ 0,
                         pdf_only, fast_mode, fit_mode,
                         single_file, true,
                         max_ADC, shoeCN, cn_threshold);
@@ -750,7 +733,6 @@ int main(int argc, char *argv[])
     std::cout << "\nNEW DAQ FILE" << std::endl;
     TIter list2(tempfile.GetListOfKeys());
     int detector_num = 0;
-    int ladder_side = 0;
     while ((key = (TKey *)list2()))
     {
       if (!strcmp(key->GetClassName(), "TTree"))
@@ -760,15 +742,14 @@ int main(int argc, char *argv[])
         {
           chain2->Add(f.c_str());
         }
-        bool last = (detector_num / 2 == detectors / 2 - 1 && ladder_side == 1);
+        bool last = (detector_num == detectors - 1);
         compute_calibration(*chain2, output_filename, *c1,
                             /*sigmaraw_cut*/ 15, /*sigma_cut*/ 10,
-                            detector_num / 2, ladder_side,
+                            detector_num,
                             pdf_only, fast_mode, fit_mode,
                             single_file, last,
                             max_ADC, shoeCN, cn_threshold);
         detector_num++;
-        ladder_side = 1 - ladder_side;
       }
     }
     tempfile.Close();
