@@ -71,18 +71,23 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   int NChannels = raw_event->size();
   int NVas = NChannels / 64;
 
-  // histos
-  TH1D *hADC[NChannels];
-  TH1D *hSignal[NChannels];
-  TH1D *hCN[NChannels];
+  // Histos (with vectors)
+  std::vector<TH1D*> hADC_vec;
+  std::vector<TH1D*> hSignal_vec;
+  std::vector<TH1D*> hCN_vec;
+
+  hADC_vec.reserve(NChannels);
+  hSignal_vec.reserve(NChannels);
+  hCN_vec.reserve(NChannels);
+
   for (int ch = 0; ch < NChannels; ch++)
   {
-    hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d", ch, board), Form("Pedestal %d", ch), 1000, 0, -1);
-    hADC[ch]->GetXaxis()->SetTitle("ADC");
-    hSignal[ch] = new TH1D(Form("signal_channel_%d_board_%d", ch, board), Form("Signal %d", ch), 1000, -50, 50);
-    hSignal[ch]->GetXaxis()->SetTitle("ADC");
-    hCN[ch] = new TH1D(Form("cn_channel_%d_board_%d", ch, board), Form("CN %d", ch), 1000, -50, 50);
-    hCN[ch]->GetXaxis()->SetTitle("ADC");
+    hADC_vec.push_back(new TH1D(Form("pedestal_channel_%d_board_%d", ch, board), Form("Pedestal %d", ch), 1000, 0, -1));
+    hADC_vec.back()->GetXaxis()->SetTitle("ADC");
+    hSignal_vec.push_back(new TH1D(Form("signal_channel_%d_board_%d", ch, board), Form("Signal %d", ch), 1000, -50, 50));
+    hSignal_vec.back()->GetXaxis()->SetTitle("ADC");
+    hCN_vec.push_back(new TH1D(Form("cn_channel_%d_board_%d", ch, board), Form("CN %d", ch), 1000, -50, 50));
+    hCN_vec.back()->GetXaxis()->SetTitle("ADC");
   }
 
   TF1 *fittedgaus;
@@ -103,17 +108,20 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   gr3->GetXaxis()->SetTitle("channel");
   gr3->GetXaxis()->SetLimits(0, NChannels);
 
-  std::vector<float> pedestals[NChannels];
+  std::vector<float> pedestals;
+  pedestals.reserve(NChannels);
   float mean_pedestal = 0;
   float median_pedestal = 0;
   float rms_pedestal = 0;
   float mad_pedestal = 0;
-  std::vector<float> rsigma[NChannels];
+  std::vector<float> rsigma;
+  rsigma.reserve(NChannels);
   float mean_rsigma = 0;
   float median_rsigma = 0;
   float rms_rsigma = 0;
   float mad_rsigma = 0;
-  std::vector<float> sigma[NChannels];
+  std::vector<float> sigma;
+  sigma.reserve(NChannels);
   float mean_sigma = 0;
   float median_sigma = 0;
   float rms_sigma = 0;
@@ -211,21 +219,21 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     {
       for (int k = 0; k < raw_event->size(); k++)
       {
-        hADC[k]->Fill(raw_event->at(k));
+        hADC_vec.at(k)->Fill(raw_event->at(k));
       }
     }
   }
 
   for (int ch = 0; ch < NChannels; ch++)
   {
-    if (hADC[ch]->GetEntries())
+    if (hADC_vec.at(ch)->GetEntries())
     {
       if (fit)
       {
-        hADC[ch]->Fit("gaus", "QS");
-        fittedgaus = (TF1 *)hADC[ch]->GetListOfFunctions()->FindObject("gaus");
-        pedestals->push_back(fittedgaus->GetParameter(1));
-        rsigma->push_back(fittedgaus->GetParameter(2));
+        hADC_vec.at(ch)->Fit("gaus", "QS");
+        fittedgaus = (TF1 *)hADC_vec.at(ch)->GetListOfFunctions()->FindObject("gaus");
+        pedestals.push_back(fittedgaus->GetParameter(1));
+        rsigma.push_back(fittedgaus->GetParameter(2));
         gr->SetPoint(ch, ch, fittedgaus->GetParameter(1));
         gr2->SetPoint(ch, ch, fittedgaus->GetParameter(2));
       }
@@ -233,39 +241,39 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
       {
         if (ch == 100)
         {
-          hADC[ch]->SaveAs("test.root");
+          hADC_vec.at(ch)->SaveAs("test.root");
         }
 
-        pedestals->push_back(hADC[ch]->GetMean());
-        rsigma->push_back(hADC[ch]->GetRMS());
-        gr->SetPoint(ch, ch, hADC[ch]->GetMean());
-        gr2->SetPoint(ch, ch, hADC[ch]->GetRMS());
+        pedestals.push_back(hADC_vec.at(ch)->GetMean());
+        rsigma.push_back(hADC_vec.at(ch)->GetRMS());
+        gr->SetPoint(ch, ch, hADC_vec.at(ch)->GetMean());
+        gr2->SetPoint(ch, ch, hADC_vec.at(ch)->GetRMS());
       }
     }
     else
     {
-      pedestals->push_back(0);
-      rsigma->push_back(0);
+      pedestals.push_back(0);
+      rsigma.push_back(0);
       gr->SetPoint(ch, ch, 0);
       gr2->SetPoint(ch, ch, 0);
     }
   }
 
-  mean_pedestal = TMath::Mean(pedestals->begin(), pedestals->end());
-  rms_pedestal = TMath::RMS(pedestals->begin(), pedestals->end());
-  median_pedestal = TMath::Median(pedestals->size(), pedestals->data());
-  mad_pedestal = MAD(pedestals);
+  mean_pedestal = TMath::Mean(pedestals.begin(), pedestals.end());
+  rms_pedestal = TMath::RMS(pedestals.begin(), pedestals.end());
+  median_pedestal = TMath::Median(pedestals.size(), pedestals.data());
+  mad_pedestal = MAD(&pedestals);
 
   float num_ped = 0;
-  for (int i = 0; i < pedestals->size(); i++)
+  for (int i = 0; i < pedestals.size(); i++)
   {
-    num_ped += pow(pedestals->at(i) - mean_pedestal, 2);
+    num_ped += pow(pedestals.at(i) - mean_pedestal, 2);
   }
 
-  mean_rsigma = TMath::Mean(rsigma->begin(), rsigma->end());
-  rms_rsigma = TMath::RMS(rsigma->begin(), rsigma->end());
-  median_rsigma = TMath::Median(rsigma->size(), rsigma->data());
-  mad_rsigma = MAD(rsigma);
+  mean_rsigma = TMath::Mean(rsigma.begin(), rsigma.end());
+  rms_rsigma = TMath::RMS(rsigma.begin(), rsigma.end());
+  median_rsigma = TMath::Median(rsigma.size(), rsigma.data());
+  mad_rsigma = MAD(&rsigma);
 
   gr->GetXaxis()->SetTitle("channel");
   TAxis *axis = gr->GetXaxis();
@@ -296,11 +304,11 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   {
     chain.GetEntry(index_event);
 
-    if (raw_event->size() == pedestals->size())
+    if (raw_event->size() == pedestals.size())
     {
       // Pedestal subtraction
       std::vector<float> signal;
-      std::transform(raw_event->begin(), raw_event->end(), pedestals->begin(), std::back_inserter(signal), [&](double raw, double ped)
+      std::transform(raw_event->begin(), raw_event->end(), pedestals.begin(), std::back_inserter(signal), [&](double raw, double ped)
                      { return raw - ped; });
 
       // Chip-wise CN subtraction before filling the histos
@@ -329,8 +337,8 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
             if (signal.size() == NChannels)
             {
               {
-                hSignal[64 * va + va_chan]->Fill(signal.at(64 * va + va_chan));
-                hCN[64 * va + va_chan]->Fill(signal.at(64 * va + va_chan) - cn);
+                hSignal_vec.at(64 * va + va_chan)->Fill(signal.at(64 * va + va_chan));
+                hCN_vec.at(64 * va + va_chan)->Fill(signal.at(64 * va + va_chan) - cn);
               }
             }
           }
@@ -346,15 +354,15 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   for (int ch = 0; ch < NChannels; ch++)
   {
     bool badchan = false;
-    if (hCN[ch]->GetEntries())
+    if (hCN_vec.at(ch)->GetEntries())
     {
       if (fit)
       {
-        hCN[ch]->Fit("gaus", "QS");
-        fittedgaus = (TF1 *)hCN[ch]->GetListOfFunctions()->FindObject("gaus");
+        hCN_vec.at(ch)->Fit("gaus", "QS");
+        fittedgaus = (TF1 *)hCN_vec.at(ch)->GetListOfFunctions()->FindObject("gaus");
         gr3->SetPoint(ch, ch, fittedgaus->GetParameter(2));
-        sigma->push_back(fittedgaus->GetParameter(2));
-        if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
+        sigma.push_back(fittedgaus->GetParameter(2));
+        if (rsigma.at(ch) < 1.5 || rsigma.at(ch) > sigmaraw_cut)
         {
           if (fittedgaus->GetParameter(2) < 1 || fittedgaus->GetParameter(2) > sigma_cut)
           {
@@ -364,11 +372,11 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
       }
       else
       {
-        gr3->SetPoint(ch, ch, hCN[ch]->GetRMS());
-        sigma->push_back(hCN[ch]->GetRMS());
-        if (rsigma->at(ch) < 1.5 || rsigma->at(ch) > sigmaraw_cut)
+        gr3->SetPoint(ch, ch, hCN_vec.at(ch)->GetRMS());
+        sigma.push_back(hCN_vec.at(ch)->GetRMS());
+        if (rsigma.at(ch) < 1.5 || rsigma.at(ch) > sigmaraw_cut)
         {
-          if (hCN[ch]->GetRMS() < 1 || hCN[ch]->GetRMS() > sigma_cut)
+          if (hCN_vec.at(ch)->GetRMS() < 1 || hCN_vec.at(ch)->GetRMS() > sigma_cut)
           {
             badchan = true;
           }
@@ -378,7 +386,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     else
     {
       gr3->SetPoint(ch, ch, 0);
-      rsigma->push_back(0);
+      rsigma.push_back(0);
       badchan = true;
     }
 
@@ -390,11 +398,11 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
       }
       else
       {
-        sigma_value = hCN[ch]->GetRMS();
+        sigma_value = hCN_vec.at(ch)->GetRMS();
       }
       calfile << ch << ", " << ch / 64 << ", "
               << va_chan
-              << ", " << pedestals->at(ch) << ", " << rsigma->at(ch) << ", "
+              << ", " << pedestals.at(ch) << ", " << rsigma.at(ch) << ", "
               << sigma_value
               << ", "
               << badchan
@@ -408,14 +416,14 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
       }
     }
   }
-  mean_sigma = TMath::Mean(sigma->begin(), sigma->end());
-  rms_sigma = TMath::RMS(sigma->begin(), sigma->end());
-  median_sigma = TMath::Median(sigma->size(), sigma->data());
-  mad_sigma = MAD(sigma);
+  mean_sigma = TMath::Mean(sigma.begin(), sigma.end());
+  rms_sigma = TMath::RMS(sigma.begin(), sigma.end());
+  median_sigma = TMath::Median(sigma.size(), sigma.data());
+  mad_sigma = MAD(&sigma);
 
   if (!std::isnan(mean_sigma))
   {
-    max_sigma = *std::max_element(sigma->begin(), sigma->end());
+    max_sigma = *std::max_element(sigma.begin(), sigma.end());
   }
   else
   {
@@ -423,11 +431,11 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   }
 
   float num_sigma = 0;
-  for (int i = 0; i < sigma->size(); i++)
+  for (int i = 0; i < sigma.size(); i++)
   {
-    num_sigma += pow(sigma->at(i) - mean_sigma, 2);
+    num_sigma += pow(sigma.at(i) - mean_sigma, 2);
   }
-  rms_sigma = std::sqrt(num_sigma / sigma->size());
+  rms_sigma = std::sqrt(num_sigma / sigma.size());
 
   TAxis *axis3 = gr3->GetXaxis();
   axis3->SetLimits(0, NChannels);
