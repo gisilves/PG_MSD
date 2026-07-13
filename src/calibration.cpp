@@ -453,7 +453,6 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   pt->AddText(Form("Sigma mean value: %f \t Sigma RMS value: %f \t Max Sigma: %f", mean_sigma, rms_sigma, max_sigma));
   pt->AddText(Form("Sigma median value: %f \t Sigma MAD value: %f", median_sigma, mad_sigma));
   pt->AddText("Calibration file " + output_filename);
-  pt->AddText(Form("Detector: %d", board));
   pt->AddText(Form("Board: %i", board));
   pt->Draw();
 
@@ -577,10 +576,10 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
         break;
 
       boards_read++;
-      int evt_size  = std::get<1>(de10_ret);
-      evt_size = evt_size - 2; //TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
-      int board_id  = std::get<4>(de10_ret);
-      offset        = std::get<10>(de10_ret);
+      int evt_size = std::get<1>(de10_ret);
+      evt_size = evt_size - 2; // TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
+      int board_id = std::get<4>(de10_ret);
+      offset = std::get<10>(de10_ret);
 
       std::cout << "\r\t[raw convert] event " << evtnum << std::flush;
 
@@ -602,6 +601,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
   std::cout << "\n\t[raw convert] " << evtnum << " events converted" << std::endl;
 
   int filled = 0;
+  std::vector<int> written_board_ids;
   for (int detector = 0; detector < max_detectors; detector++)
   {
     if (raw_events_tree.at(detector)->GetEntries())
@@ -618,9 +618,24 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
         raw_events_tree.at(detector)->SetTitle(name.c_str());
       }
       raw_events_tree.at(detector)->Write();
+      int real_id = ((size_t)detector < detector_ids.size()) ? (int)detector_ids.at(detector) : detector;
+      written_board_ids.push_back(real_id);
       filled++;
     }
   }
+
+  // Persist the real board_id for each written tree, in write order,
+  // so downstream code can recover the correct id instead of relying
+  // on tree iteration order.
+  TTree board_id_tree("board_ids", "board_ids");
+  int bid;
+  board_id_tree.Branch("board_id", &bid);
+  for (int id : written_board_ids)
+  {
+    bid = id;
+    board_id_tree.Fill();
+  }
+  board_id_tree.Write();
 
   foutput->Close();
   file.close();
@@ -708,7 +723,7 @@ int main(int argc, char *argv[])
   int detectors = 0;
   while ((key = (TKey *)list()))
   {
-    if (!strcmp(key->GetClassName(), "TTree"))
+    if (!strcmp(key->GetClassName(), "TTree") && strcmp(key->GetName(), "board_ids")) // Skip board_ids TTree
     {
       detectors++;
     }
@@ -719,11 +734,28 @@ int main(int argc, char *argv[])
   if (detectors == 1)
     newDAQ = false;
 
+  // Recover the real board_ids (written by convert_hef_to_temp_root or
+  // HEF_convert) if present, so the label used in the PDF/calfile matches
+  // the actual hardware board, not just the tree iteration order.
+  std::vector<int> real_board_ids;
+  TTree *bid_tree = (TTree *)tempfile.Get("board_ids");
+  if (bid_tree)
+  {
+    int bid;
+    bid_tree->SetBranchAddress("board_id", &bid);
+    for (int i = 0; i < bid_tree->GetEntries(); i++)
+    {
+      bid_tree->GetEntry(i);
+      real_board_ids.push_back(bid);
+    }
+  }
+
   if (!newDAQ)
   {
+    int actual_board = (!real_board_ids.empty()) ? real_board_ids.at(0) : 0;
     compute_calibration(*chain, output_filename, *c1,
                         /*sigmaraw_cut*/ 15, /*sigma_cut*/ 10,
-                        /*board*/ 0,
+                        actual_board,
                         pdf_only, fast_mode, fit_mode,
                         single_file, true,
                         max_ADC, shoeCN, cn_threshold);
@@ -737,15 +769,22 @@ int main(int argc, char *argv[])
     {
       if (!strcmp(key->GetClassName(), "TTree"))
       {
+        TString tree_name = key->GetName();
+        if (tree_name == "board_ids")
+          continue;
+
         TChain *chain2 = new TChain(key->GetName());
         for (auto const &f : input_files)
         {
           chain2->Add(f.c_str());
         }
         bool last = (detector_num == detectors - 1);
+        int actual_board = ((size_t)detector_num < real_board_ids.size())
+                               ? real_board_ids.at(detector_num)
+                               : detector_num;
         compute_calibration(*chain2, output_filename, *c1,
                             /*sigmaraw_cut*/ 15, /*sigma_cut*/ 10,
-                            detector_num,
+                            actual_board,
                             pdf_only, fast_mode, fit_mode,
                             single_file, last,
                             max_ADC, shoeCN, cn_threshold);

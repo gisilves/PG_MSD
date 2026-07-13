@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     }
 
     while (!file.eof())
-    {   
+    {
         if (evtnum == evt_to_read)
         {
             break;
@@ -151,7 +151,7 @@ int main(int argc, char *argv[])
                 {
                     boards_read++;
                     evt_size = std::get<1>(de10_retValues);
-                    evt_size = evt_size - 2; //TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
+                    evt_size = evt_size - 2; // TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
@@ -161,7 +161,6 @@ int main(int argc, char *argv[])
                     bias_voltage = std::get<8>(de10_retValues);
                     leakage_current = std::get<9>(de10_retValues);
                     offset = std::get<10>(de10_retValues);
-
 
                     std::cout << "\r\tReading event " << evtnum << std::flush;
 
@@ -175,7 +174,6 @@ int main(int argc, char *argv[])
                         std::cout << "\tBias voltage: " << bias_voltage << std::endl;
                         std::cout << "\tLeakage current: " << leakage_current << std::endl;
                     }
-
 
                     padding_offset = 0;
                     // HEF always uses read_eventHEF; no DAMPE / GSI variants
@@ -201,6 +199,7 @@ int main(int argc, char *argv[])
 
     std::cout << "\n\tClosing file after " << std::dec << evtnum << " events" << std::endl;
     int filled = 0;
+    std::vector<int> written_board_ids;
 
     for (size_t detector = 0; detector < raw_events_tree.size(); detector++)
     {
@@ -219,9 +218,21 @@ int main(int argc, char *argv[])
                 raw_events_tree.at(detector)->SetTitle(name.c_str());
                 raw_events_tree.at(detector)->Write();
             }
+            int real_id = (detector < detector_ids.size()) ? (int)detector_ids.at(detector) : (int)detector;
+            written_board_ids.push_back(real_id);
             filled++;
         }
     }
+
+    TTree board_id_tree("board_ids", "board_ids");
+    int bid;
+    board_id_tree.Branch("board_id", &bid);
+    for (int id : written_board_ids)
+    {
+        bid = id;
+        board_id_tree.Fill();
+    }
+    board_id_tree.Write();
 
     foutput->Close();
     file.close();
