@@ -42,7 +42,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
                         float sigmaraw_cut = 3, float sigma_cut = 6,
                         int board = 0, bool pdf_only = false, bool fast = true,
                         bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1,
-                        bool shoeCN = false, double cn_threshold = 4.5)
+                        bool shoeCN = false, double cn_threshold = 4.5, int detector_num = 0)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -72,9 +72,9 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   int NVas = NChannels / 64;
 
   // Histos (with vectors)
-  std::vector<TH1D*> hADC_vec;
-  std::vector<TH1D*> hSignal_vec;
-  std::vector<TH1D*> hCN_vec;
+  std::vector<TH1D *> hADC_vec;
+  std::vector<TH1D *> hSignal_vec;
+  std::vector<TH1D *> hCN_vec;
 
   hADC_vec.reserve(NChannels);
   hSignal_vec.reserve(NChannels);
@@ -464,7 +464,8 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   pt->AddText(Form("Board: %i", board));
   pt->Draw();
 
-  if (board == 0 && !last_board)
+  std::cout << "Detector number: " << detector_num << std::endl;
+  if (detector_num == 0)
   {
     c1.SetGrid();
     c1.Print(output_filename + ".pdf(", "pdf");
@@ -766,7 +767,7 @@ int main(int argc, char *argv[])
                         actual_board,
                         pdf_only, fast_mode, fit_mode,
                         single_file, true,
-                        max_ADC, shoeCN, cn_threshold);
+                        max_ADC, shoeCN, cn_threshold, 0);
   }
   else
   {
@@ -795,7 +796,7 @@ int main(int argc, char *argv[])
                             actual_board,
                             pdf_only, fast_mode, fit_mode,
                             single_file, last,
-                            max_ADC, shoeCN, cn_threshold);
+                            max_ADC, shoeCN, cn_threshold, detector_num);
         detector_num++;
       }
     }
