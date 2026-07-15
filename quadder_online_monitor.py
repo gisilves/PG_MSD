@@ -346,7 +346,7 @@ class EventViewer(QWidget):
 
                 if w == QUADDER_END and in_quadder and quadder_read == int(selected_quadder) + 1:
                     channels = reorder(decode_quadder(quadder_words[8:]))
-                    ch = np.array(channels[:896], dtype=np.int32)
+                    ch = np.array(channels[:1792], dtype=np.int32)
 
                     self.udp_event_id += 1
                     self.udp_ch = ch
@@ -370,15 +370,15 @@ class EventViewer(QWidget):
         quadder = self.udp_select_quadder.currentText()
 
         if self.udp_line is None:
-            x = np.arange(896)
+            x = np.arange(1792)
             self.udp_line, = ax.plot(x, np.zeros_like(x), label="quadder" + quadder)
             ax.set_xlabel("Channel")
             ax.set_ylabel("ADC count")
-            ax.set_xticks(np.arange(0, 896, 64))
-            ax.set_xticklabels(np.arange(0, 896, 64))
+            ax.set_xticks(np.arange(0, 1792, 64))
+            ax.set_xticklabels(np.arange(0, 1792, 64))
             ax.grid(True, alpha=0.2)
 
-        x = np.arange(896)
+        x = np.arange(1792)
         accumulating = self.accumulate_checkbox.isChecked()
 
         ch = self.udp_ch.copy()
@@ -389,13 +389,13 @@ class EventViewer(QWidget):
 
         if accumulating:
             if self.udp_accum_sum is None:
-                self.udp_accum_sum = np.zeros(896, dtype=np.float64)
+                self.udp_accum_sum = np.zeros(1792, dtype=np.float64)
             self.udp_accum_sum += ch
             self.udp_accum_count += 1
 
             # Bin the accumulated sum
             n = self.udp_n_bins
-            bin_size = 896 // n
+            bin_size = 1792 // n
             indices = np.arange(0, bin_size * n, bin_size)
             binned = np.add.reduceat(self.udp_accum_sum, indices)
             bin_centers = indices + bin_size / 2
