@@ -160,11 +160,6 @@ class EventViewer(QWidget):
         self.y_axis_max.textChanged.connect(self._on_axis_limit_changed)
         axis_layout.addWidget(self.y_axis_max)
 
-        self.y_axis_min = QSpinBox()
-        self.y_axis_min_label = QLabel("Y min: ")
-        self.y_axis_min_label.setFixedWidth(50)
-        axis_layout.addWidget(self.y_axis_min_label)
-
         self.auto_axis = QCheckBox("Auto")
         self.auto_axis.setChecked(True)
         self.auto_axis.stateChanged.connect(self._on_axis_limit_changed)
@@ -248,8 +243,26 @@ class EventViewer(QWidget):
     # ----------------- Axis limit changing handling -----------------
     def _on_axis_limit_changed(self):
         ax = self.fig.axes[0]
-        ax.set_xlim(int(self.x_axis_min.text()), int(self.x_axis_max.text()))
-        ax.set_ylim(int(self.y_axis_min.text()), int(self.y_axis_max.text()))
+
+        x_min_text = self.x_axis_min.text().strip()
+        x_max_text = self.x_axis_max.text().strip()
+
+        if x_min_text and x_max_text:
+            try:
+                ax.set_xlim(int(x_min_text), int(x_max_text))
+            except ValueError:
+                pass
+
+        
+        y_min_text = self.y_axis_min.text().strip()
+        y_max_text = self.y_axis_max.text().strip()
+
+        if y_min_text and y_max_text:
+            try:
+                ax.set_ylim(int(y_min_text), int(y_max_text))
+            except ValueError:
+                pass
+
         self.canvas.draw()
 
     # ----------------- Accumulation -----------------
