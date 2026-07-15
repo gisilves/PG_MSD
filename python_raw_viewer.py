@@ -213,7 +213,15 @@ class EventViewer(QWidget):
         self.trees = {}
         for key in tree_keys:
             tree = root_file.Get(key.GetName())
-            self.trees[key.GetName()] = [np.array(event.__getattr__("RAW Event"), dtype=np.uint32) for event in tree]
+            if key.GetName() == "board_ids":
+                continue
+            print(f"tree: {key.GetName()}")
+            
+            # Attempt to load events
+            try:
+                self.trees[key.GetName()] = [np.array(event.__getattr__("RAW Event"), dtype=np.uint32) for event in tree]
+            except AttributeError as e:
+                print(f"  Error accessing 'RAW Event': {e}")
 
         self.tree_combo.blockSignals(True)
         self.tree_combo.clear()
