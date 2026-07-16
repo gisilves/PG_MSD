@@ -77,6 +77,8 @@ int main(int argc, char *argv[])
     uint64_t ext_timestamp = 0;
     uint64_t first_timestamp = 0;
     uint64_t first_ext_timestamp = 0;
+    uint32_t bias_voltage = 0;
+    uint32_t leakage_current = 0;
     long long timestamp_diff = 0;
     long long ext_timestamp_diff = 0;
     float mean_rate = 0;
@@ -87,7 +89,7 @@ int main(int argc, char *argv[])
     std::vector<uint16_t> detector_ids;
 
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
@@ -206,13 +208,16 @@ int main(int argc, char *argv[])
                 {
                     boards_read++;
                     evt_size = std::get<1>(de10_retValues);
+                    evt_size = evt_size - 2; // TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
                     i2cmsg = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
-                    offset = std::get<8>(de10_retValues);
+                    bias_voltage = std::get<8>(de10_retValues);
+                    leakage_current = std::get<9>(de10_retValues);
+                    offset = std::get<10>(de10_retValues);
 
                     if(!(verbose == 2))
                     {
@@ -249,7 +254,7 @@ int main(int argc, char *argv[])
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
                     }
 
-                    offset += evt_size * 4 + 8 + 36; // 8 is the size of the de10 footer + crc, 36 is the size of the de10 header
+                    offset += evt_size * 4 + 8 + 44; // 8 is the size of the de10 footer + crc, 40 is the size of the de10 header
                 }
             }
             boards_read = 0;
