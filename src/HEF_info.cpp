@@ -136,11 +136,13 @@ int main(int argc, char *argv[])
     std::vector<uint64_t> ext_rate_timestamp(boards, 0);
 
     // Initialize TGraphs for each board
-    TGraph *g_trigger_number[boards];
-    TGraph *g_trigger_id[boards];
-    TGraph *g_ext_timestamp[boards];
-    TGraph *g_ext_timestamp_delta[boards - 1];
-    TH1F *h_ext_timestamp_rate[boards];
+    std::vector<TGraph*> g_trigger_number(boards);
+    std::vector<TGraph*> g_trigger_id(boards);
+    std::vector<TGraph*> g_ext_timestamp(boards);
+    std::vector<TGraph*> g_ext_timestamp_delta(boards - 1);
+    std::vector<TGraph*> g_bias_voltage(boards);
+    std::vector<TGraph*> g_leakage_current(boards);
+    std::vector<TH1F*> h_ext_timestamp_rate(boards);
 
 
     for (int i = 0; i < boards; i++)
@@ -155,6 +157,16 @@ int main(int argc, char *argv[])
         g_trigger_id[i]->SetTitle(TString::Format("Trigger id for board %d", i));
         g_trigger_id[i]->GetXaxis()->SetTitle("Event read number");
         g_trigger_id[i]->GetYaxis()->SetTitle("Trigger id");
+        g_bias_voltage[i] = new TGraph();
+        g_bias_voltage[i]->SetName(TString::Format("g_bias_voltage_board_%d", i));
+        g_bias_voltage[i]->SetTitle(TString::Format("Bias voltage for board %d", i));
+        g_bias_voltage[i]->GetXaxis()->SetTitle("Event read number");
+        g_bias_voltage[i]->GetYaxis()->SetTitle("Bias voltage");
+        g_leakage_current[i] = new TGraph();
+        g_leakage_current[i]->SetName(TString::Format("g_leakage_current_board_%d", i));
+        g_leakage_current[i]->SetTitle(TString::Format("Leakage current for board %d", i));
+        g_leakage_current[i]->GetXaxis()->SetTitle("Event read number");
+        g_leakage_current[i]->GetYaxis()->SetTitle("Leakage current");
         g_ext_timestamp[i] = new TGraph();
         g_ext_timestamp[i]->SetName(TString::Format("g_ext_timestamp_board_%d", i));
         g_ext_timestamp[i]->SetTitle(TString::Format("Ext Timestamp for board %d", i));
@@ -227,6 +239,8 @@ int main(int argc, char *argv[])
                     g_trigger_number[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_number);
                     g_trigger_id[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_id);
                     g_ext_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, ext_timestamp);
+                    g_bias_voltage[boards_read - 1]->SetPoint(evtnum, evtnum, bias_voltage);
+                    g_leakage_current[boards_read - 1]->SetPoint(evtnum, evtnum, leakage_current);
 
                     h_ext_timestamp_rate[boards_read - 1]->Fill((ext_timestamp - ext_rate_timestamp.at(boards_read -1)));
                     ext_rate_timestamp[boards_read - 1] = ext_timestamp;
@@ -278,6 +292,8 @@ int main(int argc, char *argv[])
         g_trigger_id[i]->Write();
         g_ext_timestamp[i]->Write();
         h_ext_timestamp_rate[i]->Write();
+        g_bias_voltage[i]->Write();
+        g_leakage_current[i]->Write();
     }
 
     for (int i = 0; i < boards - 1; i++)
