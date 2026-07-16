@@ -28,7 +28,12 @@ QUADDER_END   = 0x0bedface
 
 def reorder(v):
     """Reorder ADC channels from multiplexer in the correct sequence."""
-    reordered = [0] * len(v)
+    reordered = [0] * 1796
+    
+    if len(v) != 1796:
+        print(f"ERROR: reorder() expects 1792 elements, got {len(v)}")
+        return reordered
+    
     j = 0
     order = [12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1]
 
