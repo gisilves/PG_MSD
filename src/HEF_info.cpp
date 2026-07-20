@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     int boards_read = 0;
     unsigned int old_offset = 0;
     unsigned long fw_version = 0;
-    uint64_t i2cmsg = 0;
+    uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
     uint64_t first_timestamp = 0;
     uint64_t first_ext_timestamp = 0;
@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
     uint32_t leakage_current = 0;
     long long timestamp_diff = 0;
     long long ext_timestamp_diff = 0;
+    long long int_timestamp_diff = 0;
     float mean_rate = 0;
     float ext_mean_rate = 0;
 
@@ -89,7 +90,7 @@ int main(int argc, char *argv[])
     std::vector<uint16_t> detector_ids;
 
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
@@ -138,6 +139,8 @@ int main(int argc, char *argv[])
     // Initialize TGraphs for each board
     std::vector<TGraph*> g_trigger_number(boards);
     std::vector<TGraph*> g_trigger_id(boards);
+    std::vector<TGraph*> g_int_timestamp(boards);
+    std::vector<TGraph*> g_int_timestamp_delta(boards - 1);
     std::vector<TGraph*> g_ext_timestamp(boards);
     std::vector<TGraph*> g_ext_timestamp_delta(boards - 1);
     std::vector<TGraph*> g_bias_voltage(boards);
@@ -152,26 +155,39 @@ int main(int argc, char *argv[])
         g_trigger_number[i]->SetTitle(TString::Format("Trigger number for board %d", i));
         g_trigger_number[i]->GetXaxis()->SetTitle("Event read number");
         g_trigger_number[i]->GetYaxis()->SetTitle("Trigger number");
+        
         g_trigger_id[i] = new TGraph();
         g_trigger_id[i]->SetName(TString::Format("g_trigger_id_board_%d", i));
         g_trigger_id[i]->SetTitle(TString::Format("Trigger id for board %d", i));
         g_trigger_id[i]->GetXaxis()->SetTitle("Event read number");
         g_trigger_id[i]->GetYaxis()->SetTitle("Trigger id");
+        
         g_bias_voltage[i] = new TGraph();
         g_bias_voltage[i]->SetName(TString::Format("g_bias_voltage_board_%d", i));
         g_bias_voltage[i]->SetTitle(TString::Format("Bias voltage for board %d", i));
         g_bias_voltage[i]->GetXaxis()->SetTitle("Event read number");
         g_bias_voltage[i]->GetYaxis()->SetTitle("Bias voltage");
+        g_bias_voltage[i]->GetYaxis()->SetRangeUser(-5, 100);
+        
         g_leakage_current[i] = new TGraph();
         g_leakage_current[i]->SetName(TString::Format("g_leakage_current_board_%d", i));
         g_leakage_current[i]->SetTitle(TString::Format("Leakage current for board %d", i));
         g_leakage_current[i]->GetXaxis()->SetTitle("Event read number");
         g_leakage_current[i]->GetYaxis()->SetTitle("Leakage current");
+        g_leakage_current[i]->GetYaxis()->SetRangeUser(-5, 10);
+        
+        g_int_timestamp[i] = new TGraph();
+        g_int_timestamp[i]->SetName(TString::Format("g_int_timestamp_board_%d", i));
+        g_int_timestamp[i]->SetTitle(TString::Format("Internal timestamp for board %d", i));
+        g_int_timestamp[i]->GetXaxis()->SetTitle("Event read number");
+        g_int_timestamp[i]->GetYaxis()->SetTitle("Internal timestamp");
+
         g_ext_timestamp[i] = new TGraph();
         g_ext_timestamp[i]->SetName(TString::Format("g_ext_timestamp_board_%d", i));
         g_ext_timestamp[i]->SetTitle(TString::Format("Ext Timestamp for board %d", i));
         g_ext_timestamp[i]->GetXaxis()->SetTitle("Event read number");
         g_ext_timestamp[i]->GetYaxis()->SetTitle("Ext Timestamp");
+        
         h_ext_timestamp_rate[i] = new TH1F("", "", 10000, 499900, 1e6);
         h_ext_timestamp_rate[i]->SetName(TString::Format("g_ext_timestamp_rate_board_%d", i));
         h_ext_timestamp_rate[i]->SetTitle(TString::Format("Ext Timestamp rate for board %d", i));
@@ -186,6 +202,11 @@ int main(int argc, char *argv[])
         g_ext_timestamp_delta[i]->SetTitle(TString::Format("Ext Timestamp delta for board %d", i + 1));
         g_ext_timestamp_delta[i]->GetXaxis()->SetTitle("Event read number");
         g_ext_timestamp_delta[i]->GetYaxis()->SetTitle("Ext Timestamp delta");
+        g_int_timestamp_delta[i] = new TGraph();
+        g_int_timestamp_delta[i]->SetName(TString::Format("g_int_timestamp_delta_board_%d", i + 1));
+        g_int_timestamp_delta[i]->SetTitle(TString::Format("Internal timestamp delta for board %d", i + 1));
+        g_int_timestamp_delta[i]->GetXaxis()->SetTitle("Event read number");
+        g_int_timestamp_delta[i]->GetYaxis()->SetTitle("Internal timestamp delta");
     }
 
     if (nevents > 0)
@@ -224,7 +245,7 @@ int main(int argc, char *argv[])
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
-                    i2cmsg = std::get<5>(de10_retValues);
+                    int_timestamp = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
                     bias_voltage = std::get<8>(de10_retValues);
@@ -238,6 +259,7 @@ int main(int argc, char *argv[])
 
                     g_trigger_number[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_number);
                     g_trigger_id[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_id);
+                    g_int_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, int_timestamp);
                     g_ext_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, ext_timestamp);
                     g_bias_voltage[boards_read - 1]->SetPoint(evtnum, evtnum, bias_voltage);
                     g_leakage_current[boards_read - 1]->SetPoint(evtnum, evtnum, leakage_current);
@@ -247,13 +269,15 @@ int main(int argc, char *argv[])
 
                     if (boards_read == 1)
                     {
-                        first_timestamp = i2cmsg;
+                        first_timestamp = int_timestamp;
                         first_ext_timestamp = ext_timestamp;
                     }
                     else
                     {
-                        timestamp_diff = first_timestamp - i2cmsg;
+                        timestamp_diff = first_timestamp - int_timestamp;
                         ext_timestamp_diff = first_ext_timestamp - ext_timestamp;
+                        int_timestamp_diff = first_timestamp - int_timestamp;
+                        g_int_timestamp_delta[boards_read - 2]->SetPoint(evtnum, evtnum, int_timestamp_diff);
                         g_ext_timestamp_delta[boards_read - 2]->SetPoint(evtnum, evtnum, ext_timestamp_diff);
                     }
 
@@ -261,7 +285,7 @@ int main(int argc, char *argv[])
                     {
                         std::cout << "\tBoard ID " << board_id << std::endl;
                         std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
-                        std::cout << "\tI2C Message " << std::dec << i2cmsg << std::endl;
+                        std::cout << "\tInternal timestamp " << std::dec << int_timestamp << std::endl;
                         std::cout << "\tExternal Timestamp " << std::dec << ext_timestamp << std::endl;
                         std::cout << "\tTrigger ID " << trigger_id << std::endl;
                         std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
@@ -290,6 +314,7 @@ int main(int argc, char *argv[])
     {
         g_trigger_number[i]->Write();
         g_trigger_id[i]->Write();
+        g_int_timestamp[i]->Write();
         g_ext_timestamp[i]->Write();
         h_ext_timestamp_rate[i]->Write();
         g_bias_voltage[i]->Write();
@@ -298,6 +323,7 @@ int main(int argc, char *argv[])
 
     for (int i = 0; i < boards - 1; i++)
     {
+        g_int_timestamp_delta[i]->Write();
         g_ext_timestamp_delta[i]->Write();
     }
 

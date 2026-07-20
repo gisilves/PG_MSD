@@ -51,7 +51,7 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
 
 bool read_de10_footer(std::fstream &file, uint32_t offset, int verbose);
 
-std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose);
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose);
 
 std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int event_size, int verbose);
 

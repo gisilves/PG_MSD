@@ -304,7 +304,7 @@ bool read_de10_footer(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose)
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose)
 {
   unsigned char buffer[4];
 
@@ -313,8 +313,8 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
   uint32_t trigger = 0;
   uint32_t board_id = 0;
   uint32_t trigger_id = 0;
-  uint32_t i2cmsg_part = 0;
-  uint64_t i2cmsg = 0UL;
+  uint32_t int_timestamp_part = 0;
+  uint64_t int_timestamp = 0UL;
   uint32_t ext_timestamp_part = 0;
   uint64_t ext_timestamp = 0UL;
   uint32_t bias_voltage = 0;
@@ -384,13 +384,14 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
   file.read(reinterpret_cast<char *>(&buffer), 4);
   board_id = buffer[2] | buffer[3] << 8;
   trigger_id = buffer[0] | buffer[1] << 8;
+  
+  file.read(reinterpret_cast<char *>(&buffer), 4);
+  int_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  int_timestamp = 0x0000000000000000 | ((uint64_t)int_timestamp_part << 32UL);
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  i2cmsg_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  i2cmsg = 0x0000000000000000 | ((uint64_t)i2cmsg_part << 32UL);
-  file.read(reinterpret_cast<char *>(&buffer), 4);
-  i2cmsg_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
-  i2cmsg |= (uint64_t)i2cmsg_part;
+  int_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  int_timestamp |= (uint64_t)int_timestamp_part;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
   ext_timestamp_part = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
@@ -414,25 +415,13 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uin
     std::cout << "\t\t\ttrigger: " << std::dec << trigger << std::endl;
     std::cout << "\t\t\tboard_id: " << board_id << std::endl;
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
-    std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
-    std::cout << "\t\t\ti2c Trigger type: " << ((i2cmsg&0x0000000f) & 0x1) << std::endl;
-    std::cout << "\t\t\ti2c Subsystem: " << ((i2cmsg&0x0fff0000)>>16) << std::endl;
-    std::cout << "\t\t\ti2c Serial: " << ((i2cmsg&0xffffffff00000000)>>32UL) << std::endl;
-    
+    std::cout << "\t\t\tinternal timestamp: " << std::dec << int_timestamp << std::endl;
     std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
     std::cout << "\t\t\tbias voltage: " << std::dec << bias_voltage << std::endl;
     std::cout << "\t\t\tleakage current: " << std::dec << leakage_current << std::endl;
   }
 
-  if (verbose == 3)
-  {
-    std::cout << "\t\t\ti2c message: " << std::hex << i2cmsg << std::endl;
-    std::cout << "\t\t\ti2c Trigger type: " << ((i2cmsg&0x0000000f) & 0x1) << std::endl;
-    std::cout << "\t\t\ti2c Subsystem: " << ((i2cmsg&0x0fff0000)>>16) << std::endl;
-    std::cout << "\t\t\ti2c Serial: " << ((i2cmsg&0xffffffff00000000)>>32UL) << std::endl;
-  }
-
-  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, i2cmsg, ext_timestamp, trigger_id, bias_voltage, leakage_current, offset);
+  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, int_timestamp, ext_timestamp, trigger_id, bias_voltage, leakage_current, offset);
 }
 
 std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int event_size, int verbose)

@@ -77,8 +77,8 @@ int main(int argc, char *argv[])
     int boards_read = 0;
     uint32_t offset = 0;
     uint32_t fw_version = 0;
-    uint32_t i2cmsg = 0;
-    uint32_t ext_timestamp = 0;
+    uint64_t int_timestamp = 0;
+    uint64_t ext_timestamp = 0;
     uint32_t old_offset = 0;
     uint32_t bias_voltage = 0;
     uint32_t leakage_current = 0;
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 
     std::vector<uint16_t> detector_ids;
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
-                    i2cmsg = std::get<5>(de10_retValues);
+                    int_timestamp = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
                     bias_voltage = std::get<8>(de10_retValues);
@@ -171,6 +171,8 @@ int main(int argc, char *argv[])
                         std::cout << "\tTrigger ID " << trigger_id << std::endl;
                         std::cout << "\tFW version is: " << std::hex << fw_version << std::dec << std::endl;
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
+                        std::cout << "\tInternal timestamp: " << int_timestamp << std::endl;
+                        std::cout << "\tExternal timestamp: " << ext_timestamp << std::endl;
                         std::cout << "\tBias voltage: " << bias_voltage << std::endl;
                         std::cout << "\tLeakage current: " << leakage_current << std::endl;
                     }
