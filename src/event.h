@@ -21,7 +21,6 @@ struct cluster
   int over;               // Number of strips over high threshold
   std::vector<float> ADC; // ADC content
   int board;              // board number
-  int side;               // side number
 };                // Cluster structure
 
 struct calib
@@ -38,7 +37,6 @@ int GetClusterAddress(cluster clus);
 int GetClusterWidth(cluster clus);
 int GetClusterOver(cluster clus);
 int GetClusterBoard(cluster clus);
-int GetClusterSide(cluster clus);
 std::vector<float> GetClusterADC(cluster clus);
 
 float GetClusterSignal(cluster clus);
@@ -90,7 +88,6 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
                                       bool symmetric, int symmetric_width,
                                       bool absoluteThresholds,
                                       int board,
-                                      int side,
                                       bool verbose);
 
 #endif
