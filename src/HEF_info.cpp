@@ -32,17 +32,7 @@ int main(int argc, char *argv[])
     TFile *foutput;
     // textfile to save trigger timestamps
     std::string string_output_rootfile = output_file.c_str();
-    std::string string_output_txtfile = string_output_rootfile.substr(0, string_output_rootfile.size() - 5) + ".txt";
-    std::cout << "Output txt file: " << string_output_txtfile << std::endl;
-    std::ofstream output_txt_file(string_output_txtfile);
     
-    if (verbose == 2)
-    {
-        //open output_txt_file
-        output_txt_file.open(string_output_txtfile);
-        output_txt_file << "Writing PAPERO_info (Timestamps)" << std::endl;
-    }
-
     // Open binary data file
     std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
@@ -222,13 +212,6 @@ int main(int argc, char *argv[])
 
         maka_retValues = read_evt_header(file, offset, verbose);
 
-        if (verbose == 2)
-        {
-            timespec rawtime = std::get<1>(maka_retValues);
-            //write timestamp to text file
-            output_txt_file << "Event " << evtnum <<  " timestamp (s, ns) " << std::dec << rawtime.tv_sec << " " << rawtime.tv_nsec << std::endl;
-        }
-
         if (std::get<0>(maka_retValues))
         {
             offset = std::get<7>(maka_retValues);
@@ -328,7 +311,6 @@ int main(int argc, char *argv[])
     }
 
     foutput->Close();
-    output_txt_file.close();
     file.close();
     return 0;
 }
