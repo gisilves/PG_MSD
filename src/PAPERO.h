@@ -11,7 +11,7 @@
 #include <iostream>
 #include <time.h>
 
-// for conversion with PAPERO_compress of FOOT PAPERO DAQ raw files to a rootfile with TTrees of raw events
+// for conversion of PAPERO DAQ raw files to a rootfile with TTrees of raw events
 
 template <typename T>
 void print(std::vector<T> const &v)
@@ -33,7 +33,8 @@ std::vector<T> reorder(std::vector<T> const &v)
     {
         for (int adc : order)
         {
-            reordered_vec.at(adc * 128 + ch) = v.at(j);
+            int write_idx = (adc * 128 + ch + 896) % 1792; // Swap GPIO connectors to match physical layout
+            reordered_vec.at(write_idx) = v.at(j);
             j++;
         }
     }

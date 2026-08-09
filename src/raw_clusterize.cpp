@@ -851,7 +851,7 @@ int main(int argc, char *argv[])
     minStrip = 0;
     maxStrip = 1791;
     sensor_pitch = 0.108;
-    maxADC_h = 10000;
+    maxADC_h = 1000;
   }
   else
   {
