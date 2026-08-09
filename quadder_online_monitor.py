@@ -42,6 +42,11 @@ def reorder(v):
             reordered[adc * 128 + ch] = v[j]
             j += 1
 
+    # Swap channels 0-895 and 896-1791
+    temp = reordered[0:896]
+    reordered[0:896] = reordered[896:1792]
+    reordered[896:1792] = temp
+    
     return reordered
 
 def decode_quadder(words):
