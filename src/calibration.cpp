@@ -350,6 +350,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   // Fitting with gaus to compute sigmas
   int va_chan = 0;
   double sigma_value;
+  std::vector<bool> badchan_vec(NChannels, false);
 
   for (int ch = 0; ch < NChannels; ch++)
   {
@@ -386,36 +387,12 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     else
     {
       gr3->SetPoint(ch, ch, 0);
-      rsigma.push_back(0);
+      sigma.push_back(0);
       badchan = true;
     }
-
-    if (!pdf_only)
-    {
-      if (fit)
-      {
-        sigma_value = fittedgaus->GetParameter(2);
-      }
-      else
-      {
-        sigma_value = hCN_vec.at(ch)->GetRMS();
-      }
-      calfile << ch << ", " << ch / 64 << ", "
-              << va_chan
-              << ", " << pedestals.at(ch) << ", " << rsigma.at(ch) << ", "
-              << sigma_value
-              << ", "
-              << badchan
-              << ", "
-              << "0.000"
-              << "\n";
-      va_chan++;
-      if (va_chan == 64)
-      {
-        va_chan = 0;
-      }
-    }
+    badchan_vec[ch] = badchan;
   }
+
   mean_sigma = TMath::Mean(sigma.begin(), sigma.end());
   rms_sigma = TMath::RMS(sigma.begin(), sigma.end());
   median_sigma = TMath::Median(sigma.size(), sigma.data());
@@ -436,6 +413,95 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
     num_sigma += pow(sigma.at(i) - mean_sigma, 2);
   }
   rms_sigma = std::sqrt(num_sigma / sigma.size());
+
+  // Compute median of raw sigma and sigma for each VA
+  std::vector<int> strip_status(NChannels, 0);
+  std::vector<double> median_rsigma_by_VA(NVas, 0.0);
+  std::vector<double> median_sigma_by_VA(NVas, 0.0);
+
+  for (int iVA = 0; iVA < NVas; ++iVA)
+  {
+    std::vector<float> rsig_values;
+    std::vector<float> sig_values;
+
+    rsig_values.reserve(64);
+    sig_values.reserve(64);
+
+    std::copy(rsigma.begin() + iVA * 64, rsigma.begin() + (iVA + 1) * 64,
+              std::back_inserter(rsig_values));
+    std::copy(sigma.begin() + iVA * 64, sigma.begin() + (iVA + 1) * 64,
+              std::back_inserter(sig_values));
+
+    std::sort(rsig_values.begin(), rsig_values.end());
+    if (rsig_values.size() > 0)
+      median_rsigma_by_VA[iVA] = 0.5 * (rsig_values[(rsig_values.size() / 2) - 1] + rsig_values[rsig_values.size() / 2]);
+
+    std::sort(sig_values.begin(), sig_values.end());
+    if (sig_values.size() > 0)
+      median_sigma_by_VA[iVA] = 0.5 * (sig_values[(sig_values.size() / 2) - 1] + sig_values[sig_values.size() / 2]);
+  }
+
+  // Compute strip status based on VA medians
+  for (int iCh = 0; iCh < NChannels; ++iCh)
+  {
+    int va_idx = iCh / 64;
+
+    if (rsigma[iCh] >= 1.2 * median_rsigma_by_VA[va_idx] || rsigma[iCh] <= 0.5 * median_rsigma_by_VA[va_idx])
+    {
+      strip_status[iCh] = 1; // Noisy/Dead strip according to raw sigma
+    }
+    if (sigma[iCh] >= 1.2 * median_sigma_by_VA[va_idx] || sigma[iCh] <= 0.5 * median_sigma_by_VA[va_idx])
+    {
+      if (strip_status[iCh] == 0)
+      {
+        strip_status[iCh] = 2; // Noisy/Dead strip according to sigma
+      }
+      else
+      {
+        strip_status[iCh] = 3; // Noisy/Dead strip according to both raw sigma and sigma
+      }
+    }
+  }
+
+  std::vector<bool> combined_status_vec(NChannels, false);
+  for (int iCh = 0; iCh < NChannels; ++iCh)
+  {
+    combined_status_vec[iCh] = (badchan_vec[iCh] || strip_status[iCh]);
+  }
+
+  // Write calibration file with OR of badchan and strip_status
+  va_chan = 0;
+  if (!pdf_only)
+  {
+    for (int ch = 0; ch < NChannels; ch++)
+    {
+      if (fit)
+      {
+        hCN_vec.at(ch)->Fit("gaus", "QS");
+        fittedgaus = (TF1 *)hCN_vec.at(ch)->GetListOfFunctions()->FindObject("gaus");
+        sigma_value = fittedgaus->GetParameter(2);
+      }
+      else
+      {
+        sigma_value = hCN_vec.at(ch)->GetRMS();
+      }
+
+      calfile << ch << ", " << ch / 64 << ", "
+              << va_chan
+              << ", " << pedestals.at(ch) << ", " << rsigma.at(ch) << ", "
+              << sigma_value
+              << ", "
+              << combined_status_vec[ch]
+              << ", "
+              << "0.000"
+              << "\n";
+      va_chan++;
+      if (va_chan == 64)
+      {
+        va_chan = 0;
+      }
+    }
+  }
 
   TAxis *axis3 = gr3->GetXaxis();
   axis3->SetLimits(0, NChannels);
@@ -487,6 +553,29 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
   std::cout << Form("\t%f \t\t %f \t\t %f", median_pedestal, median_rsigma, median_sigma) << std::endl;
   std::cout << "\tMAD pedestal \t\t MAD RSigma \t\t MAD Sigma " << std::endl;
   std::cout << Form("\t%f \t\t %f \t\t %f", mad_pedestal, mad_rsigma, mad_sigma) << std::endl;
+
+  std::cout << "\n\tList of bad channels:" << std::endl;
+  std::cout << "\t\t";
+  int lineLength = 16; // Initial tab width
+  int lineLimit = 80;  // Adjust to your preference
+
+  for (int iCh = 0; iCh < NChannels; ++iCh)
+  {
+    if (combined_status_vec[iCh])
+    {
+      std::string channelStr = std::to_string(iCh) + " ";
+      lineLength += channelStr.length();
+      
+      if (lineLength > lineLimit)
+      {
+        std::cout << "\n\t\t";
+        lineLength = 16 + channelStr.length();
+      }
+      std::cout << channelStr;
+    }
+  }
+  std::cout << std::endl;
+  
   if (!pdf_only)
   {
     calfile.close();
