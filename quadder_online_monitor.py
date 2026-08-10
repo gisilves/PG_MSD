@@ -200,6 +200,11 @@ class EventViewer(QWidget):
         self.accumulate_checkbox.stateChanged.connect(self._on_accumulate_toggled)
         udp_layout.addWidget(self.accumulate_checkbox)
 
+        self.normalize_checkbox = QCheckBox("Normalize peak to 1")
+        self.normalize_checkbox.setChecked(False)
+        self.normalize_checkbox.stateChanged.connect(self._on_normalize_toggled)
+        udp_layout.addWidget(self.normalize_checkbox)
+
         udp_box = QGroupBox("UDP Stream")
         udp_box.setLayout(udp_layout)
         self.layout.addWidget(udp_box)
@@ -280,6 +285,9 @@ class EventViewer(QWidget):
         if state == 0:  # unchecked
             self._reset_accumulation()
             self.udp_pending = True  # trigger immediate redraw with last single event
+
+    def _on_normalize_toggled(self, state):
+        self.udp_pending = True  # trigger immediate redraw with new normalization setting
 
     def _reset_accumulation(self):
         self.udp_accum_sum = None
@@ -403,6 +411,7 @@ class EventViewer(QWidget):
 
         x = np.arange(1792)
         accumulating = self.accumulate_checkbox.isChecked()
+        normalize = self.normalize_checkbox.isChecked()
 
         ch = self.udp_ch.copy()
         if self.calib_df is not None and self.subtract_pedestal.isChecked():
@@ -423,19 +432,27 @@ class EventViewer(QWidget):
             binned = np.add.reduceat(self.udp_accum_sum, indices)
             bin_centers = indices + bin_size / 2
 
+            if normalize:
+                peak = np.max(np.abs(binned))
+                if peak > 0:
+                    binned = binned / peak
+
             # Remove old bar container
             if self.udp_bar is not None:
                 self.udp_bar.remove()
             self.udp_bar = ax.bar(bin_centers, binned, width=bin_size * 0.9, color='tab:blue', alpha=0.7)
 
             self.udp_line.set_visible(False)
-            plot_data = self.udp_accum_sum  # for y-scale
+            plot_data = binned  # for y-scale
             title = f"UDP Accumulated {self.udp_accum_count} events"
+            if normalize:
+                title += " (normalized)"
         else:
             plot_data = ch
             title = f"UDP Event {self.udp_event_id}"
 
-        self.udp_line.set_data(x, plot_data)
+        if not accumulating:
+            self.udp_line.set_data(x, plot_data)
         self.udp_line.set_visible(not accumulating)
         ax.set_title(title)
         display_data = plot_data
@@ -447,6 +464,8 @@ class EventViewer(QWidget):
             ymax = float(np.max(display_data))
             margin = max((ymax - ymin) * 0.05, 10)
             ax.set_ylim(ymin - margin, ymax + margin)
+            if self.normalize_checkbox.isChecked():
+                ax.set_ylim(0, 1.5)    
 
         self.canvas.draw_idle()
         self.udp_pending = False
