@@ -67,7 +67,8 @@ int main(int argc, char *argv[])
     uint64_t ext_timestamp = 0;
     uint64_t first_timestamp = 0;
     uint64_t first_ext_timestamp = 0;
-    uint32_t bias_voltage = 0;
+    uint32_t bias_voltage_0 = 0;
+    uint32_t bias_voltage_1 = 0;
     uint32_t leakage_current = 0;
     long long timestamp_diff = 0;
     long long ext_timestamp_diff = 0;
@@ -80,7 +81,7 @@ int main(int argc, char *argv[])
     std::vector<uint16_t> detector_ids;
 
     std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
@@ -133,7 +134,8 @@ int main(int argc, char *argv[])
     std::vector<TGraph*> g_int_timestamp_delta(boards - 1);
     std::vector<TGraph*> g_ext_timestamp(boards);
     std::vector<TGraph*> g_ext_timestamp_delta(boards - 1);
-    std::vector<TGraph*> g_bias_voltage(boards);
+    std::vector<TGraph*> g_bias_voltage_0(boards);
+    std::vector<TGraph*> g_bias_voltage_1(boards);
     std::vector<TGraph*> g_leakage_current(boards);
     std::vector<TH1F*> h_ext_timestamp_rate(boards);
 
@@ -152,12 +154,19 @@ int main(int argc, char *argv[])
         g_trigger_id[i]->GetXaxis()->SetTitle("Event read number");
         g_trigger_id[i]->GetYaxis()->SetTitle("Trigger id");
         
-        g_bias_voltage[i] = new TGraph();
-        g_bias_voltage[i]->SetName(TString::Format("g_bias_voltage_board_%d", i));
-        g_bias_voltage[i]->SetTitle(TString::Format("Bias voltage for board %d", i));
-        g_bias_voltage[i]->GetXaxis()->SetTitle("Event read number");
-        g_bias_voltage[i]->GetYaxis()->SetTitle("Bias voltage");
-        g_bias_voltage[i]->GetYaxis()->SetRangeUser(-5, 100);
+        g_bias_voltage_0[i] = new TGraph();
+        g_bias_voltage_0[i]->SetName(TString::Format("g_bias_voltage_0_board_%d", i));
+        g_bias_voltage_0[i]->SetTitle(TString::Format("Bias voltage for board %d HEF 0", i));
+        g_bias_voltage_0[i]->GetXaxis()->SetTitle("Event read number");
+        g_bias_voltage_0[i]->GetYaxis()->SetTitle("Bias voltage");
+        g_bias_voltage_0[i]->GetYaxis()->SetRangeUser(-5, 100);
+
+        g_bias_voltage_1[i] = new TGraph();
+        g_bias_voltage_1[i]->SetName(TString::Format("g_bias_voltage_1_board_%d", i));
+        g_bias_voltage_1[i]->SetTitle(TString::Format("Bias voltage for board %d HEF 1", i));
+        g_bias_voltage_1[i]->GetXaxis()->SetTitle("Event read number");
+        g_bias_voltage_1[i]->GetYaxis()->SetTitle("Bias voltage");
+        g_bias_voltage_1[i]->GetYaxis()->SetRangeUser(-5, 100);
         
         g_leakage_current[i] = new TGraph();
         g_leakage_current[i]->SetName(TString::Format("g_leakage_current_board_%d", i));
@@ -231,9 +240,10 @@ int main(int argc, char *argv[])
                     int_timestamp = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
-                    bias_voltage = std::get<8>(de10_retValues);
-                    leakage_current = std::get<9>(de10_retValues);
-                    offset = std::get<10>(de10_retValues);
+                    bias_voltage_0 = std::get<8>(de10_retValues);
+                    bias_voltage_1 = std::get<9>(de10_retValues);
+                    leakage_current = std::get<10>(de10_retValues);
+                    offset = std::get<11>(de10_retValues);
 
                     if(!(verbose == 2))
                     {
@@ -244,7 +254,8 @@ int main(int argc, char *argv[])
                     g_trigger_id[boards_read - 1]->SetPoint(evtnum, evtnum, trigger_id);
                     g_int_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, int_timestamp);
                     g_ext_timestamp[boards_read - 1]->SetPoint(evtnum, evtnum, ext_timestamp);
-                    g_bias_voltage[boards_read - 1]->SetPoint(evtnum, evtnum, bias_voltage);
+                    g_bias_voltage_0[boards_read - 1]->SetPoint(evtnum, evtnum, bias_voltage_0);
+                    g_bias_voltage_1[boards_read - 1]->SetPoint(evtnum, evtnum, bias_voltage_1);
                     g_leakage_current[boards_read - 1]->SetPoint(evtnum, evtnum, leakage_current);
 
                     h_ext_timestamp_rate[boards_read - 1]->Fill((ext_timestamp - ext_rate_timestamp.at(boards_read -1)));
@@ -300,7 +311,8 @@ int main(int argc, char *argv[])
         g_int_timestamp[i]->Write();
         g_ext_timestamp[i]->Write();
         h_ext_timestamp_rate[i]->Write();
-        g_bias_voltage[i]->Write();
+        g_bias_voltage_0[i]->Write();
+        g_bias_voltage_1[i]->Write();
         g_leakage_current[i]->Write();
     }
 

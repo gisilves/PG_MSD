@@ -588,7 +588,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
       int evt_size = std::get<1>(de10_ret);
       evt_size = evt_size - 2; // TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
       int board_id = std::get<4>(de10_ret);
-      offset = std::get<10>(de10_ret);
+      offset = std::get<11>(de10_ret);
 
       std::cout << "\r\t[raw convert] event " << evtnum << std::flush;
 

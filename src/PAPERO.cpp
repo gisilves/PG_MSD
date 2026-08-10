@@ -304,7 +304,7 @@ bool read_de10_footer(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose)
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose)
 {
   unsigned char buffer[4];
 
@@ -317,7 +317,8 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
   uint64_t int_timestamp = 0UL;
   uint32_t ext_timestamp_part = 0;
   uint64_t ext_timestamp = 0UL;
-  uint32_t bias_voltage = 0;
+  uint32_t bias_voltage_0 = 0;
+  uint32_t bias_voltage_1 = 0;
   uint32_t leakage_current = 0;
   uint32_t val = 0;
   bool found = false;
@@ -358,7 +359,7 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
     if (!found)
     {
       std::cout << "\n\tCan't find DE10 header, closing file ..." << std::endl;
-      return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+      return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
     }
   }
   else
@@ -367,7 +368,7 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
     {
       std::cout << "Reached EOF" << std::endl;
     }
-    return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
+    return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
   }
 
   // file.seekg(offset + 8);
@@ -402,7 +403,8 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
   ext_timestamp |= (uint64_t)ext_timestamp_part;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);
-  bias_voltage = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
+  bias_voltage_0 = buffer[0] | buffer[1] << 8;
+  bias_voltage_1 = buffer[2] | buffer[3] << 8;
 
   file.read(reinterpret_cast<char *>(&buffer), 4);  
   leakage_current = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
@@ -417,11 +419,12 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
     std::cout << "\t\t\tinternal timestamp: " << std::dec << int_timestamp << std::endl;
     std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
-    std::cout << "\t\t\tbias voltage: " << std::dec << bias_voltage << std::endl;
+    std::cout << "\t\t\tbias voltage 0: " << std::dec << bias_voltage_0 << std::endl;
+    std::cout << "\t\t\tbias voltage 1: " << std::dec << bias_voltage_1 << std::endl;
     std::cout << "\t\t\tleakage current: " << std::dec << leakage_current << std::endl;
   }
 
-  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, int_timestamp, ext_timestamp, trigger_id, bias_voltage, leakage_current, offset);
+  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, int_timestamp, ext_timestamp, trigger_id, bias_voltage_0, bias_voltage_1, leakage_current, offset);
 }
 
 std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int event_size, int verbose)
