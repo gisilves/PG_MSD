@@ -3,7 +3,7 @@ import os
 import argparse
 import subprocess
 
-rawfile_folder = './rawfiles/'
+rawfile_folder = '/mnt/d/CRSPACE/'
 calib_folder = './calfiles/'
 root_folder = './rootfiles/'
 cluster_folder = './clusfiles/'
@@ -37,7 +37,7 @@ def process_cal(calrun):
  
     return calib_folder + 'calib_run' + str(calrun).zfill(5) + '.cal'
 
-def process_data(datarun):
+def process_data(datarun, nevents):
     # Find data .dat file in rawfiles folder
     # Filename format: SCD_RUN#####_MIX_YYYYMMDD_HHMMSS.dat
     # where ##### is the data run number 0 padded to 5 digits
@@ -56,7 +56,7 @@ def process_data(datarun):
     print('\tFound data file {}'.format(datafile))
 
     # Run data conversion command
-    command = './HEF_convert ' + rawfile_folder + datafile + ' ' + root_folder + 'run' + str(datarun).zfill(5) + '.root'
+    command = './HEF_convert ' + rawfile_folder + datafile + ' ' + root_folder + 'run' + str(datarun).zfill(5) + '.root' + ' --nevents ' + str(nevents)
     subprocess.run(command, shell=True)
 
     return root_folder + 'run' + str(datarun).zfill(5) + '.root'
@@ -70,6 +70,7 @@ def main():
     parser = argparse.ArgumentParser(description='Process SCD calibration and data files to obtain clusters')
     parser.add_argument('--calrun', type=int, help='Calibration run number')
     parser.add_argument('--datarun', type=int, help='Data run number')
+    parser.add_argument('--nevents', type=int, help='Number of events to process')
     args = parser.parse_args()
 
     # If no arguments are provided, print help message and exit
@@ -82,7 +83,8 @@ def main():
     calfile = process_cal(args.calrun)
 
     print('\nProcessing data files for run {}'.format(args.datarun))
-    datafile = process_data(args.datarun)
+    print('\tProcessing {} events'.format(args.nevents))
+    datafile = process_data(args.datarun, args.nevents)
 
     print('\nProcessing clustering for run {}'.format(args.datarun))
     process_cluster(calfile, datafile, args.datarun)
