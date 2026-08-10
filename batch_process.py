@@ -73,6 +73,9 @@ def main():
     parser.add_argument('--nevents', type=int, help='Number of events to process')
     args = parser.parse_args()
 
+    if not args.nevents:
+        args.nevents = -1
+
     # If no arguments are provided, print help message and exit
     if not args.calrun or not args.datarun:
         print('Please provide both calibration and data run numbers')
