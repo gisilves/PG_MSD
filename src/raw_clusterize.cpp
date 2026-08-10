@@ -105,6 +105,10 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       new TH1F((TString) "hClusterCharge_board_" + board, (TString) "hClusterCharge_board_" + board, 1000, -0.5, 25.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
+  TH1F *hClusterChargeHighest = // sqrt(ADC signal / MIP_ADC) for the highest cluster
+      new TH1F((TString) "hClusterChargeHighest_board_" + board, (TString) "hClusterChargeHighest_board_" + board, 1000, -0.5, 25.5);
+  hClusterChargeHighest->GetXaxis()->SetTitle("Charge");
+
   TH1F *hSeedCharge = new TH1F((TString) "hSeedCharge_board_" + board, (TString) "hSeedCharge_board_" + board, 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
@@ -507,6 +511,9 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
           hADCCluster->Fill(GetClusterSignal(result.at(i)));
 
+          if (i == 0)
+            hClusterChargeHighest->Fill(GetClusterMIPCharge(result.at(0))); // Highest cluster is the first one in the vector
+
           if (GetClusterSeed(result.at(i), &cal) % 64 == 0)
           {
             hADCClusterEdge->Fill(GetClusterSignal(result.at(i)));
@@ -619,6 +626,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   hADCClusterSeed->Write();
   hClusterCharge->Write();
+  hClusterChargeHighest->Write();
   hSeedCharge->Write();
   hClusterSN->Write();
   hSeedSN->Write();
@@ -646,6 +654,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   delete hADCClusterSeed;
   delete hClusterCharge;
+  delete hClusterChargeHighest;
   delete hSeedCharge;
   delete hClusterSN;
   delete hSeedSN;

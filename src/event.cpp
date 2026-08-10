@@ -982,5 +982,31 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
       }
     }
   }
+
+  // Order clusters by signal (descending)
+  // We need to compute total signal for each cluster, so we can sort by it
+  std::vector<float> clusterSignals;
+  clusterSignals.reserve(clusters.size());
+  for (const auto& cl : clusters)
+  {
+    clusterSignals.push_back(GetClusterSignal(cl));
+  }
+  std::sort(clusterSignals.begin(), clusterSignals.end(), std::greater<float>());
+
+  // Reorder clusters by signal
+  std::vector<cluster> orderedClusters;
+  orderedClusters.reserve(clusters.size());
+  for (const auto& sig : clusterSignals)
+  {
+    for (const auto& cl : clusters)
+    {
+      if (GetClusterSignal(cl) == sig)
+      {
+        orderedClusters.push_back(cl);
+        break;
+      }
+    }
+  }
+
   return clusters;
 }

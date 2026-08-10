@@ -11,7 +11,7 @@
 #include <numeric>
 #include <sstream>
 
-#define MIP_ADC 18 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
+#define MIP_ADC 120 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
 #define maxClusters 100
 
 struct cluster
