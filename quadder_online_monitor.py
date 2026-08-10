@@ -27,26 +27,26 @@ QUADDER_START = 0xbaba1a9a
 QUADDER_END   = 0x0bedface
 
 def reorder(v):
-    """Reorder ADC channels from multiplexer in the correct sequence."""
-    reordered = [0] * 1796
-    
-    if len(v) != 1796:
+    """Reorder ADC channels from multiplexer to match physical GPIO connector layout."""
+    if len(v) != 1792:
         print(f"ERROR: reorder() expects 1792 elements, got {len(v)}")
-        return reordered
+        return [0] * 1792
     
+    reordered = [0] * 1792
     j = 0
     order = [12, 13, 10, 11, 8, 9, 6, 7, 4, 5, 2, 3, 0, 1]
 
     for ch in range(128):
         for adc in order:
-            reordered[adc * 128 + ch] = v[j]
+            write_idx = (adc * 128 + ch) % 1792
+            reordered[write_idx] = v[j]
             j += 1
 
-    # Swap channels 0-895 and 896-1791
+    # Swap channels 0-895 and 896-1791 to match physical GPIO connector layout
     temp = reordered[0:896]
     reordered[0:896] = reordered[896:1792]
     reordered[896:1792] = temp
-    
+
     return reordered
 
 def decode_quadder(words):
@@ -368,7 +368,7 @@ class EventViewer(QWidget):
                         continue
 
                 if w == QUADDER_END and in_quadder and quadder_read == int(selected_quadder) + 1:
-                    channels = reorder(decode_quadder(quadder_words[8:]))
+                    channels = reorder(decode_quadder(quadder_words[10:]))
                     ch = np.array(channels[:1792], dtype=np.int32)
 
                     self.udp_event_id += 1
