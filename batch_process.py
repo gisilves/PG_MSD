@@ -26,6 +26,11 @@ def process_cal(calrun):
 
     print('\tFound calibration file {}'.format(calfile))
 
+    outfile_name = calib_folder + 'calib_run' + str(calrun).zfill(5) + '.cal'
+    if os.path.exists(outfile_name):
+        print('\tCalibration file already exists')
+        return outfile_name
+
     # Run calibration command
     command = './calibration --raw --fast --nevents 5000 ' + rawfile_folder + calfile + ' --output ' + calib_folder + 'calib_run' + str(calrun).zfill(5)
     subprocess.run(command, shell=True)
