@@ -196,12 +196,14 @@ class EventViewer(QWidget):
 
         self.accumulate_checkbox = QCheckBox("Accumulate")
         self.accumulate_checkbox.setChecked(False)
+        self.accumulate_checkbox.setEnabled(False)
         self.accumulate_checkbox.setStyleSheet("QCheckBox { margin-left: auto; }")
         self.accumulate_checkbox.stateChanged.connect(self._on_accumulate_toggled)
         udp_layout.addWidget(self.accumulate_checkbox)
 
         self.normalize_checkbox = QCheckBox("Normalize peak to 1")
         self.normalize_checkbox.setChecked(False)
+        self.normalize_checkbox.setEnabled(False)
         self.normalize_checkbox.stateChanged.connect(self._on_normalize_toggled)
         udp_layout.addWidget(self.normalize_checkbox)
 
@@ -415,6 +417,9 @@ class EventViewer(QWidget):
 
         ch = self.udp_ch.copy()
         if self.calib_df is not None and self.subtract_pedestal.isChecked():
+            self.accumulate_checkbox.setEnabled(True)
+            self.normalize_checkbox.setEnabled(True)
+
             pedestal_values = self.calib_df[self.calib_df["name"] == int(quadder)]["pedestal"].to_numpy()
             if len(pedestal_values) == len(ch):
                 ch = ch - pedestal_values
@@ -422,6 +427,13 @@ class EventViewer(QWidget):
         if accumulating:
             if self.udp_accum_sum is None:
                 self.udp_accum_sum = np.zeros(1792, dtype=np.float64)
+
+            sigma_values = self.calib_df[self.calib_df["name"] == int(quadder)]["sigma"].to_numpy()
+
+            # Mask channels with in ch with values lower than 3.5 sigma
+            mask = np.where(ch < 3.5 * sigma_values, 0, 1)
+            ch = ch * mask
+
             self.udp_accum_sum += ch
             self.udp_accum_count += 1
 
