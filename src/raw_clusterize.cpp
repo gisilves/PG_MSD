@@ -62,16 +62,16 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false)
+                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false, bool only_highest = false)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
       new TH1F((TString) "hADCCluster_board_" + board, (TString) "hADCCluster_board_" + board, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCCluster->GetXaxis()->SetTitle("ADC");
 
-  TH1F *hHighest = // ADC of highest signal
-      new TH1F((TString) "hHighest_board_" + board, (TString) "hHighest_board_" + board, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
-  hHighest->GetXaxis()->SetTitle("ADC");
+  TH1F *hHighestStrip = // ADC of highest signal
+      new TH1F((TString) "hHighestStrip_board_" + board, (TString) "hHighestStrip_board_" + board, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
+  hHighestStrip->GetXaxis()->SetTitle("ADC");
 
   TH1F *hADCClusterEdge = // ADC content of all clusters
       new TH1F((TString) "hADCClusterEdge_board_" + board, (TString) "hADCClusterEdge_board_" + board, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
@@ -105,10 +105,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       new TH1F((TString) "hClusterCharge_board_" + board, (TString) "hClusterCharge_board_" + board, 1000, -0.5, 25.5);
   hClusterCharge->GetXaxis()->SetTitle("Charge");
 
-  TH1F *hClusterChargeHighest = // sqrt(ADC signal / MIP_ADC) for the highest cluster
-      new TH1F((TString) "hClusterChargeHighest_board_" + board, (TString) "hClusterChargeHighest_board_" + board, 1000, -0.5, 25.5);
-  hClusterChargeHighest->GetXaxis()->SetTitle("Charge");
-
   TH1F *hSeedCharge = new TH1F((TString) "hSeedCharge_board_" + board, (TString) "hSeedCharge_board_" + board, 1000, -0.5, 25.5); // sqrt(ADC signal / MIP_ADC) for the seed
   hSeedCharge->GetXaxis()->SetTitle("Charge");
 
@@ -141,13 +137,13 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   hADCvsSeed->GetXaxis()->SetTitle("ADC Seed");
   hADCvsSeed->GetYaxis()->SetTitle("ADC Tot");
 
-  TH1F *hEta = new TH1F((TString) "hEta_board_" + board, (TString) "hEta_board_" + board, 100, 0, 1); // not the real eta function, ignore
+  TH1F *hEta = new TH1F((TString) "hEta_board_" + board, (TString) "hEta_board_" + board, 100, 0, 1);
   hEta->GetXaxis()->SetTitle("Eta");
 
-  TH1F *hEta1 = new TH1F((TString) "hEta1_board_" + board, (TString) "hEta1_board_" + board, 100, 0, 1); // not the real eta function, ignore
+  TH1F *hEta1 = new TH1F((TString) "hEta1_board_" + board, (TString) "hEta1_board_" + board, 100, 0, 1);
   hEta1->GetXaxis()->SetTitle("Eta (one seed)");
 
-  TH1F *hEta2 = new TH1F((TString) "hEta2_board_" + board, (TString) "hEta2_board_" + board, 100, 0, 1); // not the real eta function, ignore
+  TH1F *hEta2 = new TH1F((TString) "hEta2_board_" + board, (TString) "hEta2_board_" + board, 100, 0, 1);
   hEta2->GetXaxis()->SetTitle("Eta (two seed)");
 
   TH1F *hDifference = new TH1F((TString) "hDifference_board_" + board, (TString) "hDifference_board_" + board, 200, -5, 5); // relative difference for clusters with 2 strips
@@ -473,7 +469,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       if (verb)
         std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
 
-      hHighest->Fill(*max_element(signal.begin(), signal.end()));
+      hHighestStrip->Fill(*max_element(signal.begin(), signal.end()));
 
       // if it's BL_monster we keep only channels 320-383, 448-639, deleting the others from the vector
       if (BL_monster)
@@ -495,6 +491,12 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       // save result cluster in TTree
       t_clusters->Fill();
 
+      if (only_highest)
+      {
+        // only keep the first cluster
+        result.erase(result.begin() + 1, result.end());
+      }
+
       nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
       hNclus->Fill(result.size());
 
@@ -510,9 +512,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
         {
 
           hADCCluster->Fill(GetClusterSignal(result.at(i)));
-
-          if (i == 0)
-            hClusterChargeHighest->Fill(GetClusterMIPCharge(result.at(0))); // Highest cluster is the first one in the vector
 
           if (GetClusterSeed(result.at(i), &cal) % 64 == 0)
           {
@@ -606,8 +605,8 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   hADCCluster->Write();
   delete hADCCluster;
 
-  hHighest->Write();
-  delete hHighest;
+  hHighestStrip->Write();
+  delete hHighestStrip;
 
   hADCClusterEdge->Write();
   delete hADCClusterEdge;
@@ -626,7 +625,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   hADCClusterSeed->Write();
   hClusterCharge->Write();
-  hClusterChargeHighest->Write();
   hSeedCharge->Write();
   hClusterSN->Write();
   hSeedSN->Write();
@@ -654,7 +652,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   delete hADCClusterSeed;
   delete hClusterCharge;
-  delete hClusterChargeHighest;
   delete hSeedCharge;
   delete hClusterSN;
   delete hSeedSN;
@@ -725,6 +722,7 @@ int main(int argc, char *argv[])
   bool invert = false;
   bool dynped = false;
   bool inVA = false;
+  bool only_highest = false;
 
   float highthreshold = 3.5;
   float lowthreshold = 1.0;
@@ -734,15 +732,15 @@ int main(int argc, char *argv[])
   int first_event = 0;
   int nevents = -1;
   int version = 0;
-
-  int NChannels = 384;
-  int NVas = 6;
+  
+  int NChannels = 1792;
+  int NVas = 28;
   int minStrip = 0;
-  int maxStrip = 383;
+  int maxStrip = 1791;
+  float sensor_pitch = 0.108;
   int minADC_h = 0;
-  int maxADC_h = 500;
-  float sensor_pitch = 0.150;
-
+  int maxADC_h = 1000;
+  
   bool newDAQ = false;
   
   int board = 0;
@@ -773,7 +771,6 @@ int main(int argc, char *argv[])
   app.add_option("--maxStrip", maxStrip, "Maximum strip index");
   app.add_option("--sensor_pitch", sensor_pitch, "Sensor pitch in mm");
   app.add_option("--board", board, "Board number");
-  app.add_option("--version", version, "DAQ board version")->required();
   app.add_option("--calibration_file", calibration_file, "Path to calibration file")->check(CLI::ExistingFile);
   app.add_option("--output_file", output_file, "Output file name");
   app.add_option("--nevents", nevents, "Number of events to process");
@@ -781,92 +778,9 @@ int main(int argc, char *argv[])
   app.add_option("--input_files", input_files, "Input ROOT files")->required()->expected(-1);
   app.add_option("--maxADC_h", maxADC_h, "Maximum ADC value for histograms");
   app.add_option("--minADC_h", minADC_h, "Minimum ADC value for histograms");
+  app.add_option("--highest", only_highest, "Only add highest cluster to histograms");
 
   CLI11_PARSE(app, argc, argv);
-
-
-  if (version == 1212) // original DaMPE miniTRB system
-  {
-    NChannels = 384;
-    NVas = 6;
-    minStrip = 0;
-    maxStrip = 383;
-    sensor_pitch = 0.242;
-  }
-  else if (version == 1313) // modded DaMPE miniTRB system for the first FOOT prototype
-  {
-    NChannels = 640;
-    NVas = 10;
-    minStrip = 0;
-    maxStrip = 639;
-    sensor_pitch = 0.150;
-  }
-  else if (version == 2020) // FOOT ADC boards + DE10Nano
-  {
-    NChannels = 640;
-    NVas = 10;
-    minStrip = 0;
-    maxStrip = 639;
-    sensor_pitch = 0.150;
-    newDAQ = true;
-  }
-  else if (version == 2021) // PAN StripX
-  {
-    NChannels = 2048;
-    NVas = 32;
-    minStrip = 0;
-    maxStrip = 2047;
-    sensor_pitch = 0.050;
-  }
-  else if (version == 2022) // PAN StripY
-  {
-    NChannels = 128;
-    NVas = 1;
-    minStrip = 0;
-    maxStrip = 127;
-    sensor_pitch = 0.400;
-  }
-  else if (version == 2023) // AMSL0
-  {
-    NChannels = 1024;
-    NVas = 16;
-    minStrip = 0;
-    maxStrip = 1023;
-    sensor_pitch = 0.109;
-    maxADC_h = 2000;
-  }
-  else if (version == 2024) // AMSL0 BL Monster
-  {
-    NChannels = 1024;
-    NVas = 16;
-    minStrip = 0;
-    maxStrip = 1023;
-    sensor_pitch = 0.109;
-    maxADC_h = 200;
-  }
-  else if (version == 2025) // ASTRA
-  {
-    NChannels = 64;
-    NVas = 1;
-    minStrip = 0;
-    maxStrip = 63;
-    sensor_pitch = 0.150;
-    maxADC_h = 200;
-  }
-  else if (version == 2026) // HEF QUADDER
-  {
-    NChannels = 1792;
-    NVas = 28;
-    minStrip = 0;
-    maxStrip = 1791;
-    sensor_pitch = 0.108;
-    maxADC_h = 1000;
-  }
-  else
-  {
-    std::cout << "ERROR: invalid DAQ board version" << std::endl;
-    return 2;
-  }
 
   // Create output ROOTfile
   TString output_filename;
@@ -935,7 +849,7 @@ int main(int argc, char *argv[])
                         input_files,
                         nevents,
                         calibration_file,
-                        inVA);
+                        inVA, only_highest);
   }
   else
   {
@@ -953,7 +867,7 @@ int main(int argc, char *argv[])
                           input_files,
                           nevents,
                           calibration_file,
-                          inVA);
+                          inVA, only_highest);
     }
   }
 
