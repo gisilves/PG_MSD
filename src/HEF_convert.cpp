@@ -21,11 +21,13 @@ int main(int argc, char *argv[])
     bool gsi = false;
     int boards = 0;
     int nevents = -1;
+    int compression = 0;
     std::string input_file;
     std::string output_file;
 
     app.add_flag("-v,--verbose", verbose, "Verbose output");
     app.add_option("--nevents", nevents, "Number of events to be read");
+    app.add_option("--compression", compression, "Compression level (0-9)");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
     app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
 
@@ -53,9 +55,10 @@ int main(int argc, char *argv[])
     TString output_filename = output_file.c_str();
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
     foutput->cd();
-    foutput->SetCompressionLevel(1);  // Lower compression for speed
-    foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EDefaults::kUseGeneralPurpose);
 
+    foutput->SetCompressionLevel(compression);
+    foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kLZ4);
+    
     // Initialize TTree(s)
     std::vector<uint32_t> raw_event_buffer;
     raw_event_buffer.reserve(100000);  // Pre-allocate reasonable size
