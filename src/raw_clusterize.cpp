@@ -491,7 +491,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       // save result cluster in TTree
       t_clusters->Fill();
 
-      if (only_highest)
+      if (only_highest && result.size() > 1)
       {
         // only keep the first cluster
         result.erase(result.begin() + 1, result.end());
@@ -758,6 +758,7 @@ int main(int argc, char *argv[])
   app.add_flag("--dynped", dynped, "Enable dynamic pedestals");
   app.add_flag("--newDAQ", newDAQ, "Use new DAQ format");
   app.add_flag("--inVA", inVA, "Select only clusters that are fully contained in a VA");
+  app.add_flag("--highest", only_highest, "Only add highest cluster to histograms");
 
   // Options
   app.add_option("--highthreshold", highthreshold, "High threshold for clustering");
@@ -778,7 +779,6 @@ int main(int argc, char *argv[])
   app.add_option("--input_files", input_files, "Input ROOT files")->required()->expected(-1);
   app.add_option("--maxADC_h", maxADC_h, "Maximum ADC value for histograms");
   app.add_option("--minADC_h", minADC_h, "Minimum ADC value for histograms");
-  app.add_option("--highest", only_highest, "Only add highest cluster to histograms");
 
   CLI11_PARSE(app, argc, argv);
 
