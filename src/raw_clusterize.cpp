@@ -28,7 +28,7 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
   float mean_pedestal = 0;
   float rms_pedestal = 0;
   std::vector<float> rsigma; // vector of strip noise
-  float mean_rsigma = 0;
+  float mean_rsigma = 0;hADC
   float rms_rsigma = 0;
   std::vector<float> sigma; // vector of strip noise after common mode subtraction
   float mean_sigma = 0;
@@ -574,7 +574,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
           hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
           hSeedADCvsPos->Fill(GetClusterSeed(result.at(i), &cal), GetClusterSeedADC(result.at(i), &cal));
-          hClusterChargevsPos->Fill(GetClusterCOG(result.at(i)), GetClusterCharge(result.at(i)));
+          hClusterChargevsPos->Fill(GetClusterCOG(result.at(i)), GetClusterMIPCharge(result.at(i)));
           hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
           hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
           hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
