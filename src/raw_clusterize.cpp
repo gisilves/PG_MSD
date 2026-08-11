@@ -28,7 +28,7 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
   float mean_pedestal = 0;
   float rms_pedestal = 0;
   std::vector<float> rsigma; // vector of strip noise
-  float mean_rsigma = 0;hADC
+  float mean_rsigma = 0;
   float rms_rsigma = 0;
   std::vector<float> sigma; // vector of strip noise after common mode subtraction
   float mean_sigma = 0;
