@@ -166,6 +166,12 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   hSeedADCvsPos->GetXaxis()->SetTitle("cog");
   hSeedADCvsPos->GetYaxis()->SetTitle("ADC");
 
+  TH2F* hClusterChargevsPos = new TH2F((TString) "hClusterChargevsPos_board_" + board, (TString) "hClusterChargevsPos_board_" + board, (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, // cluster ADC vs cog
+                             1000, minADC_h, maxADC_h);
+
+  hClusterChargevsPos->GetXaxis()->SetTitle("cog");
+  hClusterChargevsPos->GetYaxis()->SetTitle("ADC");
+
   TH2F *hADCvsEta = // ignore
       new TH2F((TString) "hADCvsEta_board_" + board, (TString) "hADCvsEta_board_" + board, 200, 0, 1, (maxADC_h - minADC_h) / 2, minADC_h, maxADC_h);
   hADCvsEta->GetXaxis()->SetTitle("eta");
@@ -568,6 +574,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
           hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
           hSeedADCvsPos->Fill(GetClusterSeed(result.at(i), &cal), GetClusterSeedADC(result.at(i), &cal));
+          hClusterChargevsPos->Fill(GetClusterCOG(result.at(i)), GetClusterCharge(result.at(i)));
           hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
           hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
           hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
@@ -639,6 +646,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   hADCvsWidth->Write();
   hADCvsPos->Write();
   hSeedADCvsPos->Write();
+  hClusterChargevsPos->Write();
   hADCvsSeed->Write();
   hADCvsEta->Write();
   hADCvsSN->Write();
@@ -666,6 +674,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   delete hADCvsWidth;
   delete hADCvsPos;
   delete hSeedADCvsPos;
+  delete hClusterChargevsPos;
   delete hADCvsSeed;
   delete hADCvsEta;
   delete hADCvsSN;
