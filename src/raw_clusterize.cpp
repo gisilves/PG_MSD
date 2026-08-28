@@ -62,7 +62,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false, bool only_highest = false)
+                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false, bool only_highest = false, bool silent = false)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
@@ -216,23 +216,27 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   if (board == 0) // TTree name depends on DAQ board
   {
-    std::cout << "\nWe are on the first detector" << std::endl;
+    if (!silent)
+      std::cout << "\nWe are on the first detector" << std::endl;
     chain->SetName("raw_events");
     
     for (int ii = 0; ii < input_files.size(); ii++)
     {
-      std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
+      if (!silent)
+        std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
       chain->Add(input_files[ii].c_str());
     }
   }
   else
   {
-    std::cout << "\nWe are on detector " << board << std::endl;
+    if (!silent)
+      std::cout << "\nWe are on detector " << board << std::endl;
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     chain->SetName((TString) "raw_events_" + alphabet.at(board));
     for (int ii = 0; ii < input_files.size(); ii++)
     {
-      std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
+      if (!silent)
+        std::cout << "\nAdding file " << input_files[ii] << " to the chain..." << std::endl;
       chain->Add(input_files[ii].c_str());
     }
   }
@@ -250,21 +254,25 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   if (entries == 0)
   {
-    std::cout << "Error: no file or empty file" << std::endl;
+    if (!silent)
+      std::cout << "Error: no file or empty file" << std::endl;
     return 2;
   }
-  std::cout << "\nThis run has " << entries << " entries" << std::endl;
+  if (!silent)
+    std::cout << "\nThis run has " << entries << " entries" << std::endl;
 
   if (first_event > entries)
   {
-    std::cout << "Error: first event is greater than the number of entries" << std::endl;
+    if (!silent)
+      std::cout << "Error: first event is greater than the number of entries" << std::endl;
     return 2;
   }
 
   std::vector<unsigned int> *raw_event = 0; // buffer vector for the raw event in the TTree
   TBranch *RAW = 0;
 
-  std::cout << "\nProcessing board " << board << std::endl;
+  if (!silent)
+    std::cout << "\nProcessing board " << board << std::endl;
   chain->SetBranchAddress("RAW Event", &raw_event, &RAW);
 
   std::vector<cluster> result; // Vector of resulting clusters
@@ -277,7 +285,8 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   // Read Calibration file
   if (!calibration_file.size())
   {
-    std::cout << "Error: no calibration file" << std::endl;
+    if (!silent)
+      std::cout << "Error: no calibration file" << std::endl;
     return 2;
   }
 
@@ -288,7 +297,8 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   if (!is_calib)
   {
-    std::cout << "ERROR: no calibration file found" << std::endl;
+    if (!silent)
+      std::cout << "ERROR: no calibration file found" << std::endl;
     return 2;
   }
 
@@ -297,7 +307,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   for (int ch = 0; ch < NChannels; ch++)
   {
     hADC[ch] = new TH1D(Form("pedestal_channel_%d_board_%d", ch, board), Form("Pedestal %d", ch), 50, 0, -1);
-    hADC[ch]->GetXaxis()->SetTitle("ADC");
+    hADC[ch]->GetXaxis()->SetTitle("ADC"); 
   }
 
   // Loop over events
@@ -307,10 +317,13 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   int maxPOS = 0; // position of the strip with value maxADC
   bool AMS = false;
 
-  std::cout << "\n===========================================================" << std::endl;
-  std::cout << "\nProcessing events for board " << board << std::endl;
+  if (!silent)
+  {
+    std::cout << "\n===========================================================" << std::endl;
+    std::cout << "\nProcessing events for board " << board << std::endl;
 
-  std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
+    std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
+  }
 
   bool BL_monster = false;
   if (version == 2023 || version == 2024)
@@ -334,7 +347,8 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
     Double_t pperc = 10.0 * ((index_event + 1.0) / entries); // print every 10% of processed events
     if (pperc >= perc)
     {
-      std::cout << "Processed " << (index_event + 1) << " out of " << entries
+      if (!silent)
+        std::cout << "Processed " << (index_event + 1) << " out of " << entries
                 << ":" << (int)(100.0 * (index_event + 1.0) / entries) << "%"
                 << std::endl;
       perc++;
@@ -342,7 +356,8 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
     if ((index_event % 5000) == 0 && dynped) // if dynamic pedestals are enabled we recalculate them
     {
-      std::cout << "Updating pedestals" << std::endl;
+      if (!silent)
+        std::cout << "Updating pedestals" << std::endl;
 
       cal = update_pedestals(hADC, NChannels, cal);
       for (int ch = 0; ch < NChannels; ch++)
@@ -704,30 +719,11 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
 int main(int argc, char *argv[])
 {
-  // generating shared library for cluster saving
-  std::cout << "\n==========================================================================================================" << std::endl;
-  std::cout << "========================================  Raw Clusterizer  ===============================================" << std::endl;
-  std::cout << "==========================================================================================================" << std::endl;
-
-  TString command;
-  // check if types_C.so library is present
-  if (access("./src/types_C.so", F_OK) == -1)
-  {
-    std::cout << "types_C.so library not found, compiling it ..." << std::endl;
-    command = TString(".L ") + gSystem->pwd() + TString("/src/types.C+");
-  }
-  else
-  {
-    std::cout << "types_C.so library found, loading it ..." << std::endl;
-    command = TString(".L ") + gSystem->pwd() + TString("/src/types_C.so");
-  }
-
-  gROOT->ProcessLine(command);
-
   gErrorIgnoreLevel = kWarning;
   bool symmetric = false;
   bool absolute = false;
   bool verb = false;
+  bool silent = false;
   bool invert = false;
   bool dynped = false;
   bool inVA = false;
@@ -761,6 +757,7 @@ int main(int argc, char *argv[])
 
   // Flags
   app.add_flag("-v,--verbose", verb, "Verbose output");
+  app.add_flag("--silent", silent, "Silent mode");
   app.add_flag("-s,--symmetric", symmetric, "Use symmetric cluster instead of double threshold");
   app.add_flag("-a,--absolute", absolute, "Use absolute ADC value instead of S/N");
   app.add_flag("--invert", invert, "Invert signal");
@@ -791,17 +788,45 @@ int main(int argc, char *argv[])
 
   CLI11_PARSE(app, argc, argv);
 
+
+  // generating shared library for cluster saving
+  if (!silent)
+  {
+    std::cout << "\n==========================================================================================================" << std::endl;
+    std::cout << "========================================  Raw Clusterizer  ===============================================" << std::endl;
+    std::cout << "==========================================================================================================" << std::endl;
+  }
+
+  TString command;
+  // check if types_C.so library is present
+  if (access("./src/types_C.so", F_OK) == -1)
+  {
+    if (!silent)
+      std::cout << "types_C.so library not found, compiling it ..." << std::endl;
+    command = TString(".L ") + gSystem->pwd() + TString("/src/types.C+");
+  }
+  else
+  {
+    if (!silent)
+      std::cout << "types_C.so library found, loading it ..." << std::endl;
+    command = TString(".L ") + gSystem->pwd() + TString("/src/types_C.so");
+  }
+
+  gROOT->ProcessLine(command);
+
   // Create output ROOTfile
   TString output_filename;
   if (!output_file.size())
   {
-    std::cout << "Error: no output file" << std::endl;
+    if (!silent)
+      std::cout << "Error: no output file" << std::endl;
     return 2;
   }
   else
   {
     output_filename = TString(output_file);
-    std::cout << "Output file: " << output_filename << std::endl;
+    if (!silent)
+      std::cout << "Output file: " << output_filename << std::endl;
   }
 
   std::vector<std::pair<float, bool>> alignment_params = read_alignment("./config/alignment.dat");
@@ -819,7 +844,7 @@ int main(int argc, char *argv[])
   }
 
   int detectors = 0;
-  if (newDAQ)
+  if (newDAQ && !silent)
     std::cout << "\nNEW DAQ FILE" << std::endl;
 
   TFile tempfile(input_files[0].c_str());
@@ -836,14 +861,16 @@ int main(int argc, char *argv[])
   detectors = detectors - 1; // board_ids TTree is not included
 
   tempfile.Close();
-  std::cout << "File with " << detectors << " detector(s)" << std::endl;
+  if (!silent)
+    std::cout << "File with " << detectors << " detector(s)" << std::endl;
 
   // TFile *foutput = new TFile(output_filename + "_board" + std::to_string(board) + ".root", "RECREATE");
   TFile *foutput = new TFile(output_filename + ".root", "RECREATE");
   foutput->cd();
 
   TDirectory *doutput;
-  std::cout << "Creating output directory" << std::endl;
+  if (!silent)
+    std::cout << "Creating output directory" << std::endl;
 
   if (detectors == 1)
   {
@@ -858,13 +885,14 @@ int main(int argc, char *argv[])
                         input_files,
                         nevents,
                         calibration_file,
-                        inVA, only_highest);
+                        inVA, only_highest, silent);
   }
   else
   {
     for (int i = 0; i < detectors; i++)
     {
-      std::cout << "Creating output directory for board " << i << std::endl;
+      if (!silent)
+        std::cout << "Creating output directory for board " << i << std::endl;
       doutput = foutput->mkdir((TString) "board_" + i);
       doutput->cd();
       clusterize_detector(i, minADC_h, maxADC_h, minStrip, maxStrip,
@@ -876,7 +904,7 @@ int main(int argc, char *argv[])
                           input_files,
                           nevents,
                           calibration_file,
-                          inVA, only_highest);
+                          inVA, only_highest, silent);
     }
   }
 

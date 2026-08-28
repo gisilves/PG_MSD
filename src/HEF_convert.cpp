@@ -18,6 +18,7 @@ int main(int argc, char *argv[])
     CLI::App app{"HEF_convert"};
 
     bool verbose = false;
+    bool silent = false;
     bool gsi = false;
     int boards = 0;
     int nevents = -1;
@@ -26,6 +27,7 @@ int main(int argc, char *argv[])
     std::string output_file;
 
     app.add_flag("-v,--verbose", verbose, "Verbose output");
+    app.add_flag("--silent", silent, "Silent mode");
     app.add_option("--nevents", nevents, "Number of events to be read");
     app.add_option("--compression", compression, "Compression level (0-9)");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
@@ -39,7 +41,8 @@ int main(int argc, char *argv[])
     std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
     if (file.fail())
     {
-        std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
+        if (!silent)
+            std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened
         return 2;
     }
 
@@ -48,8 +51,11 @@ int main(int argc, char *argv[])
     char file_buffer[BUFFER_SIZE];
     file.rdbuf()->pubsetbuf(file_buffer, BUFFER_SIZE);
 
-    std::cout << " " << std::endl;
-    std::cout << "Processing file " << input_file.c_str() << std::endl;
+    if (!silent)
+    {
+        std::cout << " " << std::endl;
+        std::cout << "Processing file " << input_file.c_str() << std::endl;
+    }
 
     // Create output ROOT file
     TString output_filename = output_file.c_str();
@@ -110,7 +116,8 @@ int main(int argc, char *argv[])
     if (new_format)
     {
         is_new_format = true;
-        std::cout << "New data format" << std::endl;
+        if (!silent)
+            std::cout << "New data format" << std::endl;
         file_retValues = read_file_header(file, offset, verbose);
         is_good = std::get<0>(file_retValues);
         boards = std::get<5>(file_retValues);
@@ -126,7 +133,8 @@ int main(int argc, char *argv[])
         offset = seek_first_evt_header(file, old_offset, verbose);
         if (offset != old_offset)
         {
-            std::cout << "WARNING: first evt header has a " << offset - old_offset << " delta value " << std::endl;
+            if (!silent)
+                std::cout << "WARNING: first evt header has a " << offset - old_offset << " delta value " << std::endl;
         }
     }
     else
@@ -138,7 +146,8 @@ int main(int argc, char *argv[])
     if (nevents > 0)
     {
         evt_to_read = nevents;
-        std::cout << "\tReading " << evt_to_read << " events" << std::endl;
+        if (!silent)
+            std::cout << "\tReading " << evt_to_read << " events" << std::endl;
     }
 
     while (!file.eof())
@@ -175,12 +184,12 @@ int main(int argc, char *argv[])
                     offset = std::get<11>(de10_retValues);
 
                     // Log every 1000 events instead of every event
-                    if (evtnum % 1000 == 0)
+                    if (evtnum % 1000 == 0 && !silent)
                     {
                         std::cout << "\r\tReading event " << evtnum << std::flush;
                     }
 
-                    if (verbose == 1)
+                    if (verbose == 1 && !silent)
                     {
                         std::cout << "\tBoard ID " << board_id << std::endl;
                         std::cout << "\tBoards read " << boards_read << " out of " << boards << std::endl;
@@ -216,7 +225,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    std::cout << "\n\tClosing file after " << std::dec << evtnum << " events" << std::endl;
+    if (!silent)
+        std::cout << "\n\tClosing file after " << std::dec << evtnum << " events" << std::endl;
     int filled = 0;
     std::vector<int> written_board_ids;
 
