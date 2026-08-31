@@ -153,7 +153,7 @@ int main(int argc, char *argv[])
     uint32_t bias_voltage_1 = 0;
     uint32_t leakage_current = 0;
     
-    std::streampos first_evt_offset;
+    std::streampos evt_offset;
     std::streampos last_evt_offset;
     std::streampos old_offset;
     std::streampos padding_offset;
@@ -169,14 +169,14 @@ int main(int argc, char *argv[])
     std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
-    bool new_format = seek_file_header(file, first_evt_offset, verbose);
+    bool new_format = seek_file_header(file, evt_offset, verbose);
 
     if (new_format)
     {
         is_new_format = true;
         if (!silent)
             std::cout << "New data format" << std::endl;
-        file_retValues = read_file_header(file, first_evt_offset, verbose);
+        file_retValues = read_file_header(file, evt_offset, verbose);
         is_good = std::get<0>(file_retValues);
         boards = std::get<5>(file_retValues);
 
@@ -188,11 +188,11 @@ int main(int argc, char *argv[])
         }
 
         old_offset = std::get<7>(file_retValues);
-        first_evt_offset = seek_first_evt_header(file, old_offset, verbose);
-        if (first_evt_offset != old_offset)
+        evt_offset = seek_first_evt_header(file, old_offset, verbose);
+        if (evt_offset != old_offset)
         {
             if (!silent)
-                std::cout << "WARNING: first evt header has a " << first_evt_offset - old_offset << " delta value " << std::endl;
+                std::cout << "WARNING: first evt header has a " << evt_offset - old_offset << " delta value " << std::endl;
         }
         // Search for last evt header
         if (!silent)
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
             std::cout << "\tExpecting " << std::dec<< expected_events << " events in the file\n" << std::endl;
 
         // Go back to the first evt header
-        file.seekg(first_evt_offset);
+        file.seekg(evt_offset);
 
         if (find_events)
         {
@@ -241,13 +241,13 @@ int main(int argc, char *argv[])
         }
 
         is_good = false;
-        maka_retValues = read_evt_header(file, first_evt_offset, verbose);
+        maka_retValues = read_evt_header(file, evt_offset, verbose);
         if (std::get<0>(maka_retValues))
         {
-            first_evt_offset = std::get<7>(maka_retValues);
+            evt_offset = std::get<7>(maka_retValues);
             for (size_t de10 = 0; de10 < std::get<4>(maka_retValues); de10++)
             {
-                de10_retValues = read_de10_header(file, first_evt_offset, verbose); // read de10 header
+                de10_retValues = read_de10_header(file, evt_offset, verbose); // read de10 header
                 is_good = std::get<0>(de10_retValues);
 
                 if (is_good)
@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
                     bias_voltage_0 = std::get<8>(de10_retValues);
                     bias_voltage_1 = std::get<9>(de10_retValues);
                     leakage_current = std::get<10>(de10_retValues);
-                    first_evt_offset = std::get<11>(de10_retValues);
+                    evt_offset = std::get<11>(de10_retValues);
 
                     if (!silent)
                     {
@@ -288,7 +288,7 @@ int main(int argc, char *argv[])
 
                     padding_offset = 0;
                     // HEF always uses read_eventHEF; no DAMPE / GSI variants
-                    raw_event_buffer = std::move(reorder(read_eventHEF(file, first_evt_offset, evt_size, verbose)));
+                    raw_event_buffer = std::move(reorder(read_eventHEF(file, evt_offset, evt_size, verbose)));
 
                     int det_idx = detector_ids_map.at(board_id);
 
@@ -296,7 +296,7 @@ int main(int argc, char *argv[])
 
                     raw_events_tree.at(det_idx)->Fill();
 
-                    first_evt_offset += std::streamoff(static_cast<std::streamoff>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
+                    evt_offset += std::streamoff(static_cast<std::streamoff>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
                 }
             }
             boards_read = 0;
@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            std::cout << "Reached EOF at offset " << offset << std::endl;
+            std::cout << "Reached EOF at offset " << evt_offset << std::endl;
             break;
         }
     }
