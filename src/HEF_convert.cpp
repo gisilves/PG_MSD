@@ -255,6 +255,7 @@ int main(int argc, char *argv[])
                     boards_read++;
                     evt_size = std::get<1>(de10_retValues);
                     evt_size = evt_size - 2; // TODO: check why we need to substract 2 bytes (fw writes wrong evt size?)
+
                     fw_version = std::get<2>(de10_retValues);
                     trigger_number = std::get<3>(de10_retValues);
                     board_id = std::get<4>(de10_retValues);
@@ -284,6 +285,9 @@ int main(int argc, char *argv[])
                         std::cout << "\tBias voltage 0: " << bias_voltage_0 << std::endl;
                         std::cout << "\tBias voltage 1: " << bias_voltage_1 << std::endl;
                         std::cout << "\tLeakage current: " << leakage_current << std::endl;
+
+                        std::cout << "\tOffset (computed): " << evt_offset << std::endl;
+                        std::cout << "\tOffset (file): " << file.tellg() << std::endl;
                     }
 
                     padding_offset = 0;
