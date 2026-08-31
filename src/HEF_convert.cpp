@@ -138,14 +138,14 @@ int main(int argc, char *argv[])
     }
 
     bool is_good = false;
-    int evtnum = 0;
-    int evt_to_read = -1;
-    int expected_events = -1;
-    int board_id = -1;
-    int trigger_number = -1;
-    int trigger_id = -1;
-    int evt_size = 0;
-    int boards_read = 0;
+    uint32_t evtnum = 0;
+    uint32_t evt_to_read = -1;
+    uint32_t expected_events = -1;
+    uint32_t board_id = -1;
+    uint32_t trigger_number = -1;
+    uint32_t trigger_id = -1;
+    uint32_t evt_size = 0;
+    uint32_t boards_read = 0;
     uint32_t fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
