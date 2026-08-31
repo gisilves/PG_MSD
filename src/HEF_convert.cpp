@@ -304,7 +304,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            std::cout << "Reached EOF at offset " << evt_offset << std::endl;
+            std::cout << "\nReached EOF at offset " << evt_offset << std::endl;
             break;
         }
     }
