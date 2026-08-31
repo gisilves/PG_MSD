@@ -49,8 +49,8 @@ int main(int argc, char *argv[])
     foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO info");
     foutput->cd();
 
-    unsigned int offset = 0;
-    int padding_offset = 0;
+    std::streampos offset = 0;
+    std::streampos padding_offset = 0;
 
     // Read raw events and boards headers info
     bool is_good = false;
@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
     int trigger_id = -1;
     int evt_size = 0;
     int boards_read = 0;
-    unsigned int old_offset = 0;
+    std::streampos old_offset = 0;
     unsigned long fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
@@ -80,9 +80,9 @@ int main(int argc, char *argv[])
     std::map<uint16_t, int> detector_ids_map;
     std::vector<uint16_t> detector_ids;
 
-    std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
-    std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, std::streampos> file_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, std::streampos> de10_retValues;
+    std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::streampos> maka_retValues;
 
     bool new_format = seek_file_header(file, offset, verbose);
     if (new_format)
@@ -286,7 +286,7 @@ int main(int argc, char *argv[])
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
                     }
 
-                    offset += evt_size * 4 + 8 + 44; // 8 is the size of the de10 footer + crc, 40 is the size of the de10 header
+                    offset += std::streamoff(evt_size * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 40 is the size of the de10 header
                 }
             }
             boards_read = 0;

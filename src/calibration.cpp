@@ -638,7 +638,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
     raw_events_tree.at(detector)->SetAutoSave(0);
   }
 
-  uint32_t offset = 0;
+  std::streampos offset = 0;
   std::map<uint16_t, int> detector_ids_map;
   std::vector<uint16_t> detector_ids;
 
@@ -657,7 +657,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
   for (size_t i = 0; i < detector_ids.size(); i++)
     detector_ids_map[detector_ids.at(i)] = i;
 
-  uint32_t old_offset = std::get<7>(file_ret);
+  std::streampos old_offset = std::get<7>(file_ret);
   offset = seek_first_evt_header(file, old_offset, verbose);
 
   if (nevents > 0 && !silent)
@@ -701,7 +701,7 @@ std::string convert_hef_to_temp_root(const std::string &input_file, bool verbose
 
       raw_events_tree.at(det_idx)->Fill();
 
-      offset += evt_size * 4 + 8 + 44;
+      offset += std::streamoff(evt_size * 4 + 8 + 44);
     }
     boards_read = 0;
     evtnum++;

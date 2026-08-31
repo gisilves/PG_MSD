@@ -146,16 +146,16 @@ int main(int argc, char *argv[])
     int trigger_id = -1;
     int evt_size = 0;
     int boards_read = 0;
-    uint32_t first_evt_offset = 0;
-    uint32_t last_evt_offset = 0;
+    std::streampos first_evt_offset = 0;
+    std::streampos last_evt_offset = 0;
     uint32_t fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
-    uint32_t old_offset = 0;
+    std::streampos old_offset = 0;
     uint32_t bias_voltage_0 = 0;
     uint32_t bias_voltage_1 = 0;
     uint32_t leakage_current = 0;
-    int padding_offset = 0;
+    std::streampos padding_offset = 0;
     char dummy[100];
     float mean_rate = 0;
 
@@ -192,7 +192,6 @@ int main(int argc, char *argv[])
             if (!silent)
                 std::cout << "WARNING: first evt header has a " << first_evt_offset - old_offset << " delta value " << std::endl;
         }
-
         // Search for last evt header
         if (!silent)
             std::cout << "\nSearching for last evt header" << std::endl;
@@ -205,7 +204,7 @@ int main(int argc, char *argv[])
         }
 
         if (!silent)
-            std::cout << "\tExpecting " << expected_events << " events in the file\n" << std::endl;
+            std::cout << "\tExpecting " << std::dec<< expected_events << " events in the file\n" << std::endl;
 
         // Go back to the first evt header
         file.seekg(first_evt_offset);

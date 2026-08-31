@@ -9,7 +9,7 @@
 #include <time.h>
 #include "PAPERO.h"
 
-bool seek_file_header(std::fstream &file, uint32_t offset, int verbose)
+bool seek_file_header(std::fstream &file, std::streampos offset, int verbose)
 {
   uint32_t file_known_word = 0xB01ADEEE;
   bool found = false;
@@ -44,7 +44,7 @@ bool seek_file_header(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> read_file_header(std::fstream &file, uint32_t offset, int verbose)
+std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, std::streampos> read_file_header(std::fstream &file, std::streampos offset, int verbose)
 {
   unsigned char buffer[4];
   uint32_t unix_time;
@@ -54,7 +54,7 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<u
   uint16_t n_detectors;
   std::vector<uint16_t> detector_ids;
 
-  file.seekg(offset + 4);
+  file.seekg(offset + std::streamoff(4));
   file.read(reinterpret_cast<char *>(&buffer), 4);
   unix_time = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   // convert unix time to date
@@ -101,7 +101,7 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<u
   return std::make_tuple(true, unix_time, maka_hash, type, version, n_detectors, detector_ids, file.tellg());
 }
 
-int seek_first_evt_header(std::fstream &file, uint32_t offset, int verbose)
+std::streampos seek_first_evt_header(std::fstream &file, std::streampos offset, int verbose)
 {
   uint32_t header;
   bool found = false;
@@ -145,7 +145,7 @@ int seek_first_evt_header(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-int seek_last_evt_header(std::fstream &file, int verbose)
+std::streampos seek_last_evt_header(std::fstream &file, int verbose)
 {
   uint32_t header;
   bool found = false;
@@ -156,7 +156,7 @@ int seek_last_evt_header(std::fstream &file, int verbose)
   header = 0xcaf14afa;
 
   file.seekg(0, std::ios::end);
-  int offset = file.tellg();
+  std::streampos offset = file.tellg();
 
   // Align to the last potential 4-byte block
   offset -= 4;
@@ -172,7 +172,7 @@ int seek_last_evt_header(std::fstream &file, int verbose)
       found = true;
       if (verbose == 1)
       {
-        std::cout << "Found maka header at offset " << offset << std::endl;
+        std::cout << "Found maka header at offset " << std::hex << offset << std::endl;
       }
     }
     else
@@ -185,7 +185,7 @@ int seek_last_evt_header(std::fstream &file, int verbose)
   {
     if (verbose == 1)
     {
-      std::cout << "Can't find event header in the file" << std::endl;
+      std::cout << "Can't find last event header in the file" << std::endl;
     }
     return -999;
   }
@@ -195,7 +195,7 @@ int seek_last_evt_header(std::fstream &file, int verbose)
   }
 }
 
-std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, int verbose)
+std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::streampos> read_evt_header(std::fstream &file, std::streampos offset, int verbose)
 {
   uint32_t header;
   uint32_t tv_sec_part;
@@ -293,7 +293,7 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uin
   return std::make_tuple(true, ts, lenght_in_bytes, evt_number, n_detectors, status, type, file.tellg());
 }
 
-bool read_old_evt_header(std::fstream &file, uint32_t offset, int verbose)
+bool read_old_evt_header(std::fstream &file, std::streampos offset, int verbose)
 {
   uint32_t header;
   unsigned char buffer[4];
@@ -324,7 +324,7 @@ bool read_old_evt_header(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-bool read_de10_footer(std::fstream &file, uint32_t offset, int verbose)
+bool read_de10_footer(std::fstream &file, std::streampos offset, int verbose)
 {
   uint32_t footer;
   unsigned char buffer[4];
@@ -354,7 +354,7 @@ bool read_de10_footer(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> read_de10_header(std::fstream &file, uint32_t offset, int verbose)
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, std::streampos> read_de10_header(std::fstream &file, std::streampos offset, int verbose)
 {
   unsigned char buffer[4];
 
@@ -372,7 +372,7 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
   uint32_t leakage_current = 0;
   uint32_t val = 0;
   bool found = false;
-  uint32_t original_offset = offset;
+  std::streampos original_offset = offset;
 
   uint32_t header = 0xbaba1a9a;
 
@@ -477,13 +477,13 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
   return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, int_timestamp, ext_timestamp, trigger_id, bias_voltage_0, bias_voltage_1, leakage_current, offset);
 }
 
-std::vector<uint32_t> read_eventHEF(std::fstream &file, uint32_t offset, int event_size, int verbose)
+std::vector<uint32_t> read_eventHEF(std::fstream &file, std::streampos offset, int event_size, int verbose)
 {
 
-  file.seekg(offset + 44);
+  file.seekg(offset + std::streamoff(44));
   if (verbose == 1)
   {
-    std::cout << "\tReading event at position " << offset + 44 << std::endl;
+    std::cout << "\tReading event at position " << offset + std::streamoff(44) << std::endl;
   }
 
   event_size = event_size * 2;
