@@ -146,16 +146,18 @@ int main(int argc, char *argv[])
     int trigger_id = -1;
     int evt_size = 0;
     int boards_read = 0;
-    std::streampos first_evt_offset = 0;
-    std::streampos last_evt_offset = 0;
     uint32_t fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
-    std::streampos old_offset = 0;
     uint32_t bias_voltage_0 = 0;
     uint32_t bias_voltage_1 = 0;
     uint32_t leakage_current = 0;
-    std::streampos padding_offset = 0;
+    
+    std::streampos first_evt_offset;
+    std::streampos last_evt_offset;
+    std::streampos old_offset;
+    std::streampos padding_offset;
+
     char dummy[100];
     float mean_rate = 0;
 
@@ -294,7 +296,7 @@ int main(int argc, char *argv[])
 
                     raw_events_tree.at(det_idx)->Fill();
 
-                    first_evt_offset += evt_size * 4 + 8 + 44; // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
+                    first_evt_offset += std::streamoff(static_cast<std::streamoff>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
                 }
             }
             boards_read = 0;
@@ -302,6 +304,7 @@ int main(int argc, char *argv[])
         }
         else
         {
+            std::cout << "Reached EOF at offset " << offset << std::endl;
             break;
         }
     }
