@@ -138,14 +138,14 @@ int main(int argc, char *argv[])
     }
 
     bool is_good = false;
-    uint32_t evtnum = 0;
-    uint32_t evt_to_read = -1;
-    uint32_t expected_events = -1;
-    uint32_t board_id = -1;
-    uint32_t trigger_number = -1;
-    uint32_t trigger_id = -1;
-    uint32_t evt_size = 0;
-    uint32_t boards_read = 0;
+    int evtnum = 0;
+    int evt_to_read = -1;
+    int expected_events = -1;
+    int board_id = -1;
+    int trigger_number = -1;
+    int trigger_id = -1;
+    int evt_size = 0;
+    int boards_read = 0;
     uint32_t fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
@@ -296,7 +296,8 @@ int main(int argc, char *argv[])
 
                     raw_events_tree.at(det_idx)->Fill();
 
-                    evt_offset += std::streamoff(static_cast<std::streamoff>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
+                    //evt_offset += std::streamoff(static_cast<std::streamoff>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
+                    evt_offset += std::streamoff(static_cast<int64_t>(evt_size) * 4 + 8 + 44);
                 }
             }
             boards_read = 0;
