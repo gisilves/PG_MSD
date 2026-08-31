@@ -145,6 +145,56 @@ int seek_first_evt_header(std::fstream &file, uint32_t offset, int verbose)
   }
 }
 
+int seek_last_evt_header(std::fstream &file, int verbose)
+{
+  uint32_t header;
+  bool found = false;
+
+  unsigned char buffer[4];
+  uint32_t val;
+
+  header = 0xcaf14afa;
+
+  file.seekg(0, std::ios::end);
+  int offset = file.tellg();
+
+  // Align to the last potential 4-byte block
+  offset -= 4;
+
+  while (!found && offset >= 0)
+  {
+    file.seekg(offset);
+    file.read(reinterpret_cast<char *>(&buffer), 4);
+    val = buffer[3] | buffer[2] << 8 | buffer[1] << 16 | buffer[0] << 24;
+
+    if (val == header)
+    {
+      found = true;
+      if (verbose == 1)
+      {
+        std::cout << "Found maka header at offset " << offset << std::endl;
+      }
+    }
+    else
+    {
+      offset -= 4;
+    }
+  }
+
+  if (!found)
+  {
+    if (verbose == 1)
+    {
+      std::cout << "Can't find event header in the file" << std::endl;
+    }
+    return -999;
+  }
+  else
+  {
+    return offset;
+  }
+}
+
 std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, int verbose)
 {
   uint32_t header;

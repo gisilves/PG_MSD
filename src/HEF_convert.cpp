@@ -20,6 +20,7 @@ int main(int argc, char *argv[])
     bool verbose = false;
     bool silent = false;
     bool gsi = false;
+    bool find_events = false;
     int boards = 0;
     int nevents = -1;
     int compression = 0;
@@ -28,12 +29,26 @@ int main(int argc, char *argv[])
 
     app.add_flag("-v,--verbose", verbose, "Verbose output");
     app.add_flag("--silent", silent, "Silent mode");
+    app.add_flag("--find_events", find_events, "Find number of events in the file");
     app.add_option("--nevents", nevents, "Number of events to be read");
     app.add_option("--compression", compression, "Compression level (0-9)");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
-    app.add_option("output_rootfile", output_file, "Output ROOT file")->required();
+    app.add_option("output_rootfile", output_file, "Output ROOT file");
 
-    CLI11_PARSE(app, argc, argv);
+    try
+    {
+        CLI11_PARSE(app, argc, argv);
+        if (!find_events && output_file.empty())
+        {
+            std::cout << "ERROR: output file is required" << std::endl;
+            return 1;
+        }
+    }
+    catch (const CLI::ParseError &e)
+    {
+        std::cerr << e.what() << std::endl;
+        return 1;
+    }
 
     TFile *foutput;
 
@@ -57,14 +72,17 @@ int main(int argc, char *argv[])
         std::cout << "Processing file " << input_file.c_str() << std::endl;
     }
 
-    // Create output ROOT file
-    TString output_filename = output_file.c_str();
-    foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
-    foutput->cd();
+    // Create output ROOT file if required
+    if (!output_file.empty())
+    {
+        TString output_filename = output_file.c_str();
+        foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
+        foutput->cd();
 
-    foutput->SetCompressionLevel(compression);
-    foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kLZ4);
-    
+        foutput->SetCompressionLevel(compression);
+        foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kLZ4);
+    }
+
     // Initialize TTree(s)
     std::vector<uint32_t> raw_event_buffer;
     raw_event_buffer.reserve(100000);  // Pre-allocate reasonable size
@@ -82,16 +100,17 @@ int main(int argc, char *argv[])
         raw_events_tree.at(detector)->SetAutoSave(50000000);  // Write every 50MB instead of default
     }
 
-    // Find if there is an offset before file header
     bool is_good = false;
     int evtnum = 0;
     int evt_to_read = -1;
+    int expected_events = -1;
     int board_id = -1;
     int trigger_number = -1;
     int trigger_id = -1;
     int evt_size = 0;
     int boards_read = 0;
-    uint32_t offset = 0;
+    uint32_t first_evt_offset = 0;
+    uint32_t last_evt_offset = 0;
     uint32_t fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
@@ -111,14 +130,14 @@ int main(int argc, char *argv[])
     std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
 
-    bool new_format = seek_file_header(file, offset, verbose);
+    bool new_format = seek_file_header(file, first_evt_offset, verbose);
 
     if (new_format)
     {
         is_new_format = true;
         if (!silent)
             std::cout << "New data format" << std::endl;
-        file_retValues = read_file_header(file, offset, verbose);
+        file_retValues = read_file_header(file, first_evt_offset, verbose);
         is_good = std::get<0>(file_retValues);
         boards = std::get<5>(file_retValues);
 
@@ -130,11 +149,37 @@ int main(int argc, char *argv[])
         }
 
         old_offset = std::get<7>(file_retValues);
-        offset = seek_first_evt_header(file, old_offset, verbose);
-        if (offset != old_offset)
+        first_evt_offset = seek_first_evt_header(file, old_offset, verbose);
+        if (first_evt_offset != old_offset)
         {
             if (!silent)
-                std::cout << "WARNING: first evt header has a " << offset - old_offset << " delta value " << std::endl;
+                std::cout << "WARNING: first evt header has a " << first_evt_offset - old_offset << " delta value " << std::endl;
+        }
+
+        // Search for last evt header
+        if (!silent)
+            std::cout << "\nSearching for last evt header" << std::endl;
+        last_evt_offset = seek_last_evt_header(file, verbose);
+
+        maka_retValues = read_evt_header(file, last_evt_offset, verbose);
+        if (std::get<0>(maka_retValues))
+        {
+            expected_events = std::get<3>(maka_retValues);
+        }
+
+        if (!silent)
+            std::cout << "\tExpecting " << expected_events << " events in the file" << std::endl;
+
+        // Go back to the first evt header
+        file.seekg(first_evt_offset);
+
+        if (find_events)
+        {
+            // Close files and exit
+            if (!output_file.empty())
+                foutput->Close();
+            file.close();
+            return 0;
         }
     }
     else
@@ -158,13 +203,13 @@ int main(int argc, char *argv[])
         }
 
         is_good = false;
-        maka_retValues = read_evt_header(file, offset, verbose);
+        maka_retValues = read_evt_header(file, first_evt_offset, verbose);
         if (std::get<0>(maka_retValues))
         {
-            offset = std::get<7>(maka_retValues);
+            first_evt_offset = std::get<7>(maka_retValues);
             for (size_t de10 = 0; de10 < std::get<4>(maka_retValues); de10++)
             {
-                de10_retValues = read_de10_header(file, offset, verbose); // read de10 header
+                de10_retValues = read_de10_header(file, first_evt_offset, verbose); // read de10 header
                 is_good = std::get<0>(de10_retValues);
 
                 if (is_good)
@@ -181,10 +226,9 @@ int main(int argc, char *argv[])
                     bias_voltage_0 = std::get<8>(de10_retValues);
                     bias_voltage_1 = std::get<9>(de10_retValues);
                     leakage_current = std::get<10>(de10_retValues);
-                    offset = std::get<11>(de10_retValues);
+                    first_evt_offset = std::get<11>(de10_retValues);
 
-                    // Log every 1000 events instead of every event
-                    if (evtnum % 1000 == 0 && !silent)
+                    if (!silent)
                     {
                         std::cout << "\r\tReading event " << evtnum << std::flush;
                     }
@@ -205,7 +249,7 @@ int main(int argc, char *argv[])
 
                     padding_offset = 0;
                     // HEF always uses read_eventHEF; no DAMPE / GSI variants
-                    raw_event_buffer = std::move(reorder(read_eventHEF(file, offset, evt_size, verbose)));
+                    raw_event_buffer = std::move(reorder(read_eventHEF(file, first_evt_offset, evt_size, verbose)));
 
                     int det_idx = detector_ids_map.at(board_id);
 
@@ -213,7 +257,7 @@ int main(int argc, char *argv[])
 
                     raw_events_tree.at(det_idx)->Fill();
 
-                    offset += evt_size * 4 + 8 + 44; // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
+                    first_evt_offset += evt_size * 4 + 8 + 44; // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
                 }
             }
             boards_read = 0;
@@ -226,7 +270,7 @@ int main(int argc, char *argv[])
     }
 
     if (!silent)
-        std::cout << "\n\tClosing file after " << std::dec << evtnum << " events" << std::endl;
+        std::cout << "\n\tClosing file" << std::endl;
     int filled = 0;
     std::vector<int> written_board_ids;
 

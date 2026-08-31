@@ -47,6 +47,8 @@ std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<u
 
 int seek_first_evt_header(std::fstream &file, uint32_t offset, int verbose);
 
+int seek_last_evt_header(std::fstream &file, int verbose);
+
 bool read_old_evt_header(std::fstream &file, uint32_t offset, int verbose);
 std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> read_evt_header(std::fstream &file, uint32_t offset, int verbose);
 
