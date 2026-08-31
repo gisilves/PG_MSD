@@ -153,10 +153,10 @@ int main(int argc, char *argv[])
     uint32_t bias_voltage_1 = 0;
     uint32_t leakage_current = 0;
     
-    std::streampos evt_offset;
-    std::streampos last_evt_offset;
-    std::streampos old_offset;
-    std::streampos padding_offset;
+    std::streampos evt_offset(0);
+    std::streampos last_evt_offset(0);
+    std::streampos old_offset(0);
+    std::streampos padding_offset(0);
 
     char dummy[100];
     float mean_rate = 0;
@@ -165,9 +165,9 @@ int main(int argc, char *argv[])
     std::map<uint16_t, int> detector_ids_map;
 
     std::vector<uint16_t> detector_ids;
-    std::tuple<bool, uint32_t, uint32_t, uint8_t, uint16_t, uint16_t, std::vector<uint16_t>, uint32_t> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, int> de10_retValues;
-    std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, uint32_t> maka_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, std::streampos> file_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, std::streampos> de10_retValues;
+    std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::streampos> maka_retValues;
 
     bool new_format = seek_file_header(file, evt_offset, verbose);
 
@@ -305,7 +305,8 @@ int main(int argc, char *argv[])
         }
         else
         {
-            std::cout << "\nReached EOF at offset " << evt_offset << std::endl;
+            if (verbose == 1)
+                std::cout << "\nReached EOF at offset " << evt_offset << std::endl;
             break;
         }
     }
