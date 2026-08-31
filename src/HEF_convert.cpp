@@ -11,7 +11,44 @@
 #include "PAPERO.h"
 
 #define max_detectors 8
-#define BUFFER_SIZE 1048576  // 1MB buffer
+#define BUFFER_SIZE 1048576 // 1MB buffer
+
+#include <iostream>
+
+void display_progress(int current_event, int expected_events, int width = 50)
+{
+    static bool first_run = true;
+
+    if (!first_run)
+    {
+        std::cout << "\033[A\r\033[2K"; // Move up, go to start, clear line 1
+        std::cout << "\033[2K";         // Clear line 2
+    }
+    else
+    {
+        first_run = false;
+    }
+
+    // Line 1: Status message
+    std::cout << "\tReading event " << current_event << " / " << expected_events << "\n";
+
+    // Line 2: Progress bar
+    float progress = static_cast<float>(current_event) / static_cast<float>(expected_events);
+    int pos = static_cast<int>(width * progress);
+
+    std::cout << "\t[";
+    for (int i = 0; i < width; ++i)
+    {
+        if (i < pos)
+            std::cout << "=";
+        else if (i == pos)
+            std::cout << ">";
+        else
+            std::cout << " ";
+    }
+    std::cout << "] " << static_cast<int>(progress * 100.0) << "%";
+    std::cout.flush();
+}
 
 int main(int argc, char *argv[])
 {
@@ -85,7 +122,7 @@ int main(int argc, char *argv[])
 
     // Initialize TTree(s)
     std::vector<uint32_t> raw_event_buffer;
-    raw_event_buffer.reserve(100000);  // Pre-allocate reasonable size
+    raw_event_buffer.reserve(100000); // Pre-allocate reasonable size
 
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
     std::vector<TTree *> raw_events_tree(max_detectors);
@@ -97,7 +134,7 @@ int main(int argc, char *argv[])
         TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
         raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
         raw_events_tree.at(detector)->Branch("RAW Event", &raw_event_vector.at(detector));
-        raw_events_tree.at(detector)->SetAutoSave(50000000);  // Write every 50MB instead of default
+        raw_events_tree.at(detector)->SetAutoSave(50000000); // Write every 50MB instead of default
     }
 
     bool is_good = false;
@@ -168,7 +205,7 @@ int main(int argc, char *argv[])
         }
 
         if (!silent)
-            std::cout << "\tExpecting " << expected_events << " events in the file" << std::endl;
+            std::cout << "\tExpecting " << expected_events << " events in the file\n" << std::endl;
 
         // Go back to the first evt header
         file.seekg(first_evt_offset);
@@ -230,7 +267,8 @@ int main(int argc, char *argv[])
 
                     if (!silent)
                     {
-                        std::cout << "\r\tReading event " << evtnum << std::flush;
+                        // std::cout << "\r\tReading event " << evtnum << std::flush;
+                        display_progress(evtnum, expected_events);
                     }
 
                     if (verbose == 1 && !silent)
@@ -270,7 +308,7 @@ int main(int argc, char *argv[])
     }
 
     if (!silent)
-        std::cout << "\n\tClosing file" << std::endl;
+        std::cout << "\n\n\tClosing file" << std::endl;
     int filled = 0;
     std::vector<int> written_board_ids;
 
