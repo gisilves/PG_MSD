@@ -54,8 +54,10 @@ std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std
 
 bool read_de10_footer(std::fstream &file, std::streampos offset, int verbose);
 
-std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, std::streampos> read_de10_header(std::fstream &file, std::streampos offset, int verbose);
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, Float_t, Float_t, Float_t, std::streampos> read_de10_header(std::fstream &file, std::streampos offset, int verbose);
 
 std::vector<uint32_t> read_eventHEF(std::fstream &file, std::streampos offset, int event_size, int verbose);
+
+std::vector<std::pair<Float_t, Float_t>> read_bias_voltages(std::fstream &file, std::streampos offset, int verbose);
 
 #endif

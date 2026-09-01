@@ -9,6 +9,9 @@
 #include <time.h>
 #include "PAPERO.h"
 
+const float bias_ADC_conv = (1023/2.5)*(15e3/(1e6-15e3));
+const float leakage_ADC_conv = 1.0;
+
 bool seek_file_header(std::fstream &file, std::streampos offset, int verbose)
 {
   uint32_t file_known_word = 0xB01ADEEE;
@@ -354,7 +357,7 @@ bool read_de10_footer(std::fstream &file, std::streampos offset, int verbose)
   }
 }
 
-std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, std::streampos> read_de10_header(std::fstream &file, std::streampos offset, int verbose)
+std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, Float_t, Float_t, Float_t, std::streampos> read_de10_header(std::fstream &file, std::streampos offset, int verbose)
 {
   unsigned char buffer[4];
 
@@ -421,7 +424,6 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
     return std::make_tuple(false, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1);
   }
 
-  // file.seekg(offset + 8);
   file.read(reinterpret_cast<char *>(&buffer), 4);
   val = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
   evt_lenght = val - 10;
@@ -456,6 +458,9 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
   bias_voltage_0 = buffer[0] | buffer[1] << 8;
   bias_voltage_1 = buffer[2] | buffer[3] << 8;
 
+  bias_voltage_0 = bias_voltage_0;
+  bias_voltage_1 = bias_voltage_1;
+
   file.read(reinterpret_cast<char *>(&buffer), 4);  
   leakage_current = buffer[0] | buffer[1] << 8 | buffer[2] << 16 | buffer[3] << 24;
 
@@ -469,12 +474,12 @@ std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uin
     std::cout << "\t\t\ttrigger_id: " << trigger_id << std::endl;
     std::cout << "\t\t\tinternal timestamp: " << std::dec << int_timestamp << std::endl;
     std::cout << "\t\t\texternal timestamp: " << std::dec << ext_timestamp << std::endl;
-    std::cout << "\t\t\tbias voltage 0: " << std::dec << bias_voltage_0 << std::endl;
-    std::cout << "\t\t\tbias voltage 1: " << std::dec << bias_voltage_1 << std::endl;
-    std::cout << "\t\t\tleakage current: " << std::dec << leakage_current << std::endl;
+    std::cout << "\t\t\tbias voltage GPIO 0: " << std::dec << bias_voltage_0 / bias_ADC_conv << std::endl;
+    std::cout << "\t\t\tbias voltage GPIO 1: " << std::dec << bias_voltage_1 / bias_ADC_conv << std::endl;
+    std::cout << "\t\t\tleakage current: " << std::dec << leakage_current / leakage_ADC_conv << std::endl;
   }
 
-  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, int_timestamp, ext_timestamp, trigger_id, bias_voltage_0, bias_voltage_1, leakage_current, offset);
+  return std::make_tuple(true, evt_lenght, fw_version, trigger, board_id, int_timestamp, ext_timestamp, trigger_id, bias_voltage_0 / bias_ADC_conv, bias_voltage_1 / bias_ADC_conv, leakage_current / leakage_ADC_conv, offset);
 }
 
 std::vector<uint32_t> read_eventHEF(std::fstream &file, std::streampos offset, int event_size, int verbose)
@@ -506,4 +511,44 @@ std::vector<uint32_t> read_eventHEF(std::fstream &file, std::streampos offset, i
   }
 
   return event;
+}
+
+std::vector<std::pair<Float_t, Float_t>> read_bias_voltages(std::fstream &file, std::streampos offset, int verbose)
+{
+  std::vector<std::pair<Float_t, Float_t>> bias_voltages;
+
+  // Read event header at the given offset
+  auto maka_retValues = read_evt_header(file, offset, verbose);
+  
+  if (std::get<0>(maka_retValues)) // Check if the event header was read successfully
+  {
+    std::streampos evt_offset = std::get<7>(maka_retValues); // Get the offset for the event data
+    
+    // Read DE10 headers for each detector in the event
+    for (size_t de10 = 0; de10 < std::get<4>(maka_retValues); de10++)
+    {
+      auto de10_retValues = read_de10_header(file, evt_offset, verbose);
+      
+      if (std::get<0>(de10_retValues)) // Check if the DE10 header was read successfully
+      {
+        Float_t bias_voltage_0 = std::get<8>(de10_retValues);
+        Float_t bias_voltage_1 = std::get<9>(de10_retValues);
+        
+        bias_voltages.push_back(std::make_pair(bias_voltage_0, bias_voltage_1));
+        
+        evt_offset = std::get<11>(de10_retValues); // Update the offset for the next DE10 header
+      }
+      else
+      {
+        std::cerr << "Error reading DE10 header at offset " << evt_offset << std::endl;
+        break; // Exit the loop if there's an error reading a DE10 header
+      }
+    }
+  }
+  else
+  {
+    std::cerr << "Error reading event header at offset " << offset << std::endl;
+  }
+  
+  return bias_voltages;
 }
