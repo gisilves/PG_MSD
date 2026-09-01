@@ -19,7 +19,7 @@ PCH_SRC := $(CLI11_DIR)/CLI/CLI.hpp
 PCH_OUT := $(OBJ)/CLI.hpp.gch
 
 # Targets
-TARGETS :=   HEF_convert HEF_info HEF_i2c raw_clusterize raw_cn \
+TARGETS :=   HEF_convert HEF_info raw_clusterize raw_cn \
 			raw_threshold_scan calibration readOM bias_control bias_controlPI
 			
 .PHONY: all clean raw_viewer
@@ -42,9 +42,6 @@ HEF_convert: $(OBJ)/HEF_convert.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 HEF_info: $(OBJ)/HEF_info.o $(OBJ)/PAPERO.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-HEF_i2c: $(OBJ)/HEF_i2c.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 raw_clusterize: $(OBJ)/raw_clusterize.o $(OBJ)/event.o
