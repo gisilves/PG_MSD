@@ -58,6 +58,7 @@ int main(int argc, char *argv[])
     bool silent = false;
     bool gsi = false;
     bool find_events = false;
+    bool print_bias = false;
     int boards = 0;
     int nevents = -1;
     int compression = 0;
@@ -67,6 +68,7 @@ int main(int argc, char *argv[])
     app.add_flag("-v,--verbose", verbose, "Verbose output");
     app.add_flag("--silent", silent, "Silent mode");
     app.add_flag("--find_events", find_events, "Find number of events in the file");
+    app.add_flag("--print_bias", print_bias, "Print bias voltages (read from first event)");
     app.add_option("--nevents", nevents, "Number of events to be read");
     app.add_option("--compression", compression, "Compression level (0-9)");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
@@ -116,8 +118,11 @@ int main(int argc, char *argv[])
         foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
         foutput->cd();
 
+        foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kZSTD);
+        //foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kLZ4);
         foutput->SetCompressionLevel(compression);
-        foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kLZ4);
+        if (compression > 0 && !silent)
+            std::cout << "Using compression level " << compression << std::endl;
     }
 
     // Initialize TTree(s)
@@ -161,24 +166,25 @@ int main(int argc, char *argv[])
     char dummy[100];
     float mean_rate = 0;
 
-    bool is_new_format = false;
+    // Map detector_ids
     std::map<uint16_t, int> detector_ids_map;
-
     std::vector<uint16_t> detector_ids;
+    
+    // Tuples to store headers values
     std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, std::streampos> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, uint32_t, uint32_t, uint32_t, std::streampos> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, Float_t, Float_t, Float_t, std::streampos> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::streampos> maka_retValues;
 
+    // Seek new format file header
     bool new_format = seek_file_header(file, evt_offset, verbose);
 
     if (new_format)
     {
-        is_new_format = true;
         if (!silent)
             std::cout << "New data format" << std::endl;
-        file_retValues = read_file_header(file, evt_offset, verbose);
-        is_good = std::get<0>(file_retValues);
-        boards = std::get<5>(file_retValues);
+        file_retValues = read_file_header(file, evt_offset, verbose); // read file header
+        is_good = std::get<0>(file_retValues); // check if file header is good
+        boards = std::get<5>(file_retValues); // get number of boards
 
         // map detector_ids values to progressive number from 0 to size of detector_ids
         detector_ids = std::get<6>(file_retValues);
@@ -187,22 +193,39 @@ int main(int argc, char *argv[])
             detector_ids_map[detector_ids.at(i)] = i;
         }
 
-        old_offset = std::get<7>(file_retValues);
-        evt_offset = seek_first_evt_header(file, old_offset, verbose);
+        old_offset = std::get<7>(file_retValues); // get file header offset
+        evt_offset = seek_first_evt_header(file, old_offset, verbose); // seek first evt header
         if (evt_offset != old_offset)
         {
             if (!silent)
                 std::cout << "WARNING: first evt header has a " << evt_offset - old_offset << " delta value " << std::endl;
         }
+
+        // Read bias voltages
+        std::vector<std::pair<Float_t, Float_t>> bias_voltages;
+        if (print_bias)
+        {
+            bias_voltages = read_bias_voltages(file, evt_offset, verbose);
+            if (!silent)
+            {
+                std::cout << "\nBias voltages (read from first event):" << std::endl;
+                // Print detector ID and corresponding bias voltages
+                for (size_t i = 0; i < bias_voltages.size(); i++)
+                {
+                    std::cout << "\tDetector " << detector_ids.at(i) << ": " << bias_voltages.at(i).first << " V, " << bias_voltages.at(i).second << " V" << std::endl;
+                }
+            }
+        }
+
         // Search for last evt header
         if (!silent)
             std::cout << "\nSearching for last evt header" << std::endl;
-        last_evt_offset = seek_last_evt_header(file, verbose);
+        last_evt_offset = seek_last_evt_header(file, verbose); // seek last evt header
 
-        maka_retValues = read_evt_header(file, last_evt_offset, verbose);
+        maka_retValues = read_evt_header(file, last_evt_offset, verbose); // read last evt header
         if (std::get<0>(maka_retValues))
         {
-            expected_events = std::get<3>(maka_retValues);
+            expected_events = std::get<3>(maka_retValues); // expected events is the evt_number of the last event
         }
 
         if (!silent)
@@ -211,7 +234,7 @@ int main(int argc, char *argv[])
         // Go back to the first evt header
         file.seekg(evt_offset);
 
-        if (find_events)
+        if (find_events || print_bias) // if find_events or print_bias is true, we need to close the file and exit, no need to read events
         {
             // Close files and exit
             if (!output_file.empty())
