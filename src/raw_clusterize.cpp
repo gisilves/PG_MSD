@@ -476,131 +476,133 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
     try
     {
-      if (!goodCN)
-        continue;
-
-      if (*max_element(signal.begin(), signal.end()) > maxADC) // searching for the highest ADC value
+      if (goodCN)
       {
-        maxADC = *max_element(signal.begin(), signal.end());
-        maxEVT = index_event;
-        std::vector<float>::iterator it = std::find(signal.begin(), signal.end(), maxADC);
-        maxPOS = std::distance(signal.begin(), it);
-      }
-
-      if (verb)
-        std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
-
-      hHighestStrip->Fill(*max_element(signal.begin(), signal.end()));
-
-      // if it's BL_monster we keep only channels 320-383, 448-639, deleting the others from the vector
-      if (BL_monster)
-      {
-        signal.erase(signal.begin(), signal.begin() + 320);
-        signal.erase(signal.begin() + 64, signal.begin() + 128);
-        signal.erase(signal.begin() + 256, signal.end());
-      }
-
-      result = clusterize_event(&cal, &signal, highthreshold, lowthreshold, // clustering function
-                                symmetric, symmetricwidth, absolute, board, verb);
-
-      if (inVA)
-      {
-        // remove clusters that are not fully contained in a VA
-        result.erase(std::remove_if(result.begin(), result.end(), [](cluster c) { return !isClusterinVA(c); }), result.end());
-      }
-
-      // save result cluster in TTree
-      t_clusters->Fill();
-
-      if (only_highest && result.size() > 1)
-      {
-        // only keep the first cluster
-        result.erase(result.begin() + 1, result.end());
-      }
-
-      nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
-      hNclus->Fill(result.size());
-
-      for (int i = 0; i < result.size(); i++)
-      {
-
-        if (verb)
+        if (*max_element(signal.begin(), signal.end()) > maxADC) // searching for the highest ADC value
         {
-          PrintCluster(result.at(i));
+          maxADC = *max_element(signal.begin(), signal.end());
+          maxEVT = index_event;
+          std::vector<float>::iterator it = std::find(signal.begin(), signal.end(), maxADC);
+          maxPOS = std::distance(signal.begin(), it);
         }
 
-        if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip) // cut on position on the detector in terms of strip number
+        if (verb)
+          std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
+
+        hHighestStrip->Fill(*max_element(signal.begin(), signal.end()));
+
+        // if it's BL_monster we keep only channels 320-383, 448-639, deleting the others from the vector
+        if (BL_monster)
         {
+          signal.erase(signal.begin(), signal.begin() + 320);
+          signal.erase(signal.begin() + 64, signal.begin() + 128);
+          signal.erase(signal.begin() + 256, signal.end());
+        }
 
-          hADCCluster->Fill(GetClusterSignal(result.at(i)));
+        result = clusterize_event(&cal, &signal, highthreshold, lowthreshold, // clustering function
+                                  symmetric, symmetricwidth, absolute, board, verb);
 
-          if (GetClusterSeed(result.at(i), &cal) % 64 == 0)
-          {
-            hADCClusterEdge->Fill(GetClusterSignal(result.at(i)));
-          }
+        if (inVA)
+        {
+          // remove clusters that are not fully contained in a VA
+          result.erase(std::remove_if(result.begin(), result.end(), [](cluster c) { return !isClusterinVA(c); }), result.end());
+        }
 
-          if (result.at(i).width == 1)
-          {
-            hADCCluster1Strip->Fill(GetClusterSignal(result.at(i)));
-            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
-          }
-          else if (result.at(i).width == 2)
-          {
-            hADCCluster2Strip->Fill(GetClusterSignal(result.at(i)));
-            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
-          }
-          else
-          {
-            hADCClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
-            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
-          }
+        if (only_highest && result.size() > 1)
+        {
+          // only keep the first cluster
+          result.erase(result.begin() + 1, result.end());
+        }
 
-          hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
-          hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
-          hSeedCharge->Fill(GetSeedMIPCharge(result.at(i), &cal));
-          hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i), &cal) / GetClusterSignal(result.at(i)));
-          hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
-          hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
+        nclus_event->SetPoint(nclus_event->GetN(), index_event, result.size());
+        hNclus->Fill(result.size());
+
+        for (int i = 0; i < result.size(); i++)
+        {
 
           if (verb)
           {
-            std::cout << "Adding cluster with COG: " << GetClusterCOG(result.at(i)) << std::endl;
+            PrintCluster(result.at(i));
           }
 
-          hClusterCog->Fill(GetClusterCOG(result.at(i)));
-          hBeamProfile->Fill(GetPosition(result.at(i), sensor_pitch));
-          hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
-          hNstrip->Fill(GetClusterWidth(result.at(i)));
-
-          if (result.at(i).width)
+          if (result.at(i).address >= minStrip && (result.at(i).address + result.at(i).width - 1) < maxStrip) // cut on position on the detector in terms of strip number
           {
-            hEta->Fill(GetClusterEta(result.at(i)));
-            if (result.at(i).over == 1)
+
+            hADCCluster->Fill(GetClusterSignal(result.at(i)));
+
+            if (GetClusterSeed(result.at(i), &cal) % 64 == 0)
             {
-              hEta1->Fill(GetClusterEta(result.at(i)));
+              hADCClusterEdge->Fill(GetClusterSignal(result.at(i)));
+            }
+
+            if (result.at(i).width == 1)
+            {
+              hADCCluster1Strip->Fill(GetClusterSignal(result.at(i)));
+              hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+            }
+            else if (result.at(i).width == 2)
+            {
+              hADCCluster2Strip->Fill(GetClusterSignal(result.at(i)));
+              hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
             }
             else
             {
-              hEta2->Fill(GetClusterEta(result.at(i)));
+              hADCClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
+              hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
             }
-            hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
-          }
 
-          hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
-          hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
-          hSeedADCvsPos->Fill(GetClusterSeed(result.at(i), &cal), GetClusterSeedADC(result.at(i), &cal));
-          hClusterChargevsPos->Fill(GetClusterCOG(result.at(i)), GetClusterMIPCharge(result.at(i)));
-          hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
-          hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
-          hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
-          hNstripSeed->Fill(result.at(i).over);
+            hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
+            hClusterCharge->Fill(GetClusterMIPCharge(result.at(i)));
+            hSeedCharge->Fill(GetSeedMIPCharge(result.at(i), &cal));
+            hPercentageSeed->Fill(100 * GetClusterSeedADC(result.at(i), &cal) / GetClusterSignal(result.at(i)));
+            hClusterSN->Fill(GetClusterSN(result.at(i), &cal));
+            hSeedSN->Fill(GetSeedSN(result.at(i), &cal));
 
-          if (result.at(i).width == 2)
-          {
-            hDifference->Fill((result.at(i).ADC.at(0) - result.at(i).ADC.at(1)) / (result.at(i).ADC.at(0) + result.at(i).ADC.at(1)));
-            hADC0vsADC1->Fill(result.at(i).ADC.at(0), result.at(i).ADC.at(1));
+            if (verb)
+            {
+              std::cout << "Adding cluster with COG: " << GetClusterCOG(result.at(i)) << std::endl;
+            }
+
+            hClusterCog->Fill(GetClusterCOG(result.at(i)));
+            hBeamProfile->Fill(GetPosition(result.at(i), sensor_pitch));
+            hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
+            hNstrip->Fill(GetClusterWidth(result.at(i)));
+
+            if (result.at(i).width)
+            {
+              hEta->Fill(GetClusterEta(result.at(i)));
+              if (result.at(i).over == 1)
+              {
+                hEta1->Fill(GetClusterEta(result.at(i)));
+              }
+              else
+              {
+                hEta2->Fill(GetClusterEta(result.at(i)));
+              }
+              hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+            }
+
+            hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
+            hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
+            hSeedADCvsPos->Fill(GetClusterSeed(result.at(i), &cal), GetClusterSeedADC(result.at(i), &cal));
+            hClusterChargevsPos->Fill(GetClusterCOG(result.at(i)), GetClusterMIPCharge(result.at(i)));
+            hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
+            hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
+            hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
+            hNstripSeed->Fill(result.at(i).over);
+
+            if (result.at(i).width == 2)
+            {
+              hDifference->Fill((result.at(i).ADC.at(0) - result.at(i).ADC.at(1)) / (result.at(i).ADC.at(0) + result.at(i).ADC.at(1)));
+              hADC0vsADC1->Fill(result.at(i).ADC.at(0), result.at(i).ADC.at(1));
+            }
           }
         }
+      }
+      else
+      {
+        result.clear();  // Empty cluster vector for this event
+        hNclus->Fill(0);
       }
     }
     catch (const char *msg)
@@ -609,9 +611,12 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       {
         std::cerr << msg << "Skipping event " << index_event << std::endl;
       }
+      result.clear();  // Empty cluster vector for this event
       hNclus->Fill(0);
-      continue;
     }
+
+    t_clusters->Fill(); // save result cluster in TTree
+  
   }
 
   if (verb)
