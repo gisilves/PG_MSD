@@ -18,6 +18,41 @@
 #include <CLI/CLI.hpp>
 #include "event.h"
 
+void display_progress(int current_event, int expected_events, int width = 50)
+{
+    static bool first_run = true;
+
+    if (!first_run)
+    {
+        std::cout << "\033[A\r\033[2K"; // Move up, go to start, clear line 1
+        std::cout << "\033[2K";         // Clear line 2
+    }
+    else
+    {
+        first_run = false;
+    }
+
+    // Line 1: Status message
+    std::cout << "\tClusterizing event " << current_event << " / " << expected_events << "\n";
+
+    // Line 2: Progress bar
+    float progress = static_cast<float>(current_event) / static_cast<float>(expected_events);
+    int pos = static_cast<int>(width * progress);
+
+    std::cout << "\t[";
+    for (int i = 0; i < width; ++i)
+    {
+        if (i < pos)
+            std::cout << "=";
+        else if (i == pos)
+            std::cout << ">";
+        else
+            std::cout << " ";
+    }
+    std::cout << "] " << static_cast<int>(progress * 100.0) << "%";
+    std::cout.flush();
+}
+
 calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 // Dynamic pedestal calculation while processing the file:
 // when used it is assumed that the single strip occupancy will be low (not true for an higly collimated beam)
@@ -62,7 +97,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
-                        int sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false, bool only_highest = false, bool silent = false)
+                        float sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false, bool only_highest = false, bool silent = false)
 {
   //////////////////Histos//////////////////
   TH1F *hADCCluster = // ADC content of all clusters
@@ -167,7 +202,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   hSeedADCvsPos->GetYaxis()->SetTitle("ADC");
 
   TH2F* hClusterChargevsPos = new TH2F((TString) "hClusterChargevsPos_board_" + board, (TString) "hClusterChargevsPos_board_" + board, (maxStrip - minStrip), minStrip - 0.5, maxStrip - 0.5, // cluster ADC vs cog
-                             1000, minADC_h, maxADC_h);
+                             1000, -0.5, 25.5);
 
   hClusterChargevsPos->GetXaxis()->SetTitle("cog");
   hClusterChargevsPos->GetYaxis()->SetTitle("ADC");
@@ -217,7 +252,10 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   if (board == 0) // TTree name depends on DAQ board
   {
     if (!silent)
+    {
+      std::cout << "\n===========================================================" << std::endl;
       std::cout << "\nWe are on the first detector" << std::endl;
+    }
     chain->SetName("raw_events");
     
     for (int ii = 0; ii < input_files.size(); ii++)
@@ -230,7 +268,10 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   else
   {
     if (!silent)
+    {
+      std::cout << "\n===========================================================" << std::endl;
       std::cout << "\nWe are on detector " << board << std::endl;
+    }
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     chain->SetName((TString) "raw_events_" + alphabet.at(board));
     for (int ii = 0; ii < input_files.size(); ii++)
@@ -319,9 +360,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
   if (!silent)
   {
-    std::cout << "\n===========================================================" << std::endl;
-    std::cout << "\nProcessing events for board " << board << std::endl;
-
     std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
   }
 
@@ -339,21 +377,23 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   {
     chain->GetEntry(index_event);
 
+    int bytes_read = chain->GetEntry(index_event);
+  
+    if (bytes_read <= 0)
+    {
+      // Entry doesn't exist on this board—still write empty cluster
+      result.clear();
+      hNclus->Fill(0);
+      t_clusters->Fill();
+      continue;
+    }
+
     if (verb)
     {
       std::cout << std::endl;
       std::cout << "EVENT: " << index_event << std::endl;
     }
-    Double_t pperc = 10.0 * ((index_event + 1.0) / entries); // print every 10% of processed events
-    if (pperc >= perc)
-    {
-      if (!silent)
-        std::cout << "Processed " << (index_event + 1) << " out of " << entries
-                << ":" << (int)(100.0 * (index_event + 1.0) / entries) << "%"
-                << std::endl;
-      perc++;
-    }
-
+    display_progress(index_event, entries);
     if ((index_event % 5000) == 0 && dynped) // if dynamic pedestals are enabled we recalculate them
     {
       if (!silent)
@@ -875,7 +915,7 @@ int main(int argc, char *argv[])
 
   TDirectory *doutput;
   if (!silent)
-    std::cout << "Creating output directory" << std::endl;
+    std::cout << "\nCreating output directory" << std::endl;
 
   if (detectors == 1)
   {
