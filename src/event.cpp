@@ -185,32 +185,18 @@ int GetClusterVA(cluster clus, calib *cal)
 float GetCN(std::vector<float> *signal, int va, int type) // common mode noise calculation with 3 possible algos: done on a VA (readout ASIC) base
 {
   float mean = 0;
+  float median = 0;
   float rms = 0;
   float cn = 0;
   int cnt = 0;
 
   mean = TMath::Mean(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
   rms = TMath::RMS(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
-
-  if (type == 0) // simple common noise wrt VA mean ADC value
+  median = TMath::Median(64, signal->data() + (va * 64));
+  
+  if (type == 0) // simple common noise, median value of the VA
   {
-    for (int i = (va * 64); i < (va + 1) * 64; i++)
-    {
-      if (signal->at(i) > mean - 2 * rms && signal->at(i) < mean + 2 * rms)
-      {
-        cn += signal->at(i);
-        cnt++;
-      }
-    }
-
-    if (cnt != 0)
-    {
-      return cn / cnt;
-    }
-    else
-    {
-      return -999;
-    }
+    return median;
   }
   else if (type == 1) // Common noise with fixed threshold to exclude potential real signal strips
   {
@@ -502,41 +488,50 @@ float GetClusterEta(cluster clus)
   std::vector<float> ADC = GetClusterADC(clus);
 
   Int_t nstrips = ADC.size();
-  Float_t eta = -999;
-  Float_t max_adc = -1;
-  Int_t max_pos = 0;
-
-  if (nstrips == 1)
+  if (nstrips < 2)
   {
-    eta = 1.0;
+    return 1.0f;
+  }
+
+  Int_t max_pos = std::max_element(ADC.begin(), ADC.end()) - ADC.begin();
+
+  Int_t left_strip = max_pos;
+  Int_t right_strip = max_pos;
+
+  if (max_pos == 0)
+  {
+    left_strip = 0;
+    right_strip = 1;
+  }
+  else if (max_pos == nstrips - 1)
+  {
+    left_strip = nstrips - 2;
+    right_strip = nstrips - 1;
   }
   else
   {
-    max_pos = std::max_element(ADC.begin(), ADC.end()) - ADC.begin();
-    max_adc = ADC.at(max_pos);
-
-    if (max_pos == 0)
+    if (ADC.at(max_pos - 1) > ADC.at(max_pos + 1))
     {
-      eta = ADC.at(0) / (ADC.at(0) + ADC.at(1));
-    }
-    else if (max_pos == nstrips - 1)
-    {
-      eta = ADC.at(max_pos - 1) / (ADC.at(max_pos - 1) + ADC.at(max_pos));
+      left_strip = max_pos - 1;
+      right_strip = max_pos;
     }
     else
     {
-      if (ADC.at(max_pos - 1) > ADC.at(max_pos + 1))
-      {
-        eta = ADC.at(max_pos - 1) / (ADC.at(max_pos - 1) + ADC.at(max_pos));
-      }
-      else
-      {
-        eta = ADC.at(max_pos) / (ADC.at(max_pos) + ADC.at(max_pos + 1));
-      }
+      left_strip = max_pos;
+      right_strip = max_pos + 1;
     }
   }
 
-  return eta;
+  Float_t q_left = ADC.at(left_strip);
+  Float_t q_right = ADC.at(right_strip);
+  Float_t sum = q_left + q_right;
+
+  if (sum <= 0.0f)
+  {
+    return -999.0f;
+  }
+
+  return q_right / sum;
 }
 
 float GetPosition(cluster clus, float sensor_pitch) // conversion to mm
