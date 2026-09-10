@@ -2,9 +2,9 @@ import sys
 import argparse
 import subprocess
 
-root_folder = '/mnt/f/CRSPACE/rootfiles/'
-cal_folder = '/mnt/f/CRSPACE/calfiles/'
-clus_folder = '/mnt/f/CRSPACE/clusfiles/'
+root_folder = '../CernBox/RootFiles/'
+cal_folder = '../CernBox/CalFiles/'
+clus_folder = '../CernBox/ClusFiles/'
 
 def process_cluster(calrun, datarun, silent=False):
     # Run clustering command
@@ -45,9 +45,9 @@ def main():
                     runs.append((int(calrun), int(datarun)))
                     
         for i, (calrun, datarun) in enumerate(runs, 1):
-            process_cluster(calrun, datarun, i)
+            process_cluster(calrun, datarun, silent=False)
     else:
-        process_cluster(args.calrun, args.datarun, 1)
+        process_cluster(args.calrun, args.datarun, silent=False)
 
 if __name__ == '__main__':
     main()
