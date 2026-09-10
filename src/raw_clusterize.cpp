@@ -49,13 +49,20 @@ void display_progress(int current_event, int expected_events, int width = 50)
         else
             std::cout << " ";
     }
-    std::cout << "] " << static_cast<int>(progress * 100.0) << "%";
+    if (current_event == expected_events)
+    {
+      std::cout << "] " << static_cast<int>(progress * 100.0) << "%\n\n";
+    }
+    else
+    {
+      std::cout << "] " << static_cast<int>(progress * 100.0) << "%";
+    }
     std::cout.flush();
 }
 
 calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 // Dynamic pedestal calculation while processing the file:
-// when used it is assumed that the single strip occupancy will be low (not true for an higly collimated beam)
+// when used it is assumed that the single strip occupancy will be low (might not true for an higly collimated beam)
 {
   calib new_calibration; // calibration struct
 
@@ -93,7 +100,7 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 }
 
 int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int maxStrip,
-                        bool newDAQ, int first_event, int NChannels, bool verb, bool dynped,
+                        int first_event, int NChannels, bool verb, bool dynped,
                         bool invert, float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
@@ -253,7 +260,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   {
     if (!silent)
     {
-      std::cout << "\n===========================================================" << std::endl;
+      std::cout << "\n================================================================================" << std::endl;
       std::cout << "\nWe are on the first detector" << std::endl;
     }
     chain->SetName("raw_events");
@@ -269,7 +276,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   {
     if (!silent)
     {
-      std::cout << "\n===========================================================" << std::endl;
+      std::cout << "\n================================================================================" << std::endl;
       std::cout << "\nWe are on detector " << board << std::endl;
     }
     std::string alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -393,7 +400,8 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       std::cout << std::endl;
       std::cout << "EVENT: " << index_event << std::endl;
     }
-    display_progress(index_event, entries);
+    display_progress(index_event + 1, entries);
+
     if ((index_event % 5000) == 0 && dynped) // if dynamic pedestals are enabled we recalculate them
     {
       if (!silent)
@@ -790,9 +798,7 @@ int main(int argc, char *argv[])
   float sensor_pitch = 0.108;
   int minADC_h = 0;
   int maxADC_h = 1000;
-  
-  bool newDAQ = false;
-  
+    
   int board = 0;
 
   std::vector<std::string> input_files;
@@ -807,7 +813,6 @@ int main(int argc, char *argv[])
   app.add_flag("-a,--absolute", absolute, "Use absolute ADC value instead of S/N");
   app.add_flag("--invert", invert, "Invert signal");
   app.add_flag("--dynped", dynped, "Enable dynamic pedestals");
-  app.add_flag("--newDAQ", newDAQ, "Use new DAQ format");
   app.add_flag("--inVA", inVA, "Select only clusters that are fully contained in a VA");
   app.add_flag("--highest", only_highest, "Only add highest cluster to histograms");
 
@@ -889,8 +894,6 @@ int main(int argc, char *argv[])
   }
 
   int detectors = 0;
-  if (newDAQ && !silent)
-    std::cout << "\nNEW DAQ FILE" << std::endl;
 
   TFile tempfile(input_files[0].c_str());
   TIter list(tempfile.GetListOfKeys());
@@ -922,7 +925,7 @@ int main(int argc, char *argv[])
     doutput = foutput->mkdir("histos");
     doutput->cd();
     clusterize_detector(0, minADC_h, maxADC_h, minStrip, maxStrip,
-                        newDAQ, first_event, NChannels, verb, dynped,
+                        first_event, NChannels, verb, dynped,
                         invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                         symmetric, symmetricwidth,
                         sensor_pitch,
@@ -941,7 +944,7 @@ int main(int argc, char *argv[])
       doutput = foutput->mkdir((TString) "board_" + i);
       doutput->cd();
       clusterize_detector(i, minADC_h, maxADC_h, minStrip, maxStrip,
-                          newDAQ, first_event, NChannels, verb, dynped,
+                          first_event, NChannels, verb, dynped,
                           invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                           symmetric, symmetricwidth,
                           sensor_pitch,
