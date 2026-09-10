@@ -20,7 +20,8 @@ PCH_OUT := $(OBJ)/CLI.hpp.gch
 
 # Targets
 TARGETS :=   HEF_convert HEF_info raw_clusterize raw_cn \
-			raw_threshold_scan calibration readOM bias_control bias_controlPI
+			raw_threshold_scan calibration readOM bias_control bias_controlPI\
+			raw_pedestals
 			
 .PHONY: all clean raw_viewer
 default: all
@@ -45,6 +46,9 @@ HEF_info: $(OBJ)/HEF_info.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 raw_clusterize: $(OBJ)/raw_clusterize.o $(OBJ)/event.o
+	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
+
+raw_pedestals: $(OBJ)/raw_pedestals.o $(OBJ)/event.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 raw_cn: $(OBJ)/raw_cn.o $(OBJ)/event.o
