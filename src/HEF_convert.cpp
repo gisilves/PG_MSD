@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     try
     {
         CLI11_PARSE(app, argc, argv);
-        if (!find_events && output_file.empty())
+        if (!(find_events || print_bias) && output_file.empty())
         {
             std::cout << "ERROR: output file is required" << std::endl;
             return 1;
