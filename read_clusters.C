@@ -118,7 +118,7 @@ int read_clusters(TString filename, TString output_filename, TString calibration
     std::vector<TH1F *> hRegionSeed(NBoards, nullptr);
     std::vector<TH1F *> hRegionCharge(NBoards, nullptr);
     std::vector<TH1F *> hRegionEta(NBoards, nullptr);
-    std::vector<TH1F *> hRegionChargeVsEta(NBoards, nullptr);
+    std::vector<TH2F *> hRegionChargeVsEta(NBoards, nullptr);
     std::vector<TH1F *> hRegionNumStrips(NBoards, nullptr);
 
     TH2F *hBeamProfile2D = new TH2F((TString) "hBeamProfile2D", "Beam profile 2D", 100, -0.5, 1791.5, 100, -0.5, 1791.5);
@@ -196,15 +196,13 @@ int read_clusters(TString filename, TString output_filename, TString calibration
                                       1000, 0, 1);
             hRegionEta[b]->GetXaxis()->SetTitle("Eta");
 
-            hRegionChargeVsEta[b] = new TH1F(Form("hRegionChargeVsEta_board_%d", b),
+            hRegionChargeVsEta[b] = new TH2F(Form("hRegionChargeVsEta_board_%d", b),
                                              Form("Charge vs eta of clusters inside regionCut, board %d", b),
-                                             1000, 0, 25.5);
-            hRegionChargeVsEta[b]->GetXaxis()->SetTitle("Eta");
-            hRegionChargeVsEta[b]->GetYaxis()->SetTitle("Charge");
+                                             1000, 0, 1, 1000, -0.5, 25.5);
 
             hRegionNumStrips[b] = new TH1F(Form("hRegionNumStrips_board_%d", b),
                                            Form("Number of strips of clusters inside regionCut, board %d", b),
-                                           1000, 0, 4);
+                                           20, -0.5, 19.5);
             hRegionNumStrips[b]->GetXaxis()->SetTitle("Number of strips");
         }
     }
@@ -301,10 +299,6 @@ int read_clusters(TString filename, TString output_filename, TString calibration
             }
 
             if (maxPos < 0)
-                continue;
-            
-            // Skip clusters with a certain number of strips
-            if (clusters[b]->size() > 2 && clusters[b]->size() < 4)
                 continue;
 
             float charge = GetClusterMIPCharge(clusters[b]->at(maxPos));
