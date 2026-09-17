@@ -19,11 +19,9 @@ PCH_SRC := $(CLI11_DIR)/CLI/CLI.hpp
 PCH_OUT := $(OBJ)/CLI.hpp.gch
 
 # Targets
-TARGETS :=   HEF_convert HEF_info raw_clusterize raw_cn \
-			raw_threshold_scan calibration readOM bias_control bias_controlPI\
-			raw_pedestals
-			
-.PHONY: all clean raw_viewer
+TARGETS :=  miniMazinga_convert
+
+.PHONY: all clean
 default: all
 all: $(TARGETS)
 
@@ -39,49 +37,13 @@ $(OBJ)/%.o: $(SRC)/%.cpp $(PCH_OUT) | $(OBJ)
 	$(CXX) $(CFLAGS) $(OPTFLAGS) -c $< -o $@
 
 # Link rules
-HEF_convert: $(OBJ)/HEF_convert.o $(OBJ)/PAPERO.o
+miniMazinga_convert: $(OBJ)/miniMazinga_convert.o $(PCH_OUT)
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-HEF_info: $(OBJ)/HEF_info.o $(OBJ)/PAPERO.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-raw_clusterize: $(OBJ)/raw_clusterize.o $(OBJ)/event.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-raw_pedestals: $(OBJ)/raw_pedestals.o $(OBJ)/event.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-raw_cn: $(OBJ)/raw_cn.o $(OBJ)/event.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-raw_threshold_scan: $(OBJ)/raw_threshold_scan.o $(OBJ)/event.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-calibration: $(OBJ)/calibration.o $(OBJ)/event.o $(OBJ)/PAPERO.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-readOM: $(OBJ)/readOM.o $(OBJ)/udpSocket.o
-	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
-
-raw_viewer:
-	$(ROOTCLING) -f guiDict.cpp $(SRC)/viewerGUI.h $(SRC)/udpSocket.cpp $(SRC)/guiLinkDef.h
-	$(CXX) $(CFLAGS) $(OPTFLAGS) $(SRC)/viewerGUI.cpp $(SRC)/event.cpp guiDict.cpp -o $@ $(LDFLAGS)
-
-bias_control:
-	$(ROOTCLING) -f guiDict.cpp $(SRC)/biascontrol.h $(SRC)/guiLinkDef.h
-	$(CXX) $(CFLAGS) $(OPTFLAGS) $(SRC)/biascontrol.cpp $(SRC)/event.cpp guiDict.cpp -o $@ $(LDFLAGS)
-
-bias_controlPI:
-	$(ROOTCLING) -f guiDict.cpp $(SRC)/biascontrolPI.h $(SRC)/guiLinkDef.h
-	$(CXX) $(CFLAGS) $(OPTFLAGS) $(SRC)/biascontrolPI.cpp guiDict.cpp -o $@ $(LDFLAGS)
-
 
 clean:
-	rm -f $(TARGETS) raw_viewer
+	rm -f $(TARGETS)
 	find $(OBJ) -type f -not -name 'CLI.hpp.gch' -delete
-	rm -f guiDict.cpp guiDict_rdict.pcm
 
 clean_all:
-	rm -f $(TARGETS) raw_viewer
+	rm -f $(TARGETS)
 	rm -rf $(OBJ)
-	rm -f guiDict.cpp guiDict_rdict.pcm
