@@ -20,8 +20,7 @@ PCH_OUT := $(OBJ)/CLI.hpp.gch
 
 # Targets
 TARGETS :=  miniMazinga_convert
-
-.PHONY: all clean
+.PHONY: all clean raw_viewer
 default: all
 all: $(TARGETS)
 
@@ -37,7 +36,7 @@ $(OBJ)/%.o: $(SRC)/%.cpp $(PCH_OUT) | $(OBJ)
 	$(CXX) $(CFLAGS) $(OPTFLAGS) -c $< -o $@
 
 # Link rules
-miniMazinga_convert: $(OBJ)/miniMazinga_convert.o $(PCH_OUT)
+miniMazinga_convert: $(OBJ)/miniMazinga_convert.o $(OBJ)/PAPERO.o
 	$(LD) -o $@ $^ $(CFLAGS) $(LDFLAGS)
 
 clean:
