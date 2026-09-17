@@ -52,32 +52,29 @@ void display_progress(int current_event, int expected_events, int width = 50)
 
 int main(int argc, char *argv[])
 {
-    CLI::App app{"HEF_convert"};
+    CLI::App app{"miniMazinga_convert"};
 
     bool verbose = false;
     bool silent = false;
     bool gsi = false;
     bool find_events = false;
-    bool print_bias = false;
     int boards = 0;
     int nevents = -1;
-    int compression = 0;
     std::string input_file;
-    std::string output_file;
+    std::string output_file_str;
+    std::ofstream output_file;
 
     app.add_flag("-v,--verbose", verbose, "Verbose output");
     app.add_flag("--silent", silent, "Silent mode");
     app.add_flag("--find_events", find_events, "Find number of events in the file");
-    app.add_flag("--print_bias", print_bias, "Print bias voltages (read from first event)");
     app.add_option("--nevents", nevents, "Number of events to be read");
-    app.add_option("--compression", compression, "Compression level (0-9)");
     app.add_option("raw_data_file", input_file, "Raw data input file")->required();
-    app.add_option("output_rootfile", output_file, "Output ROOT file");
+    app.add_option("output_file", output_file_str, "Output file");
 
     try
     {
         CLI11_PARSE(app, argc, argv);
-        if (!(find_events || print_bias) && output_file.empty())
+        if (!find_events && output_file_str.empty())
         {
             std::cout << "ERROR: output file is required" << std::endl;
             return 1;
@@ -111,36 +108,15 @@ int main(int argc, char *argv[])
         std::cout << "Processing file " << input_file.c_str() << std::endl;
     }
 
-    // Create output ROOT file if required
-    if (!output_file.empty())
+    // Create output csv file if required
+    if (!output_file_str.empty())
     {
-        TString output_filename = output_file.c_str();
-        foutput = new TFile(output_filename.Data(), "RECREATE", "PAPERO data");
-        foutput->cd();
-
-        foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kZSTD);
-        //foutput->SetCompressionAlgorithm(ROOT::RCompressionSetting::EAlgorithm::kLZ4);
-        foutput->SetCompressionLevel(compression);
-        if (compression > 0 && !silent)
-            std::cout << "Using compression level " << compression << std::endl;
+        output_file.open(output_file_str);
+        // Add a header line: # TIMESTAMP, EVENT_ID, BOARD_ID, RAW WORD
+        output_file << "# TIMESTAMP, EVENT_ID, BOARD_ID, RAW WORD" << std::endl;
     }
 
-    // Initialize TTree(s)
-    std::vector<uint32_t> raw_event_buffer;
-    raw_event_buffer.reserve(100000); // Pre-allocate reasonable size
-
-    std::string alphabet = "ABCDEFGHIJKLMNOPQRSTWXYZ";
-    std::vector<TTree *> raw_events_tree(max_detectors);
-    std::vector<std::vector<uint32_t>> raw_event_vector(max_detectors);
-    TString ttree_name;
-
-    for (size_t detector = 0; detector < max_detectors; detector++)
-    {
-        TString ttree_name = (detector == 0) ? "raw_events" : TString("raw_events_") + alphabet.at(detector);
-        raw_events_tree.at(detector) = new TTree(ttree_name, ttree_name);
-        raw_events_tree.at(detector)->Branch("RAW Event", &raw_event_vector.at(detector));
-        raw_events_tree.at(detector)->SetAutoSave(50000000); // Write every 50MB instead of default
-    }
+    std::vector<uint32_t> raw_event_buffer; // Buffer to store raw event words
 
     bool is_good = false;
     int evtnum = 0;
@@ -154,9 +130,6 @@ int main(int argc, char *argv[])
     uint32_t fw_version = 0;
     uint64_t int_timestamp = 0;
     uint64_t ext_timestamp = 0;
-    uint32_t bias_voltage_0 = 0;
-    uint32_t bias_voltage_1 = 0;
-    uint32_t leakage_current = 0;
     
     std::streampos evt_offset(0);
     std::streampos last_evt_offset(0);
@@ -172,7 +145,7 @@ int main(int argc, char *argv[])
     
     // Tuples to store headers values
     std::tuple<bool, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::vector<uint16_t>, std::streampos> file_retValues;
-    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, Float_t, Float_t, Float_t, std::streampos> de10_retValues;
+    std::tuple<bool, uint32_t, uint32_t, uint32_t, uint32_t, uint64_t, uint64_t, uint32_t, std::streampos> de10_retValues;
     std::tuple<bool, timespec, uint32_t, uint32_t, uint16_t, uint16_t, uint16_t, std::streampos> maka_retValues;
 
     // Seek new format file header
@@ -201,22 +174,6 @@ int main(int argc, char *argv[])
                 std::cout << "WARNING: first evt header has a " << evt_offset - old_offset << " delta value " << std::endl;
         }
 
-        // Read bias voltages
-        std::vector<std::pair<Float_t, Float_t>> bias_voltages;
-        if (print_bias)
-        {
-            bias_voltages = read_bias_voltages(file, evt_offset, verbose);
-            if (!silent)
-            {
-                std::cout << "\nBias voltages (read from first event):" << std::endl;
-                // Print detector ID and corresponding bias voltages
-                for (size_t i = 0; i < bias_voltages.size(); i++)
-                {
-                    std::cout << "\tDetector " << detector_ids.at(i) << ": " << bias_voltages.at(i).first << " V, " << bias_voltages.at(i).second << " V" << std::endl;
-                }
-            }
-        }
-
         // Search for last evt header
         if (!silent)
             std::cout << "\nSearching for last evt header" << std::endl;
@@ -234,18 +191,18 @@ int main(int argc, char *argv[])
         // Go back to the first evt header
         file.seekg(evt_offset);
 
-        if (find_events || print_bias) // if find_events or print_bias is true, we need to close the file and exit, no need to read events
+        if (find_events) // if find_events is true, we need to close the file and exit, no need to read events
         {
             // Close files and exit
-            if (!output_file.empty())
-                foutput->Close();
+            if (!output_file_str.empty())
+                output_file.close();
             file.close();
             return 0;
         }
     }
     else
     {
-        std::cerr << "ERROR: HEF data can only be of new format type, check file" << std::endl;
+        std::cerr << "ERROR: data can only be of new format type, check file" << std::endl;
         return 2;
     }
 
@@ -285,10 +242,7 @@ int main(int argc, char *argv[])
                     int_timestamp = std::get<5>(de10_retValues);
                     ext_timestamp = std::get<6>(de10_retValues);
                     trigger_id = std::get<7>(de10_retValues);
-                    bias_voltage_0 = std::get<8>(de10_retValues);
-                    bias_voltage_1 = std::get<9>(de10_retValues);
-                    leakage_current = std::get<10>(de10_retValues);
-                    evt_offset = std::get<11>(de10_retValues);
+                    evt_offset = std::get<8>(de10_retValues);
 
                     if (!silent)
                     {
@@ -305,26 +259,24 @@ int main(int argc, char *argv[])
                         std::cout << "\tEvt lenght: " << evt_size << std::endl;
                         std::cout << "\tInternal timestamp: " << int_timestamp << std::endl;
                         std::cout << "\tExternal timestamp: " << ext_timestamp << std::endl;
-                        std::cout << "\tBias voltage 0: " << bias_voltage_0 << std::endl;
-                        std::cout << "\tBias voltage 1: " << bias_voltage_1 << std::endl;
-                        std::cout << "\tLeakage current: " << leakage_current << std::endl;
 
                         std::cout << "\tOffset (computed): " << evt_offset << std::endl;
                         std::cout << "\tOffset (file): " << file.tellg() << std::endl;
                     }
 
                     padding_offset = 0;
-                    // HEF always uses read_eventHEF; no DAMPE / GSI variants
-                    raw_event_buffer = std::move(reorder(read_eventHEF(file, evt_offset, evt_size, verbose)));
+                    raw_event_buffer = std::move(read_eventMazinga(file, evt_offset, evt_size, verbose));
 
                     int det_idx = detector_ids_map.at(board_id);
 
-                    raw_event_vector.at(det_idx) = std::move(raw_event_buffer);
+                    output_file << int_timestamp << ", " << evtnum << ", " << board_id << ", ";
+                    for (uint32_t word : raw_event_buffer)
+                    {
+                        output_file << word << ", ";
+                    }
+                    output_file << std::endl;
 
-                    raw_events_tree.at(det_idx)->Fill();
-
-                    //evt_offset += std::streamoff(static_cast<std::streamoff>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
-                    evt_offset += std::streamoff(static_cast<int64_t>(evt_size) * 4 + 8 + 44);
+                    evt_offset += std::streamoff(static_cast<int64_t>(evt_size) * 4 + 8 + 44); // 8 is the size of the de10 footer + crc, 44 is the size of the de10 header
                 }
             }
             boards_read = 0;
@@ -338,44 +290,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!silent)
-        std::cout << "\n\n\tClosing file" << std::endl;
-    int filled = 0;
-    std::vector<int> written_board_ids;
-
-    for (size_t detector = 0; detector < raw_events_tree.size(); detector++)
-    {
-        if (raw_events_tree.at(detector)->GetEntries())
-        {
-            if (filled == 0)
-            {
-                raw_events_tree.at(detector)->SetName("raw_events");
-                raw_events_tree.at(detector)->SetTitle("raw_events");
-                raw_events_tree.at(detector)->Write();
-            }
-            else
-            {
-                std::string name = "raw_events_" + alphabet.substr(filled, 1);
-                raw_events_tree.at(detector)->SetName(name.c_str());
-                raw_events_tree.at(detector)->SetTitle(name.c_str());
-                raw_events_tree.at(detector)->Write();
-            }
-            int real_id = (detector < detector_ids.size()) ? (int)detector_ids.at(detector) : (int)detector;
-            written_board_ids.push_back(real_id);
-            filled++;
-        }
-    }
-
-    TTree board_id_tree("board_ids", "board_ids");
-    int bid;
-    board_id_tree.Branch("board_id", &bid);
-    for (int id : written_board_ids)
-    {
-        bid = id;
-        board_id_tree.Fill();
-    }
-    board_id_tree.Write();
-
+    output_file.close();
     foutput->Close();
     file.close();
     return 0;
