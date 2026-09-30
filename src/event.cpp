@@ -37,7 +37,7 @@ float GetClusterSignal(cluster clus) // ADC of whole cluster
   return signal;
 }
 
-float GetClusterCOG(cluster clus) // Center Of Gravity of cluster
+float GetClusterCOGall(cluster clus) // Center Of Gravity of cluster
 {
   int address = GetClusterAddress(clus);
   std::vector<float> ADC = GetClusterADC(clus);
@@ -55,6 +55,22 @@ float GetClusterCOG(cluster clus) // Center Of Gravity of cluster
     cog = num / den;
   }
 
+  return cog;
+}
+
+float GetClusterCOG(cluster clus, calib *cal) // Center Of Gravity of cluster using seed and second strip only, weighted by their ADC values
+{
+  int seed = GetClusterSeed(clus, cal);
+  int second = GetClusterSecond(clus, cal);
+  float seedADC = GetClusterSeedADC(clus, cal);
+  float secondADC = GetClusterSecondADC(clus, cal);
+
+  float cog = -999;
+
+  if (seed != -999 && second != -999)
+  {
+    cog = (seed * seedADC + second * secondADC) / (seedADC + secondADC);
+  }
   return cog;
 }
 
@@ -165,13 +181,16 @@ int GetClusterSecondIndex(cluster clus, calib *cal)
 float GetClusterSeedADC(cluster clus, calib *cal)
 {
   int seed_idx = GetClusterSeedIndex(clus, cal);
-
+  if (seed_idx < 0 || seed_idx >= (int)clus.ADC.size())
+    return -999;
   return clus.ADC.at(seed_idx);
 }
 
 float GetClusterSecondADC(cluster clus, calib *cal)
 {
   int second_idx = GetClusterSecondIndex(clus, cal);
+  if (second_idx < 0 || second_idx >= (int)clus.ADC.size())
+    return -999;
   return clus.ADC.at(second_idx);
 }
 
@@ -182,81 +201,124 @@ int GetClusterVA(cluster clus, calib *cal)
   return seed / 64;
 }
 
-float GetCN(std::vector<float> *signal, int va, int type) // common mode noise calculation with 3 possible algos: done on a VA (readout ASIC) base
+// CN algorithms
+static const int N_CH = 64;      // channels per VA
+static const int SEED_FIRST = 8; // For CN type 2: seed strips [8, 23)
+static const int SEED_LAST = 23;
+static const int BAND_FIRST = 23; // FOR CNtype 2: averaging strips [23, 55)
+static const int BAND_LAST = 55;
+static const float BAND_NSIGMA = 3.0f;
+static const int MAX_ITER = 5; // For CN type 3: max iterations
+
+// robust sigma from MAD
+static float RobustSigma(const float *p, float median)
 {
-  float mean = 0;
-  float median = 0;
-  float rms = 0;
-  float cn = 0;
-  int cnt = 0;
-
-  mean = TMath::Mean(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
-  rms = TMath::RMS(signal->begin() + (va * 64), signal->begin() + (va + 1) * 64);
-  median = TMath::Median(64, signal->data() + (va * 64));
-  
-  if (type == 0) // simple common noise, median value of the VA
-  {
-    return median;
-  }
-  else if (type == 1) // Common noise with fixed threshold to exclude potential real signal strips
-  {
-    for (int i = (va * 64); i < (va + 1) * 64; i++)
-    {
-      if (signal->at(i) < MIP_ADC / 2) // very conservative cut: half the value expected for a Minimum Ionizing Particle
-      {
-        cn += signal->at(i);
-        cnt++;
-      }
-    }
-    if (cnt != 0)
-    {
-      return cn / cnt;
-    }
-    else
-    {
-      return -999;
-    }
-  }
-  else // Common Noise with 'self tuning' threshold: we use the some of the channels to calculate a baseline level, then we use all the strips in a band around that value to compute the CN
-  {
-    float hard_cm = 0;
-    int cnt2 = 0;
-    for (int i = (va * 64 + 8); i < (va * 64 + 23); i++)
-    {
-      if (signal->at(i) < 1.5 * MIP_ADC) // looser constraint than algo 2
-      {
-        hard_cm += signal->at(i);
-        cnt2++;
-      }
-    }
-    if (cnt2 != 0)
-    {
-      hard_cm = hard_cm / cnt2;
-    }
-    else
-    {
-      return -999;
-    }
-
-    for (int i = (va * 64 + 23); i < (va * 64 + 55); i++)
-    {
-      if (signal->at(i) > hard_cm - 2 * rms && signal->at(i) < hard_cm + 2 * rms) // we use only channels with a value around the baseline calculated at the previous step
-      {
-        cn += signal->at(i);
-        cnt++;
-      }
-    }
-    if (cnt != 0)
-    {
-      return cn / cnt;
-    }
-    else
-    {
-      return -999;
-    }
-  }
+  float d[N_CH];
+  for (int i = 0; i < N_CH; i++)
+    d[i] = std::fabs(p[i] - median);
+  return 1.4826f * TMath::Median(N_CH, d);
 }
 
+// CN type 0: median of the VA
+static float CN_Median(float *p)
+{
+  return TMath::Median(N_CH, p);
+}
+
+// CN type 1: mean of strips below median + MIP/2
+static float CN_FixedCut(const float *p, float median)
+{
+  float sum = 0;
+  int cnt = 0;
+  for (int i = 0; i < N_CH; i++)
+  {
+    if (p[i] < median + MIP_ADC / 2)
+    {
+      sum += p[i];
+      cnt++;
+    }
+  }
+  return cnt ? sum / cnt : median;
+}
+
+// CN type 2: seed from a subset of strips, then mean of strips in a band around the seed
+static float CN_SelfTuning(const float *p, float median)
+{
+  const float sig = RobustSigma(p, median);
+
+  float seed = 0;
+  int cnt_seed = 0;
+  for (int i = SEED_FIRST; i < SEED_LAST; i++)
+  {
+    if (p[i] < median + 1.5f * MIP_ADC)
+    {
+      seed += p[i];
+      cnt_seed++;
+    }
+  }
+  if (cnt_seed == 0)
+    return median;
+  seed /= cnt_seed;
+
+  float sum = 0;
+  int cnt = 0;
+  for (int i = BAND_FIRST; i < BAND_LAST; i++)
+  {
+    if (std::fabs(p[i] - seed) < BAND_NSIGMA * sig)
+    {
+      sum += p[i];
+      cnt++;
+    }
+  }
+  return cnt ? sum / cnt : seed;
+}
+
+// CN type 3: iterative sigma-clipped mean seeded with the median, all strips
+static float CN_IterClip(const float *p, float median)
+{
+  const float sig = RobustSigma(p, median);
+
+  float cm = median;
+  for (int it = 0; it < MAX_ITER; it++)
+  {
+    float sum = 0;
+    int n = 0;
+    for (int i = 0; i < N_CH; i++)
+    {
+      if (std::fabs(p[i] - cm) < BAND_NSIGMA * sig)
+      {
+        sum += p[i];
+        n++;
+      }
+    }
+    if (n == 0)
+      return median;
+    const float new_cm = sum / n;
+    if (new_cm == cm)
+      break;
+    cm = new_cm;
+  }
+  return cm;
+}
+
+float GetCN(std::vector<float> *signal, int va, int type) // common mode noise on a VA (readout ASIC) basis
+{
+  float *p = signal->data() + va * N_CH;
+
+  if (type == 0)
+    return CN_Median(p);
+
+  const float median = TMath::Median(N_CH, p);
+  switch (type)
+  {
+  case 1:
+    return CN_FixedCut(p, median);
+  case 2:
+    return CN_SelfTuning(p, median);
+  default:
+    return CN_IterClip(p, median);
+  }
+}
 float ComputeCN_ty(std::vector<float> *vaContent, int type, bool debug, double threshold)
 {
   float cn = 0., sumSq = 0.;
@@ -350,7 +412,7 @@ float ComputeCN_ty(std::vector<float> *vaContent, int type, bool debug, double t
         //	  if (vaContent[i] < (1.5 * MIP_ADC) && vaContent[i]!=-999.)//looser constraint than algo 2
         //	  if (vaContent[i] < (10. * MIP_ADC) && vaContent[i]!=-999.)//looser constraint than algo 2
         if (fabs(vaContent->at(i)) < (threshold * MIP_ADC) && vaContent->at(i) != -999.) // 1.5
-        {                                                                          // looser constraint than algo 2
+        {                                                                                // looser constraint than algo 2
 
           hard_cm += vaContent->at(i);
           cnt2++;
@@ -421,27 +483,6 @@ float ComputeCN_ty(std::vector<float> *vaContent, int type, bool debug, double t
       }
     }
 
-    /*    } else {//else rms not < 10
-    if(debug) cout<<"my rms >=10!"<<endl;
-    //Beware that there are real particles inside vaContent, should not contribute to CN!
-    //	MIP_ADC == 18!
-    double subs[6];
-    for(int iL = 0; iL<8; iL++) {
-    for(int iT = 0; iT<6; iT++) {
-    subs[iT] = vaContent[iL*8+1+iT];//it's [1]-[6]; [9]-[14];[17]-[21]...[56]-[62] subset of 6 strips, jumping 2 strips at a time
-    if (iT == 5){
-    Float_t t_rms  = TMath::RMS(6, subs);
-    if(t_rms<rms) {
-    rms_cn_final = t_rms;
-    cn_final = TMath::Mean(6, subs);
-    }
-    }
-    }
-    }
-
-    }//close else rms > 10
-    */
-
     if (debug)
       std::cout << " Here's my CN 0::  " << cn_final << " +- " << rms_cn_final << std::endl;
 
@@ -490,53 +531,53 @@ float GetClusterEta(cluster clus)
   Int_t nstrips = ADC.size();
   if (nstrips < 2)
   {
-    return 1.0f;
+    return -999.0f;
   }
 
   Int_t max_pos = std::max_element(ADC.begin(), ADC.end()) - ADC.begin();
 
-  Int_t left_strip = max_pos;
-  Int_t right_strip = max_pos;
+  Int_t pos_lower = max_pos;
+  Int_t pos_higher = max_pos;
 
   if (max_pos == 0)
   {
-    left_strip = 0;
-    right_strip = 1;
+    pos_lower = 0;
+    pos_higher = 1;
   }
   else if (max_pos == nstrips - 1)
   {
-    left_strip = nstrips - 2;
-    right_strip = nstrips - 1;
+    pos_lower = nstrips - 2;
+    pos_higher = nstrips - 1;
   }
   else
   {
     if (ADC.at(max_pos - 1) > ADC.at(max_pos + 1))
     {
-      left_strip = max_pos - 1;
-      right_strip = max_pos;
+      pos_lower = max_pos - 1;
+      pos_higher = max_pos;
     }
     else
     {
-      left_strip = max_pos;
-      right_strip = max_pos + 1;
+      pos_lower = max_pos;
+      pos_higher = max_pos + 1;
     }
   }
 
-  Float_t q_left = ADC.at(left_strip);
-  Float_t q_right = ADC.at(right_strip);
-  Float_t sum = q_left + q_right;
+  Float_t S1 = ADC.at(pos_lower);  // S1: lower strip number
+  Float_t S2 = ADC.at(pos_higher); // S2: higher strip number
+  Float_t sum = S1 + S2;
 
   if (sum <= 0.0f)
   {
     return -999.0f;
   }
 
-  return q_right / sum;
+  return S1 / sum;
 }
 
 float GetPosition(cluster clus, float sensor_pitch) // conversion to mm
 {
-  float position_mm = GetClusterCOG(clus) * sensor_pitch;
+  float position_mm = GetClusterCOGall(clus) * sensor_pitch;
   return position_mm;
 }
 
@@ -982,7 +1023,7 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
   // We need to compute total signal for each cluster, so we can sort by it
   std::vector<float> clusterSignals;
   clusterSignals.reserve(clusters.size());
-  for (const auto& cl : clusters)
+  for (const auto &cl : clusters)
   {
     clusterSignals.push_back(GetClusterSignal(cl));
   }
@@ -991,9 +1032,9 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
   // Reorder clusters by signal
   std::vector<cluster> orderedClusters;
   orderedClusters.reserve(clusters.size());
-  for (const auto& sig : clusterSignals)
+  for (const auto &sig : clusterSignals)
   {
-    for (const auto& cl : clusters)
+    for (const auto &cl : clusters)
     {
       if (GetClusterSignal(cl) == sig)
       {

@@ -42,7 +42,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
                         float sigmaraw_cut = 3, float sigma_cut = 6,
                         int board = 0, bool pdf_only = false, bool fast = true,
                         bool fit = false, bool single_file = true, bool last_board = false, int max_ADC = -1,
-                        bool shoeCN = false, double cn_threshold = 4.5, int detector_num = 0, bool silent = false)
+                        bool shoeCN = false, double cn_threshold = 4.5, int cn_type = 0, int detector_num = 0, bool silent = false)
 {
   TFile *foutput;
   if (!pdf_only)
@@ -320,7 +320,7 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
         float cn = -999;
         if (!shoeCN)
         {
-          cn = GetCN(&signal, va, 0);
+          cn = GetCN(&signal, va, cn_type);
         }
         else
         {
@@ -769,6 +769,7 @@ int main(int argc, char *argv[])
   int max_ADC = -1;
   bool shoeCN = false;
   double cn_threshold = 4.5;
+  int cn_type = 0;
   std::string output_filename;
   std::vector<std::string> input_files;
 
@@ -780,15 +781,15 @@ int main(int argc, char *argv[])
   app.add_flag("--shoeCN", shoeCN, "Use SHOE CN algorithm");
   app.add_flag("--silent", silent, "Silent mode");
 
-  auto group = app.add_option_group("HEF raw input options");
-  group->add_flag("--raw", raw_input, "Input files are HEF raw binary files (converted on-the-fly)");
-  group->add_option("--nevents", nevents, "Number of events to be read");
-
+  app.add_option("--cn", cn_type, "Common noise algorithm: 0=median, 1=mean, 2=self tuning, 3=iterative clipped mean");
   app.add_option("--threshold", cn_threshold, "Threshold for SHOE CN algorithm");
   app.add_option("--max_ADC", max_ADC, "Maximum ADC value for noise plots");
   app.add_option("--output", output_filename, "Output .cal file")->required();
   app.add_option("input_files", input_files, "Input ROOT files (or HEF raw files with --raw)")->required()->expected(-1);
 
+  auto group = app.add_option_group("HEF raw input options");
+  group->add_flag("--raw", raw_input, "Input files are HEF raw binary files (converted on-the-fly)");
+  group->add_option("--nevents", nevents, "Number of events to be read");
   CLI11_PARSE(app, argc, argv);
 
   std::vector<std::string> tmp_files_to_delete;
@@ -873,7 +874,7 @@ int main(int argc, char *argv[])
                         actual_board,
                         pdf_only, fast_mode, fit_mode,
                         single_file, true,
-                        max_ADC, shoeCN, cn_threshold, 0, silent);
+                        max_ADC, shoeCN, cn_threshold, cn_type, 0, silent);
   }
   else
   {
@@ -903,7 +904,7 @@ int main(int argc, char *argv[])
                             actual_board,
                             pdf_only, fast_mode, fit_mode,
                             single_file, last,
-                            max_ADC, shoeCN, cn_threshold, detector_num, silent);
+                            max_ADC, shoeCN, cn_threshold, cn_type, detector_num, silent);
         detector_num++;
       }
     }

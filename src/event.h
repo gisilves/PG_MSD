@@ -41,7 +41,9 @@ std::vector<float> GetClusterADC(cluster clus);
 
 float GetClusterSignal(cluster clus);
 
-float GetClusterCOG(cluster clus);
+float GetClusterCOGall(cluster clus);
+
+float GetClusterCOG(cluster clus, calib *cal);
 
 int GetClusterSeed(cluster clus, calib *cal);
 
