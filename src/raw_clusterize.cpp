@@ -237,6 +237,9 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   TH1F *hCommonNoise2 = new TH1F((TString) "hCommonNoise2_board_" + board, (TString) "hCommonNoise2_board_" + board, 100, -20, 20); // common noise: third algo
   hCommonNoise2->GetXaxis()->SetTitle("CN");
 
+  TH1F *hCommonNoise3 = new TH1F((TString) "hCommonNoise3_board_" + board, (TString) "hCommonNoise3_board_" + board, 100, -20, 20); // common noise: fourth algo
+  hCommonNoise3->GetXaxis()->SetTitle("CN");
+
   TH2F *hCommonNoiseVsVA = new TH2F((TString) "hCommonNoiseVsVA_board_" + board, (TString) "hCommonNoiseVsVA_board_" + board, 100, -20, 20, 10, -0.5, 9.5);
   hCommonNoiseVsVA->GetXaxis()->SetTitle("CN");
   hCommonNoiseVsVA->GetYaxis()->SetTitle("VA");
@@ -491,6 +494,15 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       }
     }
 
+    for (int va = 0; va < NVas; va++) // Loop on VA: common noise algo 4
+    {
+      float cn = GetCN(&signal, va, 3);
+      if (cn != -999 && abs(cn) < maxCN)
+      {
+        hCommonNoise3->Fill(cn);
+      }
+    }
+
     bool goodCN = true;
     if (cntype >= 0)
     {
@@ -508,7 +520,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
           for (int ch = va * 64; ch < (va + 1) * 64; ch++) // Loop on VA channels, subtracting common mode noise to the signals before clustering
           {
-            signal.at(ch) = signal.at(ch) - cn;
+            signal.at(ch) = (cal.status[ch] != 0) ? 0 : signal.at(ch) - cn; // if the strip is bad, we set the signal to 0 and we don't subtract the common noise
           }
         }
         else
@@ -608,10 +620,10 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
             if (verb)
             {
-              std::cout << "Adding cluster with COG: " << GetClusterCOG(result.at(i)) << std::endl;
+              std::cout << "Adding cluster with COG: " << GetClusterCOGall(result.at(i)) << std::endl;
             }
 
-            hClusterCog->Fill(GetClusterCOG(result.at(i)));
+            hClusterCog->Fill(GetClusterCOGall(result.at(i)));
             hBeamProfile->Fill(GetPosition(result.at(i), sensor_pitch));
             hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
             hNstrip->Fill(GetClusterWidth(result.at(i)));
@@ -631,9 +643,9 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
             }
 
             hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
-            hADCvsPos->Fill(GetClusterCOG(result.at(i)), GetClusterSignal(result.at(i)));
+            hADCvsPos->Fill(GetClusterCOGall(result.at(i)), GetClusterSignal(result.at(i)));
             hSeedADCvsPos->Fill(GetClusterSeed(result.at(i), &cal), GetClusterSeedADC(result.at(i), &cal));
-            hClusterChargevsPos->Fill(GetClusterCOG(result.at(i)), GetClusterMIPCharge(result.at(i)));
+            hClusterChargevsPos->Fill(GetClusterCOGall(result.at(i)), GetClusterMIPCharge(result.at(i)));
             hADCvsSeed->Fill(GetClusterSeedADC(result.at(i), &cal), GetClusterSignal(result.at(i)));
             hADCvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterSignal(result.at(i)));
             hNStripvsSN->Fill(GetClusterSN(result.at(i), &cal), GetClusterWidth(result.at(i)));
@@ -724,6 +736,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   hCommonNoise0->Write();
   hCommonNoise1->Write();
   hCommonNoise2->Write();
+  hCommonNoise3->Write();
   hCommonNoiseVsVA->Write();
 
   delete hADCClusterSeed;
@@ -752,6 +765,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
   delete hCommonNoise0;
   delete hCommonNoise1;
   delete hCommonNoise2;
+  delete hCommonNoise3;
   delete hCommonNoiseVsVA;
 
   nclus_event->SetTitle((TString) "nClus vs nEvent_board_" + board);
@@ -820,7 +834,7 @@ int main(int argc, char *argv[])
   app.add_option("--highthreshold", highthreshold, "High threshold for clustering");
   app.add_option("--lowthreshold", lowthreshold, "Low threshold for clustering");
   app.add_option("--symmetricwidth", symmetricwidth, "Symmetric cluster width");
-  app.add_option("--cntype", cntype, "Clusterizer type");
+  app.add_option("--cntype", cntype, "CN algorithm: 0=median, 1=mean, 2=self tuning, 3=iterative clipped mean");
   app.add_option("--maxCN", maxCN, "Max number of clusters");
   app.add_option("--NChannels", NChannels, "Number of channels");
   app.add_option("--NVas", NVas, "Number of VA chips");
