@@ -8,7 +8,7 @@
 #include <ctime>
 #include <tuple>
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 #include "PAPERO.h"
 
 int main(int argc, char *argv[])
