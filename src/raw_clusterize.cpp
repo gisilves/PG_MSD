@@ -538,17 +538,17 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
           if (result.at(i).width == 1)
           {
             hADCCluster1Strip->Fill(GetClusterSignal(result.at(i)));
-            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+            hEtaVsADC->Fill(GetClusterEta(result.at(i), &cal), GetClusterSignal(result.at(i)));
           }
           else if (result.at(i).width == 2)
           {
             hADCCluster2Strip->Fill(GetClusterSignal(result.at(i)));
-            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+            hEtaVsADC->Fill(GetClusterEta(result.at(i), &cal), GetClusterSignal(result.at(i)));
           }
           else
           {
             hADCClusterManyStrip->Fill(GetClusterSignal(result.at(i)));
-            hEtaVsADC->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+            hEtaVsADC->Fill(GetClusterEta(result.at(i), &cal), GetClusterSignal(result.at(i)));
           }
 
           hADCClusterSeed->Fill(GetClusterSeedADC(result.at(i), &cal));
@@ -570,16 +570,16 @@ int clusterize_detector(int board, int side, int minADC_h, int maxADC_h, int min
 
           if (result.at(i).width)
           {
-            hEta->Fill(GetClusterEta(result.at(i)));
+            hEta->Fill(GetClusterEta(result.at(i), &cal));
             if (result.at(i).over == 1)
             {
-              hEta1->Fill(GetClusterEta(result.at(i)));
+              hEta1->Fill(GetClusterEta(result.at(i), &cal));
             }
             else
             {
-              hEta2->Fill(GetClusterEta(result.at(i)));
+              hEta2->Fill(GetClusterEta(result.at(i), &cal));
             }
-            hADCvsEta->Fill(GetClusterEta(result.at(i)), GetClusterSignal(result.at(i)));
+            hADCvsEta->Fill(GetClusterEta(result.at(i), &cal), GetClusterSignal(result.at(i)));
           }
 
           hADCvsWidth->Fill(GetClusterWidth(result.at(i)), GetClusterSignal(result.at(i)));
