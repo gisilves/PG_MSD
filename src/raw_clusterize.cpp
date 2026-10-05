@@ -15,7 +15,7 @@
 
 #include "TTreeReader.h"
 
-#include "CLI.hpp"
+#include <CLI/CLI.hpp>
 #include "event.h"
 
 calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
