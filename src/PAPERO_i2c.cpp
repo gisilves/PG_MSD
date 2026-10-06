@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
     TFile *foutput;
 
     // Open binary data file
-    std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
+    std::fstream file(input_file.c_str(), std::ios::in | std::ios::binary);
     if (file.fail())
     {
         std::cout << "ERROR: can't open input file" << std::endl; // file could not be opened

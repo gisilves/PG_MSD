@@ -526,7 +526,7 @@ std::string convert_raw_to_temp_root(const std::string &input_file, int boards, 
   ::unlink(tmp_template); // unlink the temp file so that it can be overwritten by ROOT
   std::string tmp_root = std::string(tmp_template) + ".root";
 
-  std::fstream file(input_file.c_str(), std::ios::in | std::ios::out | std::ios::binary);
+  std::fstream file(input_file.c_str(), std::ios::in | std::ios::binary);
   if (file.fail())
   {
     std::cerr << "ERROR: can't open raw input file: " << input_file << std::endl;
