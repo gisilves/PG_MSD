@@ -143,7 +143,7 @@ void fill_histograms(
                 float eta = GetClusterEta(best, &cal);
                 float raw_charge = GetClusterMIPCharge(best);
 
-                // Skip 1-strip clusters: eta = 1 has no pair.
+                // Skip 1-strip clusters
                 if (GetClusterADC(best).size() == 1)
                     continue;
 
@@ -317,8 +317,6 @@ int compute_va_gains(TString filename, TString output_filename, TString calibrat
 
     const std::vector<std::vector<int>> minStrip = {{0, 0}, {0, 0}, {0, 0}};
     const std::vector<std::vector<int>> maxStrip = {{639, 639}, {639, 639}, {639, 639}};
-
-    const int beamBoard = 0;
 
     calib cal;
     bool is_calib = read_calib(calibration_file, &cal, 640, 0, false);
