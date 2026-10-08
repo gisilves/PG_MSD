@@ -499,46 +499,42 @@ float GetSeedSN(cluster clus, calib *cal)
   }
 }
 
-float GetClusterEta(cluster clus)
+int GetClusterEtaLeftStrip(cluster clus, calib *cal)
 {
   std::vector<float> ADC = GetClusterADC(clus);
+  int nstrips = ADC.size();
 
-  Int_t nstrips = ADC.size();
-  Float_t eta = -999;
-  Float_t max_adc = -1;
-  Int_t max_pos = 0;
+  int seed = GetClusterSeed(clus, cal);
+  if (seed == -999)
+    return -999;
+  if (nstrips <= 1)
+    return clus.address;
 
-  if (nstrips == 1)
+  int pos = seed - clus.address; // seed index inside the cluster
+  int left;
+
+  if (pos == 0)
   {
-    eta = 1.0;
+    left = 0;
+  }
+  else if (pos == nstrips - 1)
+  {
+    left = pos - 1;
   }
   else
   {
-    max_pos = std::max_element(ADC.begin(), ADC.end()) - ADC.begin();
-    max_adc = ADC.at(max_pos);
-
-    if (max_pos == 0)
-    {
-      eta = ADC.at(0) / (ADC.at(0) + ADC.at(1));
-    }
-    else if (max_pos == nstrips - 1)
-    {
-      eta = ADC.at(max_pos - 1) / (ADC.at(max_pos - 1) + ADC.at(max_pos));
-    }
-    else
-    {
-      if (ADC.at(max_pos - 1) > ADC.at(max_pos + 1))
-      {
-        eta = ADC.at(max_pos - 1) / (ADC.at(max_pos - 1) + ADC.at(max_pos));
-      }
-      else
-      {
-        eta = ADC.at(max_pos) / (ADC.at(max_pos) + ADC.at(max_pos + 1));
-      }
-    }
+    left = (ADC.at(pos - 1) > ADC.at(pos + 1)) ? pos - 1 : pos;
   }
+  
+  return clus.address + left;
+}
 
-  return eta;
+float GetClusterEta(cluster clus, calib *cal)
+{
+  std::vector<float> ADC = GetClusterADC(clus);
+  if (ADC.size() == 1) return 1.0;
+  int l = GetClusterEtaLeftStrip(clus, cal) - clus.address;
+  return ADC.at(l) / (ADC.at(l) + ADC.at(l + 1));
 }
 
 float GetPosition(cluster clus, float sensor_pitch) // conversion to mm
