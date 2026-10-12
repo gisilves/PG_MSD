@@ -524,56 +524,44 @@ float GetSeedSN(cluster clus, calib *cal)
   }
 }
 
-float GetClusterEta(cluster clus)
+int GetClusterEtaLeftStrip(cluster clus, calib *cal)
 {
   std::vector<float> ADC = GetClusterADC(clus);
+  int nstrips = ADC.size();
 
-  Int_t nstrips = ADC.size();
-  if (nstrips < 2)
+  int seed = GetClusterSeed(clus, cal);
+  if (seed == -999)
+    return -999;
+  if (nstrips <= 1)
+    return clus.address;
+
+  int pos = seed - clus.address; // seed index inside the cluster
+  int left;
+
+  if (pos == 0)
   {
-    return -999.0f;
+    left = 0;
   }
-
-  Int_t max_pos = std::max_element(ADC.begin(), ADC.end()) - ADC.begin();
-
-  Int_t pos_lower = max_pos;
-  Int_t pos_higher = max_pos;
-
-  if (max_pos == 0)
+  else if (pos == nstrips - 1)
   {
-    pos_lower = 0;
-    pos_higher = 1;
-  }
-  else if (max_pos == nstrips - 1)
-  {
-    pos_lower = nstrips - 2;
-    pos_higher = nstrips - 1;
+    left = pos - 1;
   }
   else
   {
-    if (ADC.at(max_pos - 1) > ADC.at(max_pos + 1))
-    {
-      pos_lower = max_pos - 1;
-      pos_higher = max_pos;
-    }
-    else
-    {
-      pos_lower = max_pos;
-      pos_higher = max_pos + 1;
-    }
+    left = (ADC.at(pos - 1) > ADC.at(pos + 1)) ? pos - 1 : pos;
   }
-
-  Float_t S1 = ADC.at(pos_lower);  // S1: lower strip number
-  Float_t S2 = ADC.at(pos_higher); // S2: higher strip number
-  Float_t sum = S1 + S2;
-
-  if (sum <= 0.0f)
-  {
-    return -999.0f;
-  }
-
-  return S1 / sum;
+  
+  return clus.address + left;
 }
+
+float GetClusterEta(cluster clus, calib *cal)
+{
+  std::vector<float> ADC = GetClusterADC(clus);
+  if (ADC.size() == 1) return 1.0;
+  int l = GetClusterEtaLeftStrip(clus, cal) - clus.address;
+  return ADC.at(l) / (ADC.at(l) + ADC.at(l + 1));
+}
+
 
 float GetPosition(cluster clus, float sensor_pitch) // conversion to mm
 {

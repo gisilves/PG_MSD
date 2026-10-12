@@ -67,7 +67,9 @@ float GetClusterSN(cluster clus, calib *cal);
 
 float GetSeedSN(cluster clus, calib *cal);
 
-float GetClusterEta(cluster clus);
+float GetClusterEta(cluster clus, calib *cal);
+
+int GetClusterEtaLeftStrip(cluster clus, calib *cal);
 
 float GetPosition(cluster clus, float sensor_pitch);
 
