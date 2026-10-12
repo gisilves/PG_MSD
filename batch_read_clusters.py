@@ -6,7 +6,6 @@ calib_folder = '../CernBox/CalFiles/'
 output_folder = '../CernBox/Output/'
 
 def main():
-    
     # List all the files in the cluster folder
     files = os.listdir(cluster_folder)
     # Filter out the files that do not end with .root
@@ -55,7 +54,7 @@ def main():
         input_file = f"{cluster_folder}{clusfile}"
         output_file = f"{output_folder}processed_{clusfile}"
 
-        command = f'root -b -q -l "read_clusters.C(\\"{input_file}\\", \\"{output_file}\\", \\"{calib_folder}{calfile}\\")"'
+        command = f'root -b -q -l "read_clusters_and_tracks.C(\\"{input_file}\\", \\"{output_file}\\", \\"{calib_folder}{calfile}\\")"'
         print(f"Running command: {command}")
         subprocess.run(command, shell=True)
 

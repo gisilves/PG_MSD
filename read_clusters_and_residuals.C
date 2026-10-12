@@ -248,8 +248,8 @@ int read_clusters_and_residuals(TString filename, TString output_filename, TStri
 
             for (size_t k = 0; k < clusters[b]->size(); k++)
             {
-                if (GetClusterCOG(clusters[b]->at(k)) < minStrip[b] ||
-                    GetClusterCOG(clusters[b]->at(k)) > maxStrip[b])
+                if (GetClusterCOGall(clusters[b]->at(k)) < minStrip[b] ||
+                    GetClusterCOGall(clusters[b]->at(k)) > maxStrip[b])
                     continue;
 
                 float signal = GetClusterSignal(clusters[b]->at(k));
@@ -266,7 +266,7 @@ int read_clusters_and_residuals(TString filename, TString output_filename, TStri
             maxCluster_idx[b] = maxPos;
             
             float charge = GetClusterMIPCharge(clusters[b]->at(maxPos));
-            float pos = GetClusterCOG(clusters[b]->at(maxPos));
+            float pos = GetClusterCOGall(clusters[b]->at(maxPos));
             float eta = GetClusterEta(clusters[b]->at(maxPos));
             int seed = GetClusterSeed(clusters[b]->at(maxPos), &cal);
 

@@ -3,9 +3,11 @@
 #include <TCutG.h>
 #include <TSystem.h>
 #include <vector>
+#include <fstream>
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include "src/event.h"
 
@@ -53,11 +55,11 @@ void display_progress(int current_event, int expected_events, int width = 50)
     }
     if (current_event == expected_events)
     {
-      std::cout << "] " << static_cast<int>(progress * 100.0) << "%\n\n";
+        std::cout << "] " << static_cast<int>(progress * 100.0) << "%\n\n";
     }
     else
     {
-      std::cout << "] " << static_cast<int>(progress * 100.0) << "%";
+        std::cout << "] " << static_cast<int>(progress * 100.0) << "%";
     }
     std::cout.flush();
 }
@@ -91,7 +93,7 @@ bool LinearFit(const std::vector<double> &x, const std::vector<double> &y, doubl
         return false;
 
     b = (n * sumXY - sumX * sumY) / denom; // slope
-    a = (sumY - b * sumX) / n;            // intercept
+    a = (sumY - b * sumX) / n;             // intercept
 
     chi2 = 0.0;
     double sigma2 = spatialResolution * spatialResolution;
@@ -105,16 +107,19 @@ bool LinearFit(const std::vector<double> &x, const std::vector<double> &y, doubl
     return true;
 }
 
-struct ClusterRef {
+struct ClusterRef
+{
     int board;
     size_t index;
     double strip;
     double pos;
     double z;
+    double charge;
     int coordType; // 0: Y, 1: X
 };
 
-struct TrackCandidate {
+struct TrackCandidate
+{
     std::vector<ClusterRef> clusters;
     double aX, bX, chi2X;
     double aY, bY, chi2Y;
@@ -122,12 +127,20 @@ struct TrackCandidate {
     int ndof;
 };
 
-void generateCombinations(size_t boardIdx, 
-                          const std::vector<int> &activeBoards, 
-                          const std::vector<std::vector<ClusterRef>> &validClustersPerBoard, 
-                          std::vector<ClusterRef> &currentCombination, 
-                          std::vector<TrackCandidate> &candidates,
-                          const std::vector<int> &coordinate)
+struct ClusterPullInfo
+{
+    double fit_pred;
+    double slope;
+    double residual;
+    double sigma_residual;
+    double pull;
+};
+
+void generateCombinations(size_t boardIdx,
+                          const std::vector<int> &activeBoards,
+                          const std::vector<std::vector<ClusterRef>> &validClustersPerBoard,
+                          std::vector<ClusterRef> &currentCombination,
+                          std::vector<TrackCandidate> &candidates)
 {
     if (boardIdx == activeBoards.size())
     {
@@ -152,8 +165,10 @@ void generateCombinations(size_t boardIdx,
         TrackCandidate cand;
         cand.clusters = currentCombination;
 
-        if (!LinearFit(zX, posX, cand.aX, cand.bX, cand.chi2X)) return;
-        if (!LinearFit(zY, posY, cand.aY, cand.bY, cand.chi2Y)) return;
+        if (!LinearFit(zX, posX, cand.aX, cand.bX, cand.chi2X))
+            return;
+        if (!LinearFit(zY, posY, cand.aY, cand.bY, cand.chi2Y))
+            return;
 
         cand.totalChi2 = cand.chi2X + cand.chi2Y;
         cand.ndof = static_cast<int>(zX.size() + zY.size()) - 4;
@@ -165,14 +180,18 @@ void generateCombinations(size_t boardIdx,
     for (const auto &cl : validClustersPerBoard[b])
     {
         currentCombination.push_back(cl);
-        generateCombinations(boardIdx + 1, activeBoards, validClustersPerBoard, currentCombination, candidates, coordinate);
+        generateCombinations(boardIdx + 1, activeBoards, validClustersPerBoard, currentCombination, candidates);
         currentCombination.pop_back();
     }
 }
 
-int read_clusters_and_tracks(TString filename, TString output_filename, TString calibration_file, bool verbose = false)
+int read_clusters_and_tracks(TString filename, TString output_filename, TString calibration_file, int events_to_process = -1, int verbose = 0)
 {
     gSystem->Load("./libcluster.so");
+
+    // Pull selection cuts
+    const double targetPull = 0.0;
+    const double pullTolerance = 100.0; // Keeps hits with |pull - targetPull| <= pullTolerance
 
     const int NBoards = 8;
     const std::vector<int> SkipBoards = {0, 1, 0, 0, 0, 0, 1, 0}; // 0: include, 1: skip
@@ -183,20 +202,21 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
             nNotSkippedBoards++;
     }
 
-    const std::vector<int> coordinate = {0, 1, 0, 1, 0, 1, 0, 1}; // 0: Y, 1: X
-    const std::vector<int> mirror = {0, 0, 1, 1, 0, 0, 1, 1};     // 0: no mirror, 1: mirror
+    const std::vector<int> coordinate = {0, 1, 0, 1, 0, 1, 0, 1};      // 0: Y, 1: X
+    const std::vector<int> mirror = {0, 0, 1, 1, 0, 0, 1, 1};          // 0: no mirror, 1: mirror
     const std::vector<int> z_pos = {0, 5, 55, 60, 110, 115, 165, 170}; // mm
 
     const std::vector<int> minStrip = {135, 0, 1416, 800, 135, 955, 0, 760};
     const std::vector<int> maxStrip = {383, 1791, 1660, 850, 383, 1020, 1791, 850};
 
+    const std::vector<int> shift = {0, 0, -5, -10, 0, 0, 0, 0}; // strips
     calib cal;
     bool is_calib = read_calib(calibration_file, &cal, 1792, 0, false);
 
     std::vector<TCutG *> regionCut(NBoards, nullptr);
     {
-        double region_eta[]    = {0.32, 0.36, 0.45, 0.50, 0.50, 0.47, 0.47, 0.32};
-        double region_charge[] = {16.7, 17.3, 11.5,  4.4,  3.4,  3.5,  4.2, 16.6};
+        double region_eta[] = {0.32, 0.36, 0.45, 0.50, 0.50, 0.47, 0.47, 0.32};
+        double region_charge[] = {16.7, 17.3, 11.5, 4.4, 3.4, 3.5, 4.2, 16.6};
         int nRegionPts = sizeof(region_eta) / sizeof(region_eta[0]);
 
         regionCut[0] = new TCutG("regionCut_board_0", nRegionPts, region_eta, region_charge);
@@ -223,6 +243,9 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     std::vector<TH1F *> hEta(NBoards, nullptr);
     std::vector<TH2F *> hChargevsEta(NBoards, nullptr);
 
+    std::vector<TH1F *> hPull(NBoards, nullptr);
+    std::vector<TH2F *> hPullVsSlope(NBoards, nullptr);
+
     std::vector<TH1F *> hRegionPos(NBoards, nullptr);
     std::vector<TH1F *> hRegionSeed(NBoards, nullptr);
     std::vector<TH1F *> hRegionCharge(NBoards, nullptr);
@@ -233,6 +256,18 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     TH2F *hBeamProfile2D = new TH2F("hBeamProfile2D", "Beam profile 2D", 100, -0.5, 1791.5, 100, -0.5, 1791.5);
     TH1F *hMeanCharge = new TH1F("hMeanClusterCharge", "Mean cluster charge over boards", 1000, -0.5, 25.5);
     TH1F *hAllClusterCharge = new TH1F("hAllClusterCharge", "All cluster charge", 1000, -0.5, 25.5);
+
+    auto calc_sum_sq_z = [](const std::vector<double> &z_vec)
+    {
+        double mean = 0.0;
+        for (double z : z_vec)
+            mean += z;
+        mean /= z_vec.size();
+        double sum_sq = 0.0;
+        for (double z : z_vec)
+            sum_sq += (z - mean) * (z - mean);
+        return std::make_pair(mean, sum_sq);
+    };
 
     int reg_event = -1, reg_board = -1;
     float reg_pos = -1, reg_charge = -1, reg_eta = -1;
@@ -257,13 +292,13 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
         trees[b]->SetBranchAddress("clusters", &clusters[b]);
 
         hCharge[b] = new TH1F(Form("hClusterCharge_board_%d", b),
-                               Form("Best fit cluster charge, board %d", b),
-                               1000, -0.5, 25.5);
+                              Form("Best fit cluster charge, board %d", b),
+                              1000, -0.5, 25.5);
         hCharge[b]->GetXaxis()->SetTitle("Charge");
 
         hPos[b] = new TH1F(Form("hClusterPosition_board_%d", b),
-                            Form("Best fit cluster position, board %d", b),
-                            1000, -0.5, 1791.5);
+                           Form("Best fit cluster position, board %d", b),
+                           1000, -0.5, 1791.5);
         hPos[b]->GetXaxis()->SetTitle("Position");
 
         hChargevsPos[b] = new TH2F(Form("hClusterChargevsPos_board_%d", b),
@@ -282,11 +317,24 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
         hChargevsEta[b]->GetXaxis()->SetTitle("Eta");
         hChargevsEta[b]->GetYaxis()->SetTitle("Charge");
 
+        hPull[b] = new TH1F(Form("hPull_board_%d", b),
+                            Form("Track Pull, board %d", b),
+                            1000, -20.0, 20.0);
+        hPull[b]->GetXaxis()->SetTitle("Pull");
+        hPull[b]->GetYaxis()->SetTitle("Entries");
+
+        hPullVsSlope[b] = new TH2F(Form("hPullVsSlope_board_%d", b),
+                                   Form("Pull vs Track Slope, board %d", b),
+                                   1000, -20.0, 20.0, 1000, -0.05, 0.05);
+
+        hPullVsSlope[b]->GetXaxis()->SetTitle("Pull");
+        hPullVsSlope[b]->GetYaxis()->SetTitle("Track Slope");
+
         if (regionCut[b])
         {
             hRegionPos[b] = new TH1F(Form("hRegionPos_board_%d", b),
-                                      Form("Position of clusters inside regionCut, board %d", b),
-                                      1000, -0.5, 1791.5);
+                                     Form("Position of clusters inside regionCut, board %d", b),
+                                     1000, -0.5, 1791.5);
             hRegionPos[b]->GetXaxis()->SetTitle("Position");
 
             hRegionSeed[b] = new TH1F(Form("hRegionSeed_board_%d", b),
@@ -295,13 +343,13 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
             hRegionSeed[b]->GetXaxis()->SetTitle("Seed");
 
             hRegionCharge[b] = new TH1F(Form("hRegionCharge_board_%d", b),
-                                         Form("Charge of clusters inside regionCut, board %d", b),
-                                         1000, -0.5, 25.5);
+                                        Form("Charge of clusters inside regionCut, board %d", b),
+                                        1000, -0.5, 25.5);
             hRegionCharge[b]->GetXaxis()->SetTitle("Charge");
 
             hRegionEta[b] = new TH1F(Form("hRegionEta_board_%d", b),
-                                      Form("Eta of clusters inside regionCut, board %d", b),
-                                      1000, 0, 1);
+                                     Form("Eta of clusters inside regionCut, board %d", b),
+                                     1000, 0, 1);
             hRegionEta[b]->GetXaxis()->SetTitle("Eta");
 
             hRegionChargeVsEta[b] = new TH2F(Form("hRegionChargeVsEta_board_%d", b),
@@ -318,10 +366,14 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     Long64_t nEntries = -1;
     for (int b = 0; b < NBoards; b++)
     {
-        if (SkipBoards[b]) continue;
+        if (SkipBoards[b])
+            continue;
         nEntries = trees[b]->GetEntries();
         break;
     }
+
+    if (events_to_process > 0)
+        nEntries = events_to_process;
 
     std::vector<int> activeBoards;
     for (int b = 0; b < NBoards; b++)
@@ -332,15 +384,16 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
 
     Long64_t nRegionSelected = 0;
 
-    // Output csv file for Millepede
-    std::ofstream milleFile("hits_generated.csv");
+    std::vector<std::vector<ClusterRef>> validClustersPerBoard(NBoards);
+    std::vector<ClusterRef> currentCombination;
+    std::vector<TrackCandidate> candidates;
 
     for (Long64_t i = 0; i < nEntries; i++)
     {
-        if(!verbose)
-            display_progress(i, nEntries);
-        
-        std::vector<std::vector<ClusterRef>> validClustersPerBoard(NBoards);
+        display_progress(i, nEntries);
+
+        for (auto &v : validClustersPerBoard)
+            v.clear();
         bool allActiveHaveClusters = true;
 
         for (int b : activeBoards)
@@ -353,18 +406,20 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
                 break;
             }
 
+            validClustersPerBoard[b].reserve(clusters[b]->size());
             for (size_t k = 0; k < clusters[b]->size(); k++)
             {
-                double cog = GetClusterCOG(clusters[b]->at(k));
+                double cog = GetClusterCOGall(clusters[b]->at(k));
                 if (cog >= minStrip[b] && cog <= maxStrip[b])
                 {
                     ClusterRef cl;
                     cl.board = b;
                     cl.index = k;
-                    cl.strip = cog;
-                    cl.pos = StripToCoord(cog, b, mirror);
+                    cl.strip = cog + shift[b];
+                    cl.pos = StripToCoord(cog + shift[b], b, mirror);
                     cl.z = static_cast<double>(z_pos[b]);
                     cl.coordType = coordinate[b];
+                    cl.charge = GetClusterMIPCharge(clusters[b]->at(k));
                     validClustersPerBoard[b].push_back(cl);
                 }
             }
@@ -379,7 +434,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
         if (!allActiveHaveClusters)
             continue;
 
-        if(verbose)
+        if (verbose)
         {
             std::cout << "========================================================\n";
             std::cout << "Event " << i << " Summary:\n";
@@ -395,89 +450,212 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
             {
                 size_t nClus = validClustersPerBoard[b].size();
                 totalCombos *= nClus;
-                std::cout << "  Board " << b 
+                std::cout << "  Board " << b
                           << " (" << (coordinate[b] == 1 ? "X" : "Y") << ")"
                           << ": " << nClus << " cluster(s)\n";
             }
             std::cout << "Expected total combinations: " << totalCombos << "\n";
             std::cout << "--------------------------------------------------------\n";
         }
-        std::vector<TrackCandidate> candidates;
-        std::vector<ClusterRef> currentCombination;
-        generateCombinations(0, activeBoards, validClustersPerBoard, currentCombination, candidates, coordinate);
+
+        candidates.clear();
+        currentCombination.clear();
+        generateCombinations(0, activeBoards, validClustersPerBoard, currentCombination, candidates);
 
         if (candidates.empty())
             continue;
 
-        std::sort(candidates.begin(), candidates.end(), [](const TrackCandidate &a, const TrackCandidate &b) {
-            return a.totalChi2 < b.totalChi2;
-        });
+        size_t bestIdx = 0;
+        if (verbose >= 2)
+        {
+            std::sort(candidates.begin(), candidates.end(), [](const TrackCandidate &a, const TrackCandidate &b)
+                      { return a.totalChi2 < b.totalChi2; });
+        }
+        else if (candidates.size() > 1)
+        {
+            bestIdx = static_cast<size_t>(std::distance(candidates.begin(),
+                                                        std::min_element(candidates.begin(), candidates.end(), [](const TrackCandidate &a, const TrackCandidate &b)
+                                                                         { return a.totalChi2 < b.totalChi2; })));
+        }
 
-        if(verbose)
+        if (verbose)
         {
             std::cout << "Valid fits evaluated: " << candidates.size() << "\n";
             std::cout << "--------------------------------------------------------\n";
         }
 
-        for (size_t c = 0; c < candidates.size(); ++c)
+        if (verbose >= 2)
         {
-            const auto &cand = candidates[c];
-            double reducedChi2 = (cand.ndof > 0) ? (cand.totalChi2 / cand.ndof) : cand.totalChi2;
-
-            if(verbose)
+            for (size_t c = 0; c < candidates.size(); ++c)
             {
-                std::cout << " Rank " << c + 1 << " | Total Chi2: " << cand.totalChi2 
-                          << " | NDOF: " << cand.ndof 
+                const auto &cand = candidates[c];
+                double reducedChi2 = (cand.ndof > 0) ? (cand.totalChi2 / cand.ndof) : cand.totalChi2;
+                std::cout << " Rank " << c + 1 << " | Total Chi2: " << cand.totalChi2
+                          << " | NDOF: " << cand.ndof
                           << " | Chi2/NDOF: " << reducedChi2 << "\n";
                 std::cout << "   X-Fit -> Intercept (a): " << cand.aX << " mm, Slope (b): " << cand.bX << ", Chi2_X: " << cand.chi2X << "\n";
                 std::cout << "   Y-Fit -> Intercept (a): " << cand.aY << " mm, Slope (b): " << cand.bY << ", Chi2_Y: " << cand.chi2Y << "\n";
-                std::cout << "   Clusters used:\n";
             }
-
-            if (c == 0)
-            {
-                // Check if all boards are populated with clusters
-                if (nNotSkippedBoards != cand.clusters.size())
-                    continue;
-
-                // Empty string
-                TString clustersPositions = "";
-
-                for (const auto &cl : cand.clusters)
-                {
-                    if (verbose)
-                    {
-                    std::cout << "     Board " << cl.board 
-                              << " (" << (cl.coordType == 1 ? "X" : "Y") << ")"
-                              << " | Strip: " << cl.strip 
-                              << " | Coord: " << cl.pos << " mm | Z: " << cl.z << " mm\n";
-                    }
-                    clustersPositions += Form("%f, ",cl.pos);
-                }
-                clustersPositions.Remove(clustersPositions.Length() - 2);
-                // Write clusterPosition to csv file
-                milleFile << clustersPositions << "\n";
-            }        
+            std::cin.get();
+        }
+        else if (verbose == 1)
+        {
+            const auto &cand = candidates[bestIdx];
+            double reducedChi2 = (cand.ndof > 0) ? (cand.totalChi2 / cand.ndof) : cand.totalChi2;
+            std::cout << " Rank 1 | Total Chi2: " << cand.totalChi2
+                      << " | NDOF: " << cand.ndof
+                      << " | Chi2/NDOF: " << reducedChi2 << "\n";
+            std::cout << "   X-Fit -> Intercept (a): " << cand.aX << " mm, Slope (b): " << cand.bX << ", Chi2_X: " << cand.chi2X << "\n";
+            std::cout << "   Y-Fit -> Intercept (a): " << cand.aY << " mm, Slope (b): " << cand.bY << ", Chi2_Y: " << cand.chi2Y << "\n";
+            std::cin.get();
         }
 
-        // --- Fill Histograms using the Best Fit Candidate (Rank 1) ---
-        const auto &bestFit = candidates[0];
+        const auto &cand = candidates[bestIdx];
+
+        bool eventOk = true;
+        const float maxRelDev = 0.35f;
+
+        if (cand.clusters.empty() || nNotSkippedBoards != cand.clusters.size())
+        {
+            eventOk = false;
+        }
+        else
+        {
+            std::vector<float> q;
+            q.reserve(cand.clusters.size());
+            float meanCharge = 0.0f;
+            for (const auto &cl : cand.clusters)
+            {
+                q.push_back(cl.charge);
+                meanCharge += cl.charge;
+            }
+            meanCharge /= q.size();
+
+            // Median: robust agains outliers
+            std::sort(q.begin(), q.end());
+            const size_t n = q.size();
+            const float refCharge = (n % 2) ? q[n / 2] : 0.5f * (q[n / 2 - 1] + q[n / 2]);
+
+            if (verbose)
+                std::cout << "\t\tMean charge: " << meanCharge
+                          << " | Median charge: " << refCharge << std::endl;
+
+            int nOutliers = 0;
+            for (const auto &cl : cand.clusters)
+            {
+                const float deltaCharge = cl.charge - refCharge;
+                const bool outlier = !(refCharge > 0.0f) ||
+                                     std::abs(deltaCharge) > maxRelDev * refCharge;
+                if (outlier)
+                    ++nOutliers;
+                if (verbose)
+                {
+                    std::cout << " \t\tBoard " << cl.board
+                              << " (" << (cl.coordType == 1 ? "X" : "Y") << ")"
+                              << " | Strip: " << cl.strip
+                              << " | Coord: " << cl.pos << " mm | Z: " << cl.z << " mm"
+                              << " | Charge: " << cl.charge
+                              << " | Delta Charge: " << deltaCharge
+                              << (outlier ? " | OUTLIER" : "")
+                              << std::endl;
+                }
+            }
+
+            if (nOutliers > 0)
+            {
+                if (verbose)
+                    std::cout << "\t\tWARNING: " << nOutliers
+                              << " cluster(s) in best fit deviate from the median charge." << std::endl;
+                eventOk = false;
+            }
+            else if (verbose)
+            {
+                std::cout << "\t\tClusters in best fit are all near each other in charge value." << std::endl;
+            }
+        }
+
+        if (!eventOk)
+            continue;
+
+        // --- Calculate Pulls for the Best Fit Candidate ---
+        const auto &bestFit = cand;
+
+        std::vector<double> zX_fit, zY_fit;
+        for (const auto &clRef : bestFit.clusters)
+        {
+            if (clRef.coordType == 1)
+                zX_fit.push_back(clRef.z);
+            else
+                zY_fit.push_back(clRef.z);
+        }
+
+        auto [zMean_X, sumSqZ_X] = calc_sum_sq_z(zX_fit);
+        auto [zMean_Y, sumSqZ_Y] = calc_sum_sq_z(zY_fit);
+
+        double sig02 = spatialResolution * spatialResolution;
+
+        std::vector<ClusterPullInfo> pullInfos(bestFit.clusters.size());
+        bool trackSatisfiesPullCut = true;
+
+        for (size_t idx = 0; idx < bestFit.clusters.size(); ++idx)
+        {
+            const auto &clRef = bestFit.clusters[idx];
+            double fit_pred = 0.0;
+            double slope = 0.0;
+            double sigma_fit2 = 0.0;
+
+            if (clRef.coordType == 1)
+            { // X
+                fit_pred = bestFit.aX + bestFit.bX * clRef.z;
+                slope = bestFit.bX;
+                double z_diff = clRef.z - zMean_X;
+                sigma_fit2 = sig02 * ((1.0 / zX_fit.size()) + (z_diff * z_diff) / sumSqZ_X);
+            }
+            else
+            { // Y
+                fit_pred = bestFit.aY + bestFit.bY * clRef.z;
+                slope = bestFit.bY;
+                double z_diff = clRef.z - zMean_Y;
+                sigma_fit2 = sig02 * ((1.0 / zY_fit.size()) + (z_diff * z_diff) / sumSqZ_Y);
+            }
+
+            double residual = clRef.pos - fit_pred;
+            double sigma_residual = std::sqrt(std::max(1e-9, sig02 - sigma_fit2));
+            double pull = residual / sigma_residual;
+
+            pullInfos[idx] = {fit_pred, slope, residual, sigma_residual, pull};
+
+            if (std::abs(pull - targetPull) > pullTolerance)
+            {
+                trackSatisfiesPullCut = false;
+            }
+        }
+
+        if (!trackSatisfiesPullCut)
+            continue;
+
+        // --- Fill Histograms ---
         float chargeSum = 0.0;
         int nBoardsWithCluster = 0;
         float cog_x = -1.0;
         float cog_y = -1.0;
 
-        for (const auto &clRef : bestFit.clusters)
+        for (size_t idx = 0; idx < bestFit.clusters.size(); ++idx)
         {
+            const auto &clRef = bestFit.clusters[idx];
+            const auto &pInfo = pullInfos[idx];
             int b = clRef.board;
             size_t k = clRef.index;
 
             const auto &rawClus = clusters[b]->at(k);
 
-            float charge = GetClusterMIPCharge(rawClus);
-            float pos = GetClusterCOG(rawClus);
-            float eta = GetClusterEta(rawClus);
+            float charge = clRef.charge;
+            float pos = clRef.strip;
+            float eta = GetClusterEta(rawClus, &cal);
             int seed = GetClusterSeed(rawClus, &cal);
+
+            hPull[b]->Fill(pInfo.pull);
+            hPullVsSlope[b]->Fill(pInfo.pull, pInfo.slope);
 
             hCharge[b]->Fill(charge);
             hAllClusterCharge->Fill(charge);
@@ -523,7 +701,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
             hMeanCharge->Fill(meanCharge);
         }
 
-        if(verbose)
+        if (verbose)
         {
             std::cout << "Press ENTER to continue to next event...";
             std::cin.get();
@@ -534,12 +712,16 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
 
     for (int b = 0; b < NBoards; b++)
     {
-        if (SkipBoards[b]) continue;
+        if (SkipBoards[b])
+            continue;
         hCharge[b]->Write();
         hPos[b]->Write();
         hChargevsPos[b]->Write();
         hEta[b]->Write();
         hChargevsEta[b]->Write();
+
+        hPull[b]->Write();
+        hPullVsSlope[b]->Write();
 
         if (regionCut[b])
         {
@@ -559,8 +741,6 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
 
     output_file->Write();
     output_file->Close();
-    milleFile.close();
-    for (Long64_t i = 0; i < nEntries; i++)
 
     f->Close();
 
