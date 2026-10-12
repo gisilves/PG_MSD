@@ -140,7 +140,8 @@ void generateCombinations(size_t boardIdx,
                           const std::vector<int> &activeBoards,
                           const std::vector<std::vector<ClusterRef>> &validClustersPerBoard,
                           std::vector<ClusterRef> &currentCombination,
-                          std::vector<TrackCandidate> &candidates)
+                          std::vector<TrackCandidate> &candidates,
+                          bool keepAll)
 {
     if (boardIdx == activeBoards.size())
     {
@@ -172,7 +173,10 @@ void generateCombinations(size_t boardIdx,
 
         cand.totalChi2 = cand.chi2X + cand.chi2Y;
         cand.ndof = static_cast<int>(zX.size() + zY.size()) - 4;
-        candidates.push_back(cand);
+        if (keepAll || candidates.empty())
+            candidates.push_back(cand);
+        else if (cand.totalChi2 < candidates[0].totalChi2)
+            candidates[0] = cand;
         return;
     }
 
@@ -180,7 +184,7 @@ void generateCombinations(size_t boardIdx,
     for (const auto &cl : validClustersPerBoard[b])
     {
         currentCombination.push_back(cl);
-        generateCombinations(boardIdx + 1, activeBoards, validClustersPerBoard, currentCombination, candidates);
+        generateCombinations(boardIdx + 1, activeBoards, validClustersPerBoard, currentCombination, candidates, keepAll);
         currentCombination.pop_back();
     }
 }
@@ -212,6 +216,11 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     const std::vector<int> shift = {0, 0, -5, -10, 0, 0, 0, 0}; // strips
     calib cal;
     bool is_calib = read_calib(calibration_file, &cal, 1792, 0, false);
+    if (!is_calib)
+    {
+        std::cerr << "Cannot read calibration file " << calibration_file << std::endl;
+        return 1;
+    }
 
     std::vector<TCutG *> regionCut(NBoards, nullptr);
     {
@@ -383,6 +392,8 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     }
 
     Long64_t nRegionSelected = 0;
+    const size_t maxCombinations = 10000;
+    Long64_t nSkippedCombos = 0;
 
     std::vector<std::vector<ClusterRef>> validClustersPerBoard(NBoards);
     std::vector<ClusterRef> currentCombination;
@@ -434,6 +445,19 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
         if (!allActiveHaveClusters)
             continue;
 
+        size_t nCombos = 1;
+        for (int b : activeBoards)
+        {
+            nCombos *= validClustersPerBoard[b].size();
+            if (nCombos > maxCombinations)
+                break;
+        }
+        if (nCombos > maxCombinations)
+        {
+            nSkippedCombos++;
+            continue;
+        }
+
         if (verbose)
         {
             std::cout << "========================================================\n";
@@ -460,7 +484,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
 
         candidates.clear();
         currentCombination.clear();
-        generateCombinations(0, activeBoards, validClustersPerBoard, currentCombination, candidates);
+        generateCombinations(0, activeBoards, validClustersPerBoard, currentCombination, candidates, verbose >= 2);
 
         if (candidates.empty())
             continue;
@@ -670,7 +694,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
                 hRegionCharge[b]->Fill(charge);
                 hRegionEta[b]->Fill(eta);
                 hRegionChargeVsEta[b]->Fill(eta, charge);
-                hRegionNumStrips[b]->Fill(clusters[b]->size());
+                hRegionNumStrips[b]->Fill(rawClus.width);
                 hRegionSeed[b]->Fill(seed);
 
                 reg_event = i;
@@ -687,9 +711,9 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
             nBoardsWithCluster++;
 
             if (b == 2)
-                cog_x = pos;
-            if (b == 3)
                 cog_y = pos;
+            if (b == 3)
+                cog_x = pos;
         }
 
         if (cog_x != -1.0 && cog_y != -1.0)
@@ -709,6 +733,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     }
 
     std::cout << "\nClusters falling inside regionCut: " << nRegionSelected << std::endl;
+    std::cout << "Events skipped (> " << maxCombinations << " combinations): " << nSkippedCombos << std::endl;
 
     for (int b = 0; b < NBoards; b++)
     {
