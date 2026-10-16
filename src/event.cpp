@@ -833,9 +833,9 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
         }
       }
     }
-    if (seeds.size() > maxClusters || seeds.size() == 0) // cut on max number of clusters
+    if (seeds.size() > maxClusters) // cut on max number of clusters
     {
-      throw "Error: too many or no seeds. ";
+      throw std::runtime_error("Error: too many seeds. ");
     }
   }
 
