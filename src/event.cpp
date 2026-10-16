@@ -801,7 +801,69 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
     highThresh = temp;
   }
 
-  for (uint i = 0; i < signal->size(); i++)
+  const int nStrips = (int)signal->size();
+
+  // Value of a strip in the units of the thresholds (S/N or ADC)
+  auto stripValue = [&](int s) -> float
+  {
+    float stripValue = signal->at(s);
+    return absoluteThresholds ? stripValue : stripValue / cal->sig.at(s);
+  };
+
+  // Grows the cluster from the seed in direction dir (-1 = left, +1 = right).
+  // A bad strip is bridged (included) only if it is isolated, i.e. the strip
+  // right after it is good and over the low threshold.
+  auto growCluster = [&](int seed, int dir, int &overSEED) -> int
+  {
+    int n = 0;
+    while (true)
+    {
+      int s = seed + dir * (n + 1);
+      if (s < 0 || s >= nStrips) // outside the detector
+        break;
+
+      if (verbose)
+      {
+        std::cout << "Seed " << seed << " strip " << s << " status " << cal->status.at(s) << std::endl;
+      }
+
+      if (cal->status.at(s) == 0) // strip is good according to calibration
+      {
+        float v = stripValue(s);
+        if (v <= lowThresh) // not over the lower threshold: stop
+          break;
+
+        n++;
+        if (verbose)
+        {
+          std::cout << "Strip is over Lthresh" << std::endl;
+        }
+        if (v > highThresh) // also over the higher threshold: could be the real seed of the cluster
+        {
+          overSEED++;
+        }
+      }
+      else // bad strip: bridge it only if it is isolated
+      {
+        int s2 = s + dir; // strip right after the bad one
+        if (s2 < 0 || s2 >= nStrips) // outside the detector
+          break;
+        if (cal->status.at(s2) != 0) // two consecutive bad strips: stop
+          break;
+        if (stripValue(s2) <= lowThresh) // nothing to bridge to: stop
+          break;
+
+        n++; // include the bad strip; the next iteration handles s2
+        if (verbose)
+        {
+          std::cout << "Bridging bad strip " << s << std::endl;
+        }
+      }
+    }
+    return n;
+  };
+
+  for (int i = 0; i < nStrips; i++)
   {
     if (absoluteThresholds) // Thresholds are in units of ADC
     {
@@ -849,29 +911,21 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
   {
     for (uint current_seed_numb = 0; current_seed_numb < seeds.size(); current_seed_numb++) // looping on all the cluster seeds
     {
-
-      // starting from the seed strip we look to both its right and its left to find strips to add to the cluster
-      bool overThreshL = true;
-      bool overThreshR = true;
-      int overSEED = 1;
-      int L = 0;
-      int R = 0;
-      //
-
+      int seed = seeds.at(current_seed_numb);
+      int overSEED = 1;              // number of strips over the high threshold (the seed counts as 1)
       std::vector<float> clusterADC; // ADC value of strips in the clusters
 
       if (symmetric) // Cluster is defined as a fixed number of strips neighboring the seed
       {
-        if (seeds.at(current_seed_numb) - symmetric_width >= 0 && (uint)(seeds.at(current_seed_numb) + symmetric_width) < signal->size())
+        if (seed - symmetric_width >= 0 && seed + symmetric_width < nStrips)
         {
-          std::copy(signal->begin() + (seeds.at(current_seed_numb) - symmetric_width),
-                    signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
+          std::copy(signal->begin() + (seed - symmetric_width),
+                    signal->begin() + (seed + symmetric_width) + 1,
                     back_inserter(clusterADC));
 
           if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0.f) > 0)
           {
-
-            new_cluster.address = seeds.at(current_seed_numb) - symmetric_width;
+            new_cluster.address = seed - symmetric_width;
             new_cluster.width = 2 * symmetric_width + 1;
             new_cluster.ADC = clusterADC;
             new_cluster.over = -999;
@@ -881,8 +935,8 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
             nclust++;
 
             // Zeroing the signal of strips just used to create the cluster (to avoid double counting)
-            std::fill(signal->begin() + (seeds.at(current_seed_numb) - symmetric_width),
-                      signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
+            std::fill(signal->begin() + (seed - symmetric_width),
+                      signal->begin() + (seed + symmetric_width) + 1,
                       0);
           }
         }
@@ -893,105 +947,18 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
       }
       else
       {
-        while (overThreshL) // Will move to the left of the seed
-        {
-          int stripL = seeds.at(current_seed_numb) - L - 1;
-          if (stripL < 0) // we are outside the detector
-          {
-            overThreshL = false;
-            continue;
-          }
+        // starting from the seed strip we look to both its left and its right to find strips to add to the cluster
+        int L = growCluster(seed, -1, overSEED);
+        int R = growCluster(seed, +1, overSEED);
 
-          if (verbose)
-          {
-            std::cout << "Seed " << seeds.at(current_seed_numb) << " stripL " << stripL << " status " << cal->status.at(stripL) << std::endl;
-          }
-
-          if (cal->status.at(stripL) == 0) // strip is good according to calibration
-          {
-            float value = signal->at(stripL);
-            if (!absoluteThresholds)
-            {
-              value = value / cal->sig.at(stripL); // value in terms of S/N
-            }
-
-            if (value > lowThresh) // strip is over the lower threshold, we will add it to the cluster
-            {
-              L++;
-              if (verbose)
-              {
-                std::cout << "Strip is over Lthresh" << std::endl;
-              }
-              if (value > highThresh) // strip is also over the higher threshold, it could actually be the real seed of the cluster
-              {
-                overSEED++; // we keep track of how many strips are over the higher threshold
-              }
-            }
-            else
-            {
-              overThreshL = false;
-            }
-          }
-          else
-          {
-            overThreshL = false;
-          }
-        }
-
-        while (overThreshR) // Will move to the right of the seed, everything is the same as the previous step
-        {
-          uint stripR = seeds.at(current_seed_numb) + R + 1;
-          if (stripR >= signal->size())
-          {
-            overThreshR = false;
-            continue;
-          }
-
-          if (verbose)
-          {
-            std::cout << "Seed " << seeds.at(current_seed_numb) << " stripR " << stripR << " status " << cal->status.at(stripR) << std::endl;
-          }
-
-          if (cal->status.at(stripR) == 0)
-          {
-            float value = signal->at(stripR);
-
-            if (!absoluteThresholds)
-            {
-              value = value / cal->sig.at(stripR);
-            }
-
-            if (value > lowThresh)
-            {
-              R++;
-              if (verbose)
-              {
-                std::cout << "Strip is over Lthresh" << std::endl;
-              }
-              if (value > highThresh)
-              {
-                overSEED++;
-              }
-            }
-            else
-            {
-              overThreshR = false;
-            }
-          }
-          else
-          {
-            overThreshR = false;
-          }
-        }
-
-        std::copy(signal->begin() + (seeds.at(current_seed_numb) - L),
-                  signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
+        std::copy(signal->begin() + (seed - L),
+                  signal->begin() + (seed + R) + 1,
                   back_inserter(clusterADC)); // we copy the strips that are part of the cluster to the buffer vector
 
         if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0.f) > 0)
         {
           // setting parameters to the correct value in the cluster struct
-          new_cluster.address = seeds.at(current_seed_numb) - L;
+          new_cluster.address = seed - L;
           new_cluster.width = (R + L) + 1;
           new_cluster.ADC = clusterADC;
           new_cluster.over = overSEED;
@@ -1002,13 +969,13 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
 
           if (verbose)
           {
-            std::cout << "Add: " << seeds.at(current_seed_numb) - L << " Width: " << (R + L) + 1 << std::endl;
+            std::cout << "Add: " << seed - L << " Width: " << (R + L) + 1 << std::endl;
             std::cout << std::endl;
           }
 
           // Zeroing the signal of strips just used to create the cluster (to avoid double counting)
-          std::fill(signal->begin() + (seeds.at(current_seed_numb) - L),
-                    signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
+          std::fill(signal->begin() + (seed - L),
+                    signal->begin() + (seed + R) + 1,
                     0);
         }
       }
@@ -1019,6 +986,6 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
   {
     std::cout << "Number of clusters found: " << nclust << std::endl;
   }
-  
+
   return clusters;
 }
