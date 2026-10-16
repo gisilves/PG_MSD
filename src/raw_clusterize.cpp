@@ -101,7 +101,7 @@ calib update_pedestals(TH1D **hADC, int NChannels, calib cal)
 
 int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int maxStrip,
                         int first_event, int NChannels, bool verb, bool dynped,
-                        bool invert, float maxCN, int cntype, int NVas,
+                        float maxCN, int cntype, int NVas,
                         float highthreshold, float lowthreshold, bool absolute,
                         bool symmetric, int symmetricwidth,
                         float sensor_pitch, int version, std::vector<std::string> input_files, int nevents = -1, std::string calibration_file = "", bool inVA = false, bool only_highest = false, bool silent = false)
@@ -415,24 +415,14 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
       {
         for (size_t i = 0; i != raw_event->size(); i++)
         {
-          if (cal.status[i] != 0)
-          {
-            signal.at(i) = 0; // channel has a non 0 status in calibration (problem with channel: noisy, dead etc..), setting signal to 0
-          }
-          else
-          {
+          
 
             signal.at(i) = (raw_event->at(i) - cal.ped[i]);
             if (dynped && signal.at(i) < 10) // if dynamic pedestals are enabled and signal is below 10 (probably not signal) we save the value to recalculate the pedestal
             {
               hADC[i]->Fill(raw_event->at(i));
             }
-
-            if (invert)
-            {
-              signal.at(i) = -signal.at(i); // one of the prototype DAQ boards had the analog output inverted
-            }
-          }
+          
         }
       }
       else
@@ -510,7 +500,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
 
           for (int ch = va * 64; ch < (va + 1) * 64; ch++) // Loop on VA channels, subtracting common mode noise to the signals before clustering
           {
-            signal.at(ch) = (cal.status[ch] != 0) ? 0 : signal.at(ch) - cn; // if the strip is bad, we set the signal to 0 and we don't subtract the common noise
+            signal.at(ch) = signal.at(ch) - cn;
           }
         }
         else
@@ -773,7 +763,6 @@ int main(int argc, char *argv[])
   bool absolute = false;
   bool verb = false;
   bool silent = false;
-  bool invert = false;
   bool dynped = false;
   bool inVA = false;
   bool only_highest = false;
@@ -807,7 +796,6 @@ int main(int argc, char *argv[])
   app.add_flag("--silent", silent, "Silent mode");
   app.add_flag("-s,--symmetric", symmetric, "Use symmetric cluster instead of double threshold");
   app.add_flag("-a,--absolute", absolute, "Use absolute ADC value instead of S/N");
-  app.add_flag("--invert", invert, "Invert signal");
   app.add_flag("--dynped", dynped, "Enable dynamic pedestals");
   app.add_flag("--inVA", inVA, "Select only clusters that are fully contained in a VA");
   app.add_flag("--highest", only_highest, "Only add highest cluster to histograms");
@@ -922,7 +910,7 @@ int main(int argc, char *argv[])
     doutput->cd();
     clusterize_detector(0, minADC_h, maxADC_h, minStrip, maxStrip,
                         first_event, NChannels, verb, dynped,
-                        invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
+                        maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                         symmetric, symmetricwidth,
                         sensor_pitch,
                         version,
@@ -941,7 +929,7 @@ int main(int argc, char *argv[])
       doutput->cd();
       clusterize_detector(i, minADC_h, maxADC_h, minStrip, maxStrip,
                           first_event, NChannels, verb, dynped,
-                          invert, maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
+                          maxCN, cntype, NVas, highthreshold, lowthreshold, absolute,
                           symmetric, symmetricwidth,
                           sensor_pitch,
                           version,
