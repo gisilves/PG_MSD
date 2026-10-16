@@ -805,14 +805,14 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
   {
     if (absoluteThresholds) // Thresholds are in units of ADC
     {
-      if (signal->at(i) > highThresh && cal->status.at(i) == 0)
+      if (signal->at(i) > highThresh && cal->status.at(i) == 0) // Only strips with good status are considered potential seeds
       {
         candidate_seeds.push_back(i); // Potential cluster seeds
       }
     }
     else // Thresholds are in units of S/N
     {
-      if (signal->at(i) / cal->sig.at(i) > highThresh && cal->status.at(i) == 0)
+      if (signal->at(i) / cal->sig.at(i) > highThresh && cal->status.at(i) == 0) // Only strips with good status are considered potential seeds
       {
         candidate_seeds.push_back(i);
       }
@@ -869,7 +869,7 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
                     signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
                     back_inserter(clusterADC));
 
-          if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0) > 0)
+          if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0.f) > 0)
           {
 
             new_cluster.address = seeds.at(current_seed_numb) - symmetric_width;
@@ -982,7 +982,7 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
                   signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
                   back_inserter(clusterADC)); // we copy the strips that are part of the cluster to the buffer vector
 
-        if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0) > 0)
+        if (std::accumulate(clusterADC.begin(), clusterADC.end(), 0.f) > 0)
         {
           // setting parameters to the correct value in the cluster struct
           new_cluster.address = seeds.at(current_seed_numb) - L;
@@ -1006,31 +1006,5 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
       }
     }
   }
-
-  // Order clusters by signal (descending)
-  // We need to compute total signal for each cluster, so we can sort by it
-  std::vector<float> clusterSignals;
-  clusterSignals.reserve(clusters.size());
-  for (const auto &cl : clusters)
-  {
-    clusterSignals.push_back(GetClusterSignal(cl));
-  }
-  std::sort(clusterSignals.begin(), clusterSignals.end(), std::greater<float>());
-
-  // Reorder clusters by signal
-  std::vector<cluster> orderedClusters;
-  orderedClusters.reserve(clusters.size());
-  for (const auto &sig : clusterSignals)
-  {
-    for (const auto &cl : clusters)
-    {
-      if (GetClusterSignal(cl) == sig)
-      {
-        orderedClusters.push_back(cl);
-        break;
-      }
-    }
-  }
-
   return clusters;
 }
