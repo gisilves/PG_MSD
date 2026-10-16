@@ -863,7 +863,7 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
 
       if (symmetric) // Cluster is defined as a fixed number of strips neighboring the seed
       {
-        if (seeds.at(current_seed_numb) - symmetric_width > 0 && (uint)(seeds.at(current_seed_numb) + symmetric_width) < signal->size())
+        if (seeds.at(current_seed_numb) - symmetric_width >= 0 && (uint)(seeds.at(current_seed_numb) + symmetric_width) < signal->size())
         {
           std::copy(signal->begin() + (seeds.at(current_seed_numb) - symmetric_width),
                     signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
@@ -878,6 +878,13 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
             new_cluster.over = -999;
             new_cluster.board = board;
             clusters.push_back(new_cluster);
+
+            nclust++;
+
+            // Zeroing the signal of strips just used to create the cluster (to avoid double counting)
+            std::fill(signal->begin() + (seeds.at(current_seed_numb) - symmetric_width),
+                      signal->begin() + (seeds.at(current_seed_numb) + symmetric_width) + 1,
+                      0);
           }
         }
         else // Cluster can't be contained in the detector
@@ -999,6 +1006,8 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
             std::cout << "Add: " << seeds.at(current_seed_numb) - L << " Width: " << (R + L) + 1 << std::endl;
             std::cout << std::endl;
           }
+
+          // Zeroing the signal of strips just used to create the cluster (to avoid double counting)
           std::fill(signal->begin() + (seeds.at(current_seed_numb) - L),
                     signal->begin() + (seeds.at(current_seed_numb) + R) + 1,
                     0);
