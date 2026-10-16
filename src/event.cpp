@@ -83,6 +83,9 @@ int GetClusterSeed(cluster clus, calib *cal) // Strip corresponding to the seed
 
   for (uint i = 0; i < ADC.size(); i++)
   {
+    // Skipping bad channels
+    if (cal->status.at(clus.address + i) != 0)
+      continue;
     if (ADC.at(i) / cal->sig.at(clus.address + i) > sn_max)
     {
       sn_max = ADC.at(i) / cal->sig.at(clus.address + i);
@@ -557,11 +560,20 @@ int GetClusterEtaLeftStrip(cluster clus, calib *cal)
 float GetClusterEta(cluster clus, calib *cal)
 {
   std::vector<float> ADC = GetClusterADC(clus);
-  if (ADC.size() == 1) return 1.0;
-  int l = GetClusterEtaLeftStrip(clus, cal) - clus.address;
+  if (ADC.size() <= 1) return 1.0;
+
+  int left_strip = GetClusterEtaLeftStrip(clus, cal);
+  if (left_strip == -999) return -999.0; // Fail gracefully on bad seed
+
+  int l = left_strip - clus.address;
+
+  // Boundary check safety guard
+  if (l < 0 || static_cast<size_t>(l + 1) >= ADC.size()) {
+    return -999.0;
+  }
+
   return ADC.at(l) / (ADC.at(l) + ADC.at(l + 1));
 }
-
 
 float GetPosition(cluster clus, float sensor_pitch) // conversion to mm
 {
@@ -897,7 +909,9 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
     }
     if (seeds.size() > maxClusters) // cut on max number of clusters
     {
-      throw std::runtime_error("Error: too many seeds. ");
+      if (verbose)
+        std::cout << "Error: too many seeds. " << std::endl;
+      return clusters;
     }
   }
 
