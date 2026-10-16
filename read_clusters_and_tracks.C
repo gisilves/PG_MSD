@@ -145,7 +145,12 @@ void generateCombinations(size_t boardIdx,
 {
     if (boardIdx == activeBoards.size())
     {
-        std::vector<double> zX, posX, zY, posY;
+        // Static buffers: the leaf does not recurse, so reuse avoids 4 allocations per combination
+        static std::vector<double> zX, posX, zY, posY;
+        zX.clear();
+        posX.clear();
+        zY.clear();
+        posY.clear();
         for (const auto &cl : currentCombination)
         {
             if (cl.coordType == 1) // X
@@ -164,7 +169,6 @@ void generateCombinations(size_t boardIdx,
             return;
 
         TrackCandidate cand;
-        cand.clusters = currentCombination;
 
         if (!LinearFit(zX, posX, cand.aX, cand.bX, cand.chi2X))
             return;
@@ -172,11 +176,17 @@ void generateCombinations(size_t boardIdx,
             return;
 
         cand.totalChi2 = cand.chi2X + cand.chi2Y;
+
+        // Best-only mode: skip the cluster copy unless this fit wins
+        if (!keepAll && !candidates.empty() && cand.totalChi2 >= candidates[0].totalChi2)
+            return;
+
+        cand.clusters = currentCombination;
         cand.ndof = static_cast<int>(zX.size() + zY.size()) - 4;
         if (keepAll || candidates.empty())
-            candidates.push_back(cand);
-        else if (cand.totalChi2 < candidates[0].totalChi2)
-            candidates[0] = cand;
+            candidates.push_back(std::move(cand));
+        else
+            candidates[0] = std::move(cand);
         return;
     }
 
@@ -195,7 +205,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
 
     // Pull selection cuts
     const double targetPull = 0.0;
-    const double pullTolerance = 100.0; // Keeps hits with |pull - targetPull| <= pullTolerance
+    const double pullTolerance = 100; // Keeps hits with | |pull| - targetPull| <= pullTolerance
 
     const int NBoards = 8;
     const std::vector<int> SkipBoards = {0, 1, 0, 0, 0, 0, 1, 0}; // 0: include, 1: skip
@@ -210,8 +220,8 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     const std::vector<int> mirror = {0, 0, 1, 1, 0, 0, 1, 1};          // 0: no mirror, 1: mirror
     const std::vector<int> z_pos = {0, 5, 55, 60, 110, 115, 165, 170}; // mm
 
-    const std::vector<int> minStrip = {135, 0, 1416, 800, 135, 955, 0, 760};
-    const std::vector<int> maxStrip = {383, 1791, 1660, 850, 383, 1020, 1791, 850};
+    const std::vector<int> minStrip = {100, 0, 1300, 700, 100, 900, 0, 700};
+    const std::vector<int> maxStrip = {400, 1791, 1800, 900, 400, 1100, 1791, 900};
 
     const std::vector<int> shift = {0, 0, -5, -10, 0, 0, 0, 0}; // strips
     calib cal;
@@ -420,14 +430,14 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
             validClustersPerBoard[b].reserve(clusters[b]->size());
             for (size_t k = 0; k < clusters[b]->size(); k++)
             {
-                double cog = GetClusterCOGall(clusters[b]->at(k));
+                double cog = GetClusterCOGall(clusters[b]->at(k)) + shift[b]; // aligned strip position
                 if (cog >= minStrip[b] && cog <= maxStrip[b])
                 {
                     ClusterRef cl;
                     cl.board = b;
                     cl.index = k;
-                    cl.strip = cog + shift[b];
-                    cl.pos = StripToCoord(cog + shift[b], b, mirror);
+                    cl.strip = cog;
+                    cl.pos = StripToCoord(cog, b, mirror);
                     cl.z = static_cast<double>(z_pos[b]);
                     cl.coordType = coordinate[b];
                     cl.charge = GetClusterMIPCharge(clusters[b]->at(k));
@@ -649,7 +659,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
 
             pullInfos[idx] = {fit_pred, slope, residual, sigma_residual, pull};
 
-            if (std::abs(pull - targetPull) > pullTolerance)
+            if (std::abs(std::abs(pull) - targetPull) > pullTolerance)
             {
                 trackSatisfiesPullCut = false;
             }
