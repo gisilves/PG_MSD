@@ -373,16 +373,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
     std::cout << "\nProcessing " << entries << " entries, starting from event " << first_event << std::endl;
   }
 
-  bool BL_monster = false;
-  if (version == 2023 || version == 2024)
-  {
-    AMS = true;
-    if (version == 2024)
-    {
-      BL_monster = true;
-    }
-  }
-
   for (int index_event = first_event; index_event < entries; index_event++) // looping on the events
   {
     chain->GetEntry(index_event);
@@ -550,14 +540,6 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
           std::cout << "Highest strip: " << *max_element(signal.begin(), signal.end()) << std::endl;
 
         hHighestStrip->Fill(*max_element(signal.begin(), signal.end()));
-
-        // if it's BL_monster we keep only channels 320-383, 448-639, deleting the others from the vector
-        if (BL_monster)
-        {
-          signal.erase(signal.begin(), signal.begin() + 320);
-          signal.erase(signal.begin() + 64, signal.begin() + 128);
-          signal.erase(signal.begin() + 256, signal.end());
-        }
 
         result = clusterize_event(&cal, &signal, highthreshold, lowthreshold, // clustering function
                                   symmetric, symmetricwidth, absolute, board, verb);
