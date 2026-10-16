@@ -858,7 +858,6 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
       int R = 0;
       //
 
-      int width = 0;                 // cluster width
       std::vector<float> clusterADC; // ADC value of strips in the clusters
 
       if (symmetric) // Cluster is defined as a fixed number of strips neighboring the seed
@@ -1015,5 +1014,11 @@ std::vector<cluster> clusterize_event(calib *cal, std::vector<float> *signal,
       }
     }
   }
+
+  if (verbose)
+  {
+    std::cout << "Number of clusters found: " << nclust << std::endl;
+  }
+  
   return clusters;
 }
