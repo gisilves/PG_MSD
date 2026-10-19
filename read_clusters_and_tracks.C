@@ -220,10 +220,11 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
     const std::vector<int> mirror = {0, 0, 1, 1, 0, 0, 1, 1};          // 0: no mirror, 1: mirror
     const std::vector<int> z_pos = {0, 5, 55, 60, 110, 115, 165, 170}; // mm
 
-    const std::vector<int> minStrip = {100, 0, 1300, 700, 100, 900, 0, 700};
-    const std::vector<int> maxStrip = {400, 1791, 1800, 900, 400, 1100, 1791, 900};
+    const std::vector<int> minStrip = {0, 0, 1000, 770, 0, 960, 1000, 770};
+    const std::vector<int> maxStrip = {600, 1791, 1791, 830, 800, 1020, 1791, 830};
 
-    const std::vector<int> shift = {0, 0, -5, -10, 0, 0, 0, 0}; // strips
+
+    const std::vector<int> shift = {0, 0, 0, 0, 0, 0, 0, 0}; // strips
     calib cal;
     bool is_calib = read_calib(calibration_file, &cal, 1792, 0, false);
     if (!is_calib)
@@ -547,7 +548,7 @@ int read_clusters_and_tracks(TString filename, TString output_filename, TString 
         const auto &cand = candidates[bestIdx];
 
         bool eventOk = true;
-        const float maxRelDev = 0.35f;
+        const float maxRelDev = 0.50f;
 
         if (cand.clusters.empty() || nNotSkippedBoards != cand.clusters.size())
         {

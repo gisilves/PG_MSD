@@ -268,6 +268,28 @@ int read_clusters(TString filename, TString output_filename, TString calibration
             continue;
         */
        
+        // Check if all boards have a cluster
+        bool allhaveCluster = true;
+        for (int b = 0; b < NBoards; b++)
+        {
+            if (SkipBoards[b])
+                continue;
+
+            trees[b]->GetEntry(i);
+
+            if (!clusters[b] || clusters[b]->empty())
+                continue;
+
+            if (clusters[b]->size() == 0)
+            {
+                allhaveCluster = false;
+                break;
+            }
+        }
+
+        if (!allhaveCluster)
+            continue;
+
         float chargeSum = 0;
         int nBoardsWithCluster = 0;
 

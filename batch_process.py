@@ -7,10 +7,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from collections import defaultdict
 import time
 
-rawfile_folder = '/mnt/e/CRSPACE/'
-calib_folder = '/mnt/f/CRSPACE/calfiles/'
-root_folder = '/mnt/f/CRSPACE/rootfiles/'
-cluster_folder = '/mnt/f/CRSPACE/clusfiles/'
+rawfile_folder = '../CernBox/CRSPACE/'
+calib_folder = '../CernBox/CalFiles/'
+root_folder = '../CernBox/RootFiles/'
+cluster_folder = '../CernBox/ClusFiles/'
+
 
 def process_cal(calrun, silent=False):
     # Find calibration .dat file in rawfiles folder
@@ -53,7 +54,7 @@ def process_data(datarun, nevents, silent=False):
     # where ##### is the data run number 0 padded to 5 digits
     
     datafile = None
-    search_string = 'SCD_RUN' + str(datarun).zfill(5) + '_MIX_'
+    search_string = 'SCD_RUN' + str(datarun).zfill(5) + '_BEAM_'
 
     for filename in os.listdir(rawfile_folder):
         if filename.startswith(search_string):

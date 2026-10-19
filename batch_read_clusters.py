@@ -36,7 +36,7 @@ def main():
                 runs.append((int(calrun), int(datarun)))
 
     for i, (calrun, datarun) in enumerate(runs, 1):
-        # Find the correspondinf cluster file
+        # Find the corresponding cluster file
         clusfile = f"clus_run{datarun:05d}.root"
         if clusfile not in root_files:
             print(f"Cluster file {clusfile} not found in the cluster folder")

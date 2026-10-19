@@ -3,8 +3,8 @@ import os
 import argparse
 import subprocess
 
-rawfile_folder = '/mnt/e/CRSPACE/'
-calib_folder = '/mnt/f/CRSPACE/calfiles/'
+rawfile_folder = '../CernBox/CRSPACE/'
+calib_folder = '../CernBox/CalFiles/'
 
 def process_cal(calrun, silent=False):
     # Find calibration .dat file in rawfiles folder
