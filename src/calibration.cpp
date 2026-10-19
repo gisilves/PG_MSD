@@ -464,6 +464,12 @@ int compute_calibration(TChain &chain, TString output_filename, TCanvas &c1,
         strip_status[iCh] = 3; // Noisy/Dead strip according to both raw sigma and sigma
       }
     }
+
+    // TEMP: if strip is first of VA, set to status 5
+    if (iCh % 64 == 0)
+    {
+      strip_status[iCh] = 5;
+    }
   }
 
   std::vector<bool> combined_status_vec(NChannels, false);
@@ -780,7 +786,7 @@ int main(int argc, char *argv[])
   app.add_flag("-m,--multiple", multiple, "Save calibrations in multiple .cal files");
   app.add_flag("--shoeCN", shoeCN, "Use SHOE CN algorithm");
   app.add_flag("--silent", silent, "Silent mode");
-
+  
   app.add_option("--cn", cn_type, "Common noise algorithm: 0=median, 1=mean, 2=self tuning, 3=iterative clipped mean");
   app.add_option("--threshold", cn_threshold, "Threshold for SHOE CN algorithm");
   app.add_option("--max_ADC", max_ADC, "Maximum ADC value for noise plots");

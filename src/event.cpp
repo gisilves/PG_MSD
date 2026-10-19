@@ -575,7 +575,13 @@ float GetClusterEta(cluster clus, calib *cal)
   return ADC.at(l) / (ADC.at(l) + ADC.at(l + 1));
 }
 
-float GetPosition(cluster clus, float sensor_pitch) // conversion to mm
+float GetPosition(cluster clus, calib *cal, float sensor_pitch) // conversion to mm
+{
+  float position_mm = GetClusterCOG(clus, cal) * sensor_pitch;
+  return position_mm;
+}
+
+float GetPositionAll(cluster clus, float sensor_pitch) // conversion to mm
 {
   float position_mm = GetClusterCOGall(clus) * sensor_pitch;
   return position_mm;

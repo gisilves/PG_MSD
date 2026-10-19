@@ -11,7 +11,7 @@
 #include <numeric>
 #include <sstream>
 
-#define MIP_ADC 40 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
+#define MIP_ADC 80 // 50ADC: DAMPE 300um 15ADC:FOOT 150um
 #define maxClusters 100
 
 struct cluster
@@ -71,7 +71,9 @@ float GetClusterEta(cluster clus, calib *cal);
 
 int GetClusterEtaLeftStrip(cluster clus, calib *cal);
 
-float GetPosition(cluster clus, float sensor_pitch);
+float GetPosition(cluster clus, calib *cal, float sensor_pitch);
+
+float GetPositionAll(cluster clus, float sensor_pitch);
 
 float GetClusterMIPCharge(cluster clus);
 

@@ -596,7 +596,7 @@ int clusterize_detector(int board, int minADC_h, int maxADC_h, int minStrip, int
             }
 
             hClusterCog->Fill(GetClusterCOGall(result.at(i)));
-            hBeamProfile->Fill(GetPosition(result.at(i), sensor_pitch));
+            hBeamProfile->Fill(GetPosition(result.at(i), &cal, sensor_pitch));
             hSeedPos->Fill(GetClusterSeed(result.at(i), &cal));
             hNstrip->Fill(GetClusterWidth(result.at(i)));
 
